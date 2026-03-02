@@ -69,7 +69,8 @@ setup_oracle_agent = "utils.setup_oracle_agent:setup_oracle_agent"
 setup_env = "utils.setup:main"
 task_validator = "utils.task_validator.validate_task:main"
 test = "pytest:main"
-visualize_tasks = "utils.visualizer.commands:app"
+dataset = "utils.explorer.commands:app"
+prebuild_checks = "utils.docker.prebuild:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

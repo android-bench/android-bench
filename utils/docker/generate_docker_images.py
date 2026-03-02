@@ -13,27 +13,30 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""
-Generates docker images for each task in the task json file.
-"""
+"""Generates docker images for each task in the task json file."""
 
 import argparse
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import logging
 import os
+from pathlib import Path
+import shutil
 import subprocess
 import sys
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from pathlib import Path
-from typing import Dict, Any, List, Tuple
 import threading
-import shutil
 import time
-import yaml
+from typing import Any, Dict, List, Tuple
+from common.loader import load_all_tasks
+from common.logger import configure_logging
 from rich import print
 from rich.console import Group
 from rich.live import Live
 from rich.panel import Panel
+import yaml
+from .prebuild import run_prebuild_checks
 
-from common.loader import load_all_tasks
+logger = logging.getLogger(__name__)
+configure_logging()
 
 tmp_dir = "/tmp/android-bench-repos"
 
@@ -81,12 +84,7 @@ class BuildManager:
 
 
 def build_docker_image(
-    image_name,
-    dockerfile_path,
-    total,
-    context_dir,
-    build_manager: BuildManager,
-    arch=None,
+    image_name, dockerfile_path, total, context_dir, build_manager: BuildManager
 ):
     """Builds a docker image."""
 
@@ -100,28 +98,17 @@ def build_docker_image(
         build_command = [
             "docker",
             "build",
+            "-t",
+            image_name,
+            "-f",
+            dockerfile_path,
+            context_dir,
         ]
-        if arch:
-            build_command.extend(["--platform", arch])
-
-        build_command.extend(
-            [
-                "-t",
-                image_name,
-                "-f",
-                dockerfile_path,
-                context_dir,
-            ]
-        )
-        env = os.environ.copy()
-        env["DOCKER_BUILDKIT"] = "1"
-
         process = subprocess.Popen(
             build_command,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
-            env=env,
         )
         if process.stdout:
             for line in process.stdout:
@@ -143,7 +130,10 @@ def build_docker_image(
             build_manager.update_build(
                 image_name,
                 "".join(output_lines[-BuildManager.output_lines :]),
-                subtitle=f"[{build_counter}/{total}] Successfully built docker image: {image_name}",
+                subtitle=(
+                    f"[{build_counter}/{total}] Successfully built docker image:"
+                    f" {image_name}"
+                ),
                 style="bold green",
             )
         return None
@@ -158,15 +148,6 @@ def build_docker_image(
                 subtitle=f"[{build_counter}/{total}] Error building {image_name}",
                 style="bold red",
             )
-            print(f"\n--- ERROR LOG FOR {image_name} ---")
-            print(e.output)
-
-            # Write raw error log to file
-            log_file = f"build_errors_{image_name}.log"
-            with open(log_file, "w") as f:
-                f.write(e.output)
-            print(f"Full error log saved to {log_file}")
-
         return f"Error building docker image {image_name}"
 
 
@@ -174,17 +155,18 @@ def _build_images(
     images_to_build: List[Tuple[str, str, str]],
     max_workers: int,
     build_type: str,
-    arch: str | None = None,
 ):
     """Builds a list of docker images in parallel."""
 
     global build_counter
     build_counter = 0
     total_builds = len(images_to_build)
-    print(f"Building {total_builds} {build_type} images...")
+    logger.info("Building %d %s images...", total_builds, build_type)
     build_manager = BuildManager()
     with Live(
-        build_manager.get_group(), refresh_per_second=10, vertical_overflow="visible"
+        build_manager.get_group(),
+        refresh_per_second=10,
+        vertical_overflow="visible",
     ) as live:
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = {
@@ -195,7 +177,6 @@ def _build_images(
                     total_builds,
                     context_dir,
                     build_manager,
-                    arch,
                 )
                 for name, path, context_dir in images_to_build
             }
@@ -248,6 +229,7 @@ def shell_commands_to_remove_all_commits_after_base_commit(before_commit_sha):
 
 
 def main():
+    run_prebuild_checks()
     script_dir = os.path.dirname(os.path.realpath(__file__))
     root_dir = os.path.join(script_dir, "..", "..")
 
@@ -263,7 +245,9 @@ def main():
         "--tasks_filter",
         type=str,
         default=None,
-        help="Yaml file with instance_ids to filter tasks. Prefix with '!' to negate.",
+        help=(
+            "Yaml file with instance_ids to filter tasks. Prefix with '!' to" " negate."
+        ),
     )
     parser.add_argument(
         "--build",
@@ -280,12 +264,6 @@ def main():
         "--task_id",
         help="Only generate the docker image for this task id.",
     )
-    parser.add_argument(
-        "--arch",
-        type=str,
-        default=None,
-        help="Target architecture for the Docker image (e.g., linux/amd64, linux/arm64). Defaults to the host architecture.",
-    )
     args = parser.parse_args()
 
     if args.build:
@@ -299,7 +277,6 @@ def main():
             ],
             args.max_workers,
             "android-bench-env",
-            args.arch,
         )
 
         if len(failed_builds) > 0:
@@ -311,7 +288,7 @@ def main():
         tasks = [task.model_dump(mode="json") for task in all_tasks]
 
         if len(tasks) == 0:
-            print(f"No tasks to process")
+            logger.info("No tasks to process")
 
         if args.task_id:
             tasks = [task for task in tasks if task["instance_id"] == args.task_id]
@@ -337,7 +314,12 @@ def main():
             if args.build:
                 base_images_to_build.append((image_name, str(dockerfile_path), tmp_dir))
 
-            print("Generating docker image" f" {i+1}/{total_repos} for: {image_name}")
+            logger.info(
+                "Generating docker image %d/%d for: %s",
+                i + 1,
+                total_repos,
+                image_name,
+            )
 
             dockerfile_content = f"""FROM android-bench-env
 RUN git clone {repo_url} /workspace/testbed
@@ -347,7 +329,7 @@ WORKDIR /workspace
                 f.write(dockerfile_content)
 
         if args.build:
-            _build_images(base_images_to_build, args.max_workers, "base", args.arch)
+            _build_images(base_images_to_build, args.max_workers, "base")
 
         # Generate and build task-specific images
         task_images_to_build: list[tuple[str, str, str]] = []
@@ -358,11 +340,16 @@ WORKDIR /workspace
             task_dir.mkdir(parents=True, exist_ok=True)
             dockerfile_path = task_dir / "Dockerfile"
 
-            print("Generating docker image" f" {i+1}/{total_tasks} for: {image_name}")
+            logger.info(
+                "Generating docker image %d/%d for: %s",
+                i + 1,
+                total_tasks,
+                image_name,
+            )
 
             repo_info = task["repository"]
             repo_url = repo_info.get("url")
-            print(f"Repo url {repo_url}")
+            logger.info("Repo url %s", repo_url)
             repo_name = repo_url.split("/")[-1].replace(".git", "")
             before_commit_info = task["before_commit"]
             after_commit_info = task["after_commit"]
@@ -408,7 +395,7 @@ RUN cd /workspace/testbed && \\
                 task_images_to_build.append((image_name, str(dockerfile_path), tmp_dir))
 
         if args.build:
-            _build_images(task_images_to_build, args.max_workers, "task", args.arch)
+            _build_images(task_images_to_build, args.max_workers, "task")
 
     except Exception:
         import traceback

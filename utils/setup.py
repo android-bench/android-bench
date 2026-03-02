@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # Copyright 2026 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,105 +11,196 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""Setup script for Android Bench.
 
-"""
-Setup script for Android Bench.
 1) Installs dependencies using uv.
 2) Sets up the oracle agent with golden patches.
-3) Generates the task summary for the visualizer.
+3) Generates the task summary for the explorer.
 4) Analyzes CPU architecture and exits gracefully if unsupported,
     or offers to build images. (pending freshness check)
 """
 
+import argparse
+import logging
 import os
+import platform
+import shutil
 import subprocess
 import sys
-import platform
 from pathlib import Path
+from typing import Dict, List, Optional
+
+from common.constants import TASKS_DIR
+from common.logger import configure_logging
+from utils.docker.prebuild import run_prebuild_checks
+from utils.explorer.generate_task_summary import generate_summary
+from utils.setup_oracle_agent import setup_oracle_agent
+
+logger = logging.getLogger(__name__)
+configure_logging()
 
 
-def run_command(command, description=None, env=None):
+def check_prerequisites() -> None:
+    """Checks if required system dependencies are installed."""
+    missing = []
+    for cmd in ["uv", "docker"]:
+        if shutil.which(cmd) is None:
+            missing.append(cmd)
+
+    if missing:
+        logger.error(
+            "[bold red]Missing prerequisites:[/] %s. "
+            "Please install them before running setup.",
+            ", ".join(missing),
+        )
+        sys.exit(1)
+
+
+def run_command(
+    command: List[str],
+    description: Optional[str] = None,
+    env: Optional[Dict[str, str]] = None,
+) -> bool:
+    """Runs a shell command and logs its output."""
     if description:
-        print(f"\n>>> {description}...")
-    print(f"Running: {' '.join(command)}")
-    result = subprocess.run(command, capture_output=False, text=True, env=env)
+        logger.info("[bold blue]>>> %s...[/]", description)
+    logger.info("Running: %s", " ".join(command))
+    result = subprocess.run(
+        command, capture_output=False, text=True, env=env, check=False
+    )
     if result.returncode != 0:
-        print(f"Error: {description} failed with exit code {result.returncode}.")
+        logger.error(
+            "[bold red]Error:[/] %s failed with exit code [bold red]%s[/].",
+            description,
+            result.returncode,
+        )
         return False
     return True
 
 
-def analyze_docker(root_dir):
-    print("\n>>> Analyzing CPU architecture compatibility...")
-    # Detect host architecture
-    host_machine = platform.machine().lower()
-    if any(arch in host_machine for arch in ["arm64", "aarch64"]):
-        host_arch = "arm64"
-    elif any(arch in host_machine for arch in ["x86_64", "amd64"]):
-        host_arch = "amd64"
-    else:
-        # Fallback to amd64 but warn user
-        print(f"Warning: Unknown architecture '{host_machine}'. Defaulting to amd64.")
-        host_arch = "amd64"
-
-    print(f"Host architecture detected: {host_arch} (Machine: {host_machine})")
-
-    if host_arch == "arm64":
-        print(
-            f"{host_arch} architecture is not supported. Please review the prerequisites."
-        )
-    else:
-        confirm = input(f"Do you want to build the Docker images? (y/n): ")
-        if confirm.lower() == "y":
-            build_cmd = [
-                "uv",
-                "run",
-                "build_images",
-                "--build",
-                "--arch",
-                f"linux/{host_arch}",
-            ]
-            run_command(build_cmd, f"Rebuilding images")
-
-
-def main():
-    root_dir = Path(__file__).resolve().parent.parent
-    os.chdir(root_dir)
-
-    print("=== Android Bench Setup ===")
-
-    # 1. Install Dependencies
+def install_dependencies() -> None:
+    """Installs required Python dependencies using uv."""
     if not run_command(
         ["uv", "sync", "--all-extras"], "Installing dependencies with uv"
     ):
-        print("Failed to sync dependencies. Please ensure 'uv' is installed.")
+        logger.error(
+            "[bold red]Failed to sync dependencies. "
+            "Please ensure 'uv' is installed and working.[/]"
+        )
         sys.exit(1)
 
-    # Add root_dir to sys.path to allow imports from utils
-    sys.path.append(str(root_dir))
+
+def setup_oracle() -> None:
+    """Sets up the Oracle Agent with its golden patches."""
+    logger.info("[bold blue]>>> Setting up Oracle Agent...[/]")
+    try:
+        setup_oracle_agent()
+    except Exception:  # pylint: disable=broad-exception-caught
+        logger.exception("[bold red]Error setting up Oracle Agent:[/]")
+
+
+def generate_task_summary() -> None:
+    """Generates the task summary JSON file for the visualizer."""
+    logger.info("[bold blue]>>> Generating Task Summary for Visualizer...[/]")
+    try:
+        summary_file = TASKS_DIR / "summary.json"
+        if not summary_file.exists():
+            generate_summary()
+        else:
+            logger.info("[bold green]Task summary already exists.[/]")
+    except Exception:  # pylint: disable=broad-exception-caught
+        logger.exception("[bold red]Error generating task summary:[/]")
+
+
+def analyze_docker(auto_confirm: bool) -> None:
+    """Analyzes Docker environment and builds images if needed."""
+    logger.info("[bold blue]>>> Analyzing Docker environment...[/]")
+    try:
+        run_prebuild_checks()
+    except SystemExit as e:
+        logger.error("%s", e)
+        return
+    except Exception:  # pylint: disable=broad-exception-caught
+        logger.exception("[bold red]Error running prebuild checks:[/]")
+        return
+
+    host_machine = platform.machine().lower()
+    if any(arch in host_machine for arch in ["arm64", "aarch64"]):
+        logger.warning(
+            "[bold yellow]Note:[/] Skipping automatic Docker build for "
+            "arm64 architecture."
+        )
+        logger.warning(
+            "Please make necessary manual modifications to the base Dockerfile,"
+            " then build manually."
+        )
+        return
+
+    logger.info("[bold blue]>>> Checking if Docker images are built...[/]")
+    result = subprocess.run(
+        ["docker", "images", "-q", "android-bench-env"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.stdout.strip():
+        logger.info("[bold green]Docker images are already built and available.[/]")
+        return
+
+    confirm = auto_confirm
+    if not confirm:
+        confirm_str = input(
+            "Docker images not found. "
+            "Do you want to build the Docker images? (y/n): "
+        )
+        confirm = confirm_str.lower() in ["y", "yes"]
+
+    if confirm:
+        build_cmd = [
+            "uv",
+            "run",
+            "build_images",
+            "--build",
+        ]
+        run_command(build_cmd, "Building Docker images")
+
+
+def parse_args() -> argparse.Namespace:
+    """Parses command line arguments."""
+    parser = argparse.ArgumentParser(description="Android Bench Setup Script")
+    parser.add_argument(
+        "--yes",
+        "-y",
+        action="store_true",
+        help="Automatically confirm prompts (e.g., for building Docker images)",
+    )
+    return parser.parse_args()
+
+
+def main() -> None:
+    """Main execution entry point."""
+    args = parse_args()
+
+    root_dir = Path(__file__).resolve().parent.parent
+    os.chdir(root_dir)
+
+    logger.info("[bold]=== Android Bench Setup ===[/]")
+
+    check_prerequisites()
+
+    # 1. Install Dependencies
+    install_dependencies()
 
     # 2. Setup Oracle Agent
-    print("\n>>> Setting up Oracle Agent...")
-    try:
-        from utils.setup_oracle_agent import setup_oracle_agent
-
-        setup_oracle_agent()
-    except Exception as e:
-        print(f"Error setting up Oracle Agent: {e}")
+    setup_oracle()
 
     # 3. Setup Visualizer Task Summary
-    print("\n>>> Generating Task Summary for Visualizer...")
-    try:
-        from utils.visualizer.generate_task_summary import generate_summary
-
-        generate_summary()
-    except Exception as e:
-        print(f"Error generating task summary: {e}")
+    generate_task_summary()
 
     # 4. Analyze architecture and rebuild docker images
-    analyze_docker(root_dir)
+    analyze_docker(auto_confirm=args.yes)
 
-    print("\n=== Setup Complete ===")
+    logger.info("[bold]=== Setup Complete ===[/]")
 
 
 if __name__ == "__main__":

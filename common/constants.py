@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from pathlib import Path
+from logging import INFO
 import os
 
 # Use pathlib for all path definitions
@@ -49,3 +50,5 @@ MODELS = [
     "gemini/gemini-2.5-pro",
     "gemini/gemini-3-pro-preview",
 ]
+
+LOG_LEVEL = "INFO"

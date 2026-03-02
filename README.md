@@ -35,7 +35,7 @@ setup_env
 The `setup_env` takes care of the following:
 1.  Ensuring all dependencies are installed.
 2.  Configures the oracle agent with golden patches for testing.
-3.  Generates the `summary.json` for the dataset visualizer.
+3.  Generates the `summary.json` for the dataset explorer.
 4.  Detects your host architecture (x86/AMD64 or ARM64) and builds the Docker images or exits gracefully if incompatible.
 
 ### API Configuration
@@ -64,14 +64,14 @@ The benchmarking process has two stages:
 To browse available tasks or understand the dataset structure:
 
 ```bash
-# Launch the interactive visualizer
-visualize_tasks
+# Launch the interactive explorer
+dataset
 ```
 This launches an interactive wizard. You can also run specific subcommands directly:
-- `visualize_tasks browse --category compose`
-- `visualize_tasks inspect <task_id>`
+- `dataset browse --category compose`
+- `dataset inspect <task_id>`
 
-For filtering and usage, see the [Task Visualizer Guide](docs/task_visualizer.md).
+For filtering and usage, see the [Task Visualizer Guide](docs/task_explorer.md).
 
 ### Running a Single Task
 > **Note on Docker Images**: Tasks run in isolated Docker containers. The very first time you run a task, the framework will build task-specific Docker images locally based on the dataset configurations.

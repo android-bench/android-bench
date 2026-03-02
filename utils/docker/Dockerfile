@@ -6,12 +6,9 @@
 FROM ubuntu:22.04
 
 # Use ARGs for version flexibility
-ARG TARGETARCH
 ARG JDK_VERSION=17
 ARG KOTLIN_VERSION=2.1.0
 ARG ANDROID_CMD_TOOLS_VERSION=11076708
-
-RUN if [ "$TARGETARCH" = "arm64" ]; then echo "Architecture not supported, review prerequisites"; exit 1;
 
 # Set non-interactive frontend
 ENV DEBIAN_FRONTEND=noninteractive

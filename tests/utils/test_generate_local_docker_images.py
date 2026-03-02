@@ -12,10 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
-from unittest.mock import patch, mock_open, MagicMock
-import yaml
-
+from unittest.mock import MagicMock, mock_open, patch
 from utils.docker import generate_docker_images
+import yaml
 
 
 def test_dump_known_failures(mocker, tmp_path, monkeypatch):
@@ -41,39 +40,3 @@ def test_dump_known_failures(mocker, tmp_path, monkeypatch):
 
     # Reset failed_builds to avoid side effects in other tests
     generate_docker_images.failed_builds = []
-
-
-def test_build_docker_image_with_arch(mocker):
-    mock_popen = mocker.patch("subprocess.Popen")
-    mock_process = MagicMock()
-    mock_process.stdout = []
-    mock_process.returncode = 0
-    mock_popen.return_value = mock_process
-
-    mock_build_manager = MagicMock()
-
-    generate_docker_images.build_docker_image(
-        image_name="test-image",
-        dockerfile_path="Dockerfile",
-        total=1,
-        context_dir=".",
-        build_manager=mock_build_manager,
-        arch="linux/arm64",
-    )
-
-    expected_command = [
-        "docker",
-        "build",
-        "--platform",
-        "linux/arm64",
-        "-t",
-        "test-image",
-        "-f",
-        "Dockerfile",
-        ".",
-    ]
-    mock_popen.assert_called_once()
-    actual_command = mock_popen.call_args[0][0]
-    # Check that the platform flag is included
-    assert "--platform" in actual_command
-    assert "linux/arm64" in actual_command

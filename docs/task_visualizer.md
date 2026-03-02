@@ -4,21 +4,21 @@ The Task Visualizer is a rich, terminal-based tool designed to help you navigate
 
 ## Getting Started
 
-Before using the visualizer, you must generate the task summary index:
+Before using the explorer, you must generate the task summary index:
 
 ```bash
-python utils/visualizer/generate_task_summary.py
+python utils/explorer/generate_task_summary.py
 ```
 
 Then, launch the interactive explorer:
 
 ```bash
-uv run visualize_tasks
+uv run dataset
 ```
 
 ## Interactive Explore Wizard
 
-Running `visualize_tasks` without any subcommands launches the **Explore Wizard**. This guided flow allows you to:
+Running `dataset` without any subcommands launches the **Explore Wizard**. This guided flow allows you to:
 - **Browse All**: View a paginated list of all tasks in the dataset.
 - **Filter by Category**: Select a Key Android Developer Area (KADA) to see relevant tasks (e.g., `Compose`, `Hilt`, `Networking`).
 - **Filter by Repository**: Drill down into tasks from specific open-source projects.
@@ -37,10 +37,10 @@ Displays tasks in an enriched table view with advanced filtering.
 
 ```bash
 # Filter by complexity and show expanded metadata
-uv run visualize_tasks browse --estimate high --expanded
+uv run dataset browse --estimate high --expanded
 
 # Search for specific keywords in Task IDs or summaries
-uv run visualize_tasks browse --search "Deep link"
+uv run dataset browse --search "Deep link"
 ```
 
 **Key Options:**
@@ -54,7 +54,7 @@ uv run visualize_tasks browse --search "Deep link"
 Provides a deep dive into a specific task's requirements and environment.
 
 ```bash
-uv run visualize_tasks inspect <task_id>
+uv run dataset inspect <task_id>
 ```
 
 **Features:**
@@ -64,7 +64,7 @@ uv run visualize_tasks inspect <task_id>
 
 ## Key Android Developer Areas (KADA)
 
-The visualizer uses color-coded themes to highlight different Android domains:
+The explorer uses color-coded themes to highlight different Android domains:
 - **Cyan**: UI/UX (Compose, Material, Navigation)
 - **Magenta**: Architecture & Core (Hilt, Room, ViewModels, Coroutines)
 - **Green**: OS & System (Bluetooth, Permissions, Storage, Networking)

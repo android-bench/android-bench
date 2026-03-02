@@ -1,3 +1,0 @@
-absl-py==2.3.1
-google-cloud-batch==0.17.37
-docker==7.1.0
