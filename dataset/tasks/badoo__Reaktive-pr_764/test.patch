@@ -1,0 +1,116 @@
+Subject: [PATCH] test: Add gradle task and test to check Kotlin version is 1.9.20
+---
+Index: build.gradle
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/build.gradle b/build.gradle
+--- a/build.gradle	(revision a0ea723f6650ffe19abb0e6188dda79f073f44de)
++++ b/build.gradle	(revision d3051c7454cf5dd1d9996697d8f2e66317b36c49)
+@@ -13,3 +13,60 @@
+         mavenCentral()
+     }
+ }
++
++subprojects {
++    tasks.withType(Test).configureEach { t ->
++        if (t.name ==~ /(?i)^testDebugUnitTest$/) {
++            dependsOn(rootProject.tasks.named('checkKotlinVersions'))
++
++            doFirst {
++                def kotlinVersionPath = rootProject.layout.buildDirectory
++                        .file('kotlin_versions.txt')
++                        .get().asFile.absolutePath
++
++                systemProperty 'versionCatalogGuard.kotlinVersionFile', kotlinVersionPath
++                println "[guard] ${t.path} kotlinVersionFile = ${kotlinVersionPath}"
++            }
++        }
++    }
++}
++
++def kotlinVersionsFile = layout.buildDirectory.file('kotlin_versions.txt')
++
++tasks.register('checkKotlinVersions') {
++    doLast {
++        def report = []
++
++        allprojects.each { p ->
++            def version = "0"
++            def hasKotlin = p.plugins.hasPlugin('kotlin-android') ||
++                    p.plugins.hasPlugin('org.jetbrains.kotlin.android') ||
++                    p.plugins.hasPlugin('kotlin') ||
++                    p.plugins.hasPlugin('org.jetbrains.kotlin.multiplatform')
++
++            if (hasKotlin) {
++                def dep = p.buildscript.configurations.findByName('classpath')?.dependencies
++                        ?.find { it.group == 'org.jetbrains.kotlin' && it.name.contains('plugin') }
++
++                if (dep && dep.version) {
++                    version = dep.version
++                } else {
++                    try {
++                        def plugin = p.plugins.findPlugin('kotlin-android') ?:
++                                p.plugins.findPlugin('org.jetbrains.kotlin.android') ?:
++                                        p.plugins.findPlugin('kotlin') ?:
++                                                p.plugins.findPlugin('org.jetbrains.kotlin.multiplatform')
++
++                        if (plugin?.class?.package?.implementationVersion) {
++                            version = plugin.class.package.implementationVersion
++                        }
++                    } catch (ignored) {}
++                }
++                report.add("${p.name}->${version}")
++            }
++        }
++        def outFile = kotlinVersionsFile.get().asFile
++        outFile.parentFile.mkdirs()
++        outFile.text = report.join('\n')
++    }
++}
+Index: reaktive/src/androidUnitTest/kotlin/com/badoo/reaktive/KotlinVersionTest.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/reaktive/src/androidUnitTest/kotlin/com/badoo/reaktive/KotlinVersionTest.kt b/reaktive/src/androidUnitTest/kotlin/com/badoo/reaktive/KotlinVersionTest.kt
+new file mode 100644
+--- /dev/null	(revision d3051c7454cf5dd1d9996697d8f2e66317b36c49)
++++ b/reaktive/src/androidUnitTest/kotlin/com/badoo/reaktive/KotlinVersionTest.kt	(revision d3051c7454cf5dd1d9996697d8f2e66317b36c49)
+@@ -0,0 +1,35 @@
++package com.badoo.reaktive
++
++import org.junit.Test
++import java.io.File
++
++class KotlinVersionTest {
++
++    @Test
++    fun kotlinVersionShouldBe_1_9_20() {
++        val path = System.getProperty("versionCatalogGuard.kotlinVersionFile")
++        val offenders = path
++            ?.let(::File)
++            ?.takeIf { it.exists() }
++            ?.readLines()
++            ?.map {
++                val split = it.trim().split("->")
++                split[0] to split[1]
++            }
++            ?.filterNot {
++                it.second.contains("1.9.2")
++            }
++            .orEmpty()
++        assert(
++            offenders.isEmpty()
++        ) {
++            buildString {
++                appendLine("The following modules don't implement Kotlin 1.9.20:")
++                offenders.forEach {
++                    appendLine("Module: ${it.first} - Kotlin Version: ${it.second}")
++                }
++                appendLine()
++            }
++        }
++    }
++}

@@ -1,0 +1,60 @@
+diff --git a/app/src/main/kotlin/com/google/samples/apps/nowinandroid/ui/NiaApp.kt b/app/src/main/kotlin/com/google/samples/apps/nowinandroid/ui/NiaApp.kt
+index b237684e..55daaa7f 100644
+--- a/app/src/main/kotlin/com/google/samples/apps/nowinandroid/ui/NiaApp.kt
++++ b/app/src/main/kotlin/com/google/samples/apps/nowinandroid/ui/NiaApp.kt
+@@ -54,6 +54,7 @@ import androidx.compose.ui.composed
+ import androidx.compose.ui.draw.drawWithContent
+ import androidx.compose.ui.geometry.Offset
+ import androidx.compose.ui.graphics.Color
++import androidx.compose.ui.input.nestedscroll.nestedScroll
+ import androidx.compose.ui.platform.testTag
+ import androidx.compose.ui.res.stringResource
+ import androidx.compose.ui.semantics.semantics
+@@ -176,8 +177,9 @@ internal fun NiaApp(
+         },
+         windowAdaptiveInfo = windowAdaptiveInfo,
+     ) {
++        val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
+         Scaffold(
+-            modifier = modifier.semantics {
++            modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection).semantics {
+                 testTagsAsResourceId = true
+             },
+             containerColor = Color.Transparent,
+@@ -226,6 +228,7 @@ internal fun NiaApp(
+                         ),
+                         onActionClick = { onTopAppBarActionClick() },
+                         onNavigationClick = { appState.navigateToSearch() },
++                        scrollBehavior = scrollBehavior,
+                     )
+                 }
+ 
+diff --git a/core/designsystem/src/main/kotlin/com/google/samples/apps/nowinandroid/core/designsystem/component/TopAppBar.kt b/core/designsystem/src/main/kotlin/com/google/samples/apps/nowinandroid/core/designsystem/component/TopAppBar.kt
+index ece8e025..8dec9f31 100644
+--- a/core/designsystem/src/main/kotlin/com/google/samples/apps/nowinandroid/core/designsystem/component/TopAppBar.kt
++++ b/core/designsystem/src/main/kotlin/com/google/samples/apps/nowinandroid/core/designsystem/component/TopAppBar.kt
+@@ -27,6 +27,7 @@ import androidx.compose.material3.MaterialTheme
+ import androidx.compose.material3.Text
+ import androidx.compose.material3.TopAppBarColors
+ import androidx.compose.material3.TopAppBarDefaults
++import androidx.compose.material3.TopAppBarScrollBehavior
+ import androidx.compose.runtime.Composable
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.graphics.vector.ImageVector
+@@ -46,6 +47,7 @@ fun NiaTopAppBar(
+     actionIconContentDescription: String,
+     modifier: Modifier = Modifier,
+     colors: TopAppBarColors = TopAppBarDefaults.topAppBarColors(),
++    scrollBehavior: TopAppBarScrollBehavior? = null,
+     onNavigationClick: () -> Unit = {},
+     onActionClick: () -> Unit = {},
+ ) {
+@@ -71,6 +73,7 @@ fun NiaTopAppBar(
+         },
+         colors = colors,
+         modifier = modifier.testTag("niaTopAppBar"),
++        scrollBehavior = scrollBehavior
+     )
+ }
+ 
+

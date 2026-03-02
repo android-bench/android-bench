@@ -1,0 +1,88 @@
+diff --git a/app/src/androidTest/java/au/com/shiftyjelly/pocketcasts/ui/CoilImageLoaderTest.kt b/app/src/androidTest/java/au/com/shiftyjelly/pocketcasts/ui/CoilImageLoaderTest.kt
+new file mode 100644
+index 000000000..fb479ff62
+--- /dev/null
++++ b/app/src/androidTest/java/au/com/shiftyjelly/pocketcasts/ui/CoilImageLoaderTest.kt
+@@ -0,0 +1,52 @@
++package au.com.shiftyjelly.pocketcasts.ui
++
++import android.content.Context
++import androidx.test.ext.junit.runners.AndroidJUnit4
++import androidx.test.platform.app.InstrumentationRegistry
++import au.com.shiftyjelly.pocketcasts.PocketCastsApplication
++import au.com.shiftyjelly.pocketcasts.servers.di.InterceptorModule.PocketCastsPublicUserAgent
++import au.com.shiftyjelly.pocketcasts.ui.di.UiModule
++import coil.ImageLoader
++import coil.request.ImageRequest
++import okhttp3.OkHttpClient
++import okhttp3.mockwebserver.MockResponse
++import okhttp3.mockwebserver.MockWebServer
++import org.junit.After
++import org.junit.Assert.assertEquals
++import org.junit.Before
++import org.junit.Test
++import org.junit.runner.RunWith
++
++@RunWith(AndroidJUnit4::class)
++class CoilImageLoaderTest {
++    lateinit var context: Context
++    lateinit var imageLoader: ImageLoader
++
++    lateinit var mockWebServer: MockWebServer
++
++    @Before
++    fun setUp() {
++        context = InstrumentationRegistry.getInstrumentation().targetContext.applicationContext
++
++        mockWebServer = MockWebServer()
++        mockWebServer.start()
++
++        imageLoader = (context as? PocketCastsApplication)?.coilImageLoader!!
++    }
++
++    @Test
++    fun testPocketCastsUserAgentIsPresentInImageLoadRequest() {
++        val artworkAddress = mockWebServer.url("/podcast.png")
++
++        mockWebServer.enqueue(MockResponse().setResponseCode(404))
++        imageLoader.enqueue(ImageRequest.Builder(context).data(artworkAddress).build())
++
++        val request = mockWebServer.takeRequest()
++        assertEquals("User agent header should be pocketcasts", PocketCastsPublicUserAgent, request.getHeader("User-Agent"))
++    }
++
++    @After
++    fun tearDown() {
++        mockWebServer.shutdown()
++    }
++}
+\ No newline at end of file
+diff --git a/modules/services/servers/src/test/kotlin/au/com/shiftyjelly/pocketcasts/servers/CleanAndRetryInterceptorTest.kt b/modules/services/servers/src/test/kotlin/au/com/shiftyjelly/pocketcasts/servers/CleanAndRetryInterceptorTest.kt
+index d978f692b..df5b01e9f 100644
+--- a/modules/services/servers/src/test/kotlin/au/com/shiftyjelly/pocketcasts/servers/CleanAndRetryInterceptorTest.kt
++++ b/modules/services/servers/src/test/kotlin/au/com/shiftyjelly/pocketcasts/servers/CleanAndRetryInterceptorTest.kt
+@@ -33,6 +33,24 @@ class CleanAndRetryInterceptorTest {
+         assertEquals("value", serverRequest.getHeader("X-custom"))
+     }
+ 
++    @Test
++    fun `do not remove header from request if response is 304`() {
++        val client = OkHttpClient.Builder()
++            .addInterceptor(CleanAndRetryInterceptor(headersToRemove = listOf("x-custom")))
++            .build()
++        val request = Request.Builder()
++            .url(url)
++            .header("x-custom", "value")
++            .build()
++
++        server.enqueue(MockResponse().setResponseCode(304))
++        client.newCall(request).execute()
++
++        val serverRequest = server.takeRequest()
++
++        assertEquals("value", serverRequest.getHeader("X-custom"))
++    }
++
+     @Test
+     fun `remove header from request if response is error`() {
+         val client = OkHttpClient.Builder()

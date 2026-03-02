@@ -1,0 +1,60 @@
+diff --git a/app/src/main/java/com/jerboa/ui/components/login/Login.kt b/app/src/main/java/com/jerboa/ui/components/login/Login.kt
+index cdd781e2..790c842b 100644
+--- a/app/src/main/java/com/jerboa/ui/components/login/Login.kt
++++ b/app/src/main/java/com/jerboa/ui/components/login/Login.kt
+@@ -92,7 +92,7 @@ fun PasswordField(
+     )
+ }
+ 
+-@OptIn(ExperimentalComposeUiApi::class)
++@OptIn(ExperimentalComposeUiApi::class, ExperimentalMaterial3Api::class)
+ @Composable
+ fun LoginForm(
+     modifier: Modifier = Modifier,
+@@ -102,6 +102,7 @@ fun LoginForm(
+     var instance by rememberSaveable { mutableStateOf("") }
+     var username by rememberSaveable { mutableStateOf("") }
+     var password by rememberSaveable { mutableStateOf("") }
++    var totp by rememberSaveable { mutableStateOf("") }
+     val instanceOptions = DEFAULT_LEMMY_INSTANCES
+     var expanded by remember { mutableStateOf(false) }
+     var wasAutofilled by remember { mutableStateOf(false) }
+@@ -112,6 +113,7 @@ fun LoginForm(
+     val form = Login(
+         username_or_email = username.trim(),
+         password = password.take(60),
++        totp_2fa_token = totp.ifBlank { null },
+     )
+ 
+     Column(
+@@ -182,6 +184,17 @@ fun LoginForm(
+             password = password,
+             onValueChange = { password = it },
+         )
++        MyTextField(
++            modifier = Modifier
++                .background(if (wasAutofilled) MaterialTheme.colorScheme.surfaceVariant else Color.Transparent)
++                .onAutofill(AutofillType.SmsOtpCode) {
++                    totp = it
++                    wasAutofilled = true
++                },
++            label = stringResource(R.string.login_totp),
++            text = totp,
++            onValueChange = { totp = it },
++        )
+         Button(
+             enabled = isValid && !loading,
+             onClick = { onClickLogin(form, instance) },
+diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
+index 63cc08d4..3418b1c8 100644
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -181,6 +181,7 @@
+     <string name="login_instance">Instance</string>
+     <string name="login_instance_placeholder">ex: lemmy.ml</string>
+     <string name="login_login">Login</string>
++    <string name="login_totp">Enter 2FA Token if enabled</string>
+     <string name="login_password">Password</string>
+     <string name="login_view_model_incorrect_login">Incorrect Login</string>
+     <string name="login_view_model_is_not_a_lemmy_instance">%1$s is not a Lemmy Instance</string>
+

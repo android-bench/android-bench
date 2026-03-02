@@ -1,0 +1,12 @@
+# pyproject.toml
+[tool.pytest.ini_options]
+pythonpath = ["."]
+# Enable capturing logs to the console
+log_cli = true
+log_cli_level = "INFO"
+
+# Same format maintained as used internal to the logger
+log_cli_format = "%(asctime)s [%(levelname)s] %(message)s (%(filename)s:%(lineno)s)"
+
+# Set the default date format for the timestamp
+log_cli_date_format = "%Y-%m-%d %H:%M:%S"

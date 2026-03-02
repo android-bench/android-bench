@@ -1,0 +1,220 @@
+diff --git a/changelog.d/1848.feature b/changelog.d/1848.feature
+new file mode 100644
+index 0000000000..f2a11f1223
+--- /dev/null
++++ b/changelog.d/1848.feature
+@@ -0,0 +1 @@
++Reply to a poll
+diff --git a/features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/MessagesPresenter.kt b/features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/MessagesPresenter.kt
+index 2bb6e85df4..a00b673934 100644
+--- a/features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/MessagesPresenter.kt
++++ b/features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/MessagesPresenter.kt
+@@ -342,7 +342,10 @@ class MessagesPresenter @AssistedInject constructor(
+             is TimelineItemLocationContent -> AttachmentThumbnailInfo(
+                 type = AttachmentThumbnailType.Location,
+             )
+-            is TimelineItemPollContent, // TODO Polls: handle reply to
++            is TimelineItemPollContent -> AttachmentThumbnailInfo(
++                textContent = targetEvent.content.question,
++                type = AttachmentThumbnailType.Poll,
++            )
+             is TimelineItemTextBasedContent,
+             is TimelineItemRedactedContent,
+             is TimelineItemStateContent,
+diff --git a/features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/actionlist/ActionListPresenter.kt b/features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/actionlist/ActionListPresenter.kt
+index cd11aa875b..e0b912e0ef 100644
+--- a/features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/actionlist/ActionListPresenter.kt
++++ b/features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/actionlist/ActionListPresenter.kt
+@@ -108,13 +108,10 @@ class ActionListPresenter @Inject constructor(
+                 is TimelineItemPollContent -> {
+                     buildList {
+                         val isMineOrCanRedact = timelineItem.isMine || userCanRedact
+-
+-                        // TODO Polls: Reply to poll. Ensure to update `fun TimelineItemEventContent.canBeReplied()`
+-                        //  when touching this
+-                        // if (timelineItem.isRemote) {
+-                        //     // Can only reply or forward messages already uploaded to the server
+-                        //     add(TimelineItemAction.Reply)
+-                        // }
++                        if (timelineItem.isRemote) {
++                            // Can only reply or forward messages already uploaded to the server
++                            add(TimelineItemAction.Reply)
++                        }
+                         if (!timelineItem.content.isEnded && timelineItem.isRemote && isMineOrCanRedact) {
+                             add(TimelineItemAction.EndPoll)
+                         }
+diff --git a/features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/actionlist/ActionListView.kt b/features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/actionlist/ActionListView.kt
+index 1e57de2466..a136f997a1 100644
+--- a/features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/actionlist/ActionListView.kt
++++ b/features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/actionlist/ActionListView.kt
+@@ -234,7 +234,6 @@ private fun MessageSummary(event: TimelineItem.Event, modifier: Modifier = Modif
+     val textContent = remember(event.content) { formatter.format(event) }
+ 
+     when (event.content) {
+-        is TimelineItemPollContent, // TODO Polls: handle summary
+         is TimelineItemTextBasedContent,
+         is TimelineItemStateContent,
+         is TimelineItemEncryptedContent,
+@@ -317,6 +316,18 @@ private fun MessageSummary(event: TimelineItem.Event, modifier: Modifier = Modif
+             }
+             content = { ContentForBody(textContent) }
+         }
++        is TimelineItemPollContent -> {
++            icon = {
++                AttachmentThumbnail(
++                    modifier = imageModifier,
++                    info = AttachmentThumbnailInfo(
++                        textContent = textContent,
++                        type = AttachmentThumbnailType.Poll,
++                    )
++                )
++            }
++            content = { ContentForBody(textContent) }
++        }
+     }
+     Row(modifier = modifier) {
+         icon()
+diff --git a/features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/timeline/components/TimelineItemEventRow.kt b/features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/timeline/components/TimelineItemEventRow.kt
+index 5f7fff64ae..d9a3340559 100644
+--- a/features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/timeline/components/TimelineItemEventRow.kt
++++ b/features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/timeline/components/TimelineItemEventRow.kt
+@@ -100,6 +100,7 @@ import io.element.android.libraries.matrix.api.timeline.item.event.ImageMessageT
+ import io.element.android.libraries.matrix.api.timeline.item.event.InReplyTo
+ import io.element.android.libraries.matrix.api.timeline.item.event.LocationMessageType
+ import io.element.android.libraries.matrix.api.timeline.item.event.MessageContent
++import io.element.android.libraries.matrix.api.timeline.item.event.PollContent
+ import io.element.android.libraries.matrix.api.timeline.item.event.TextMessageType
+ import io.element.android.libraries.matrix.api.timeline.item.event.VideoMessageType
+ import io.element.android.libraries.matrix.api.timeline.item.event.VoiceMessageType
+@@ -638,35 +639,41 @@ private fun ReplyToContent(
+ }
+ 
+ private fun attachmentThumbnailInfoForInReplyTo(inReplyTo: InReplyTo.Ready): AttachmentThumbnailInfo? {
+-    val messageContent = inReplyTo.content as? MessageContent ?: return null
+-    return when (val type = messageContent.type) {
+-        is ImageMessageType -> AttachmentThumbnailInfo(
+-            thumbnailSource = type.info?.thumbnailSource ?: type.source,
+-            textContent = messageContent.body,
+-            type = AttachmentThumbnailType.Image,
+-            blurHash = type.info?.blurhash,
+-        )
+-        is VideoMessageType -> AttachmentThumbnailInfo(
+-            thumbnailSource = type.info?.thumbnailSource,
+-            textContent = messageContent.body,
+-            type = AttachmentThumbnailType.Video,
+-            blurHash = type.info?.blurhash,
+-        )
+-        is FileMessageType -> AttachmentThumbnailInfo(
+-            thumbnailSource = type.info?.thumbnailSource,
+-            textContent = messageContent.body,
+-            type = AttachmentThumbnailType.File,
+-        )
+-        is LocationMessageType -> AttachmentThumbnailInfo(
+-            textContent = messageContent.body,
+-            type = AttachmentThumbnailType.Location,
+-        )
+-        is AudioMessageType -> AttachmentThumbnailInfo(
+-            textContent = messageContent.body,
+-            type = AttachmentThumbnailType.Audio,
+-        )
+-        is VoiceMessageType -> AttachmentThumbnailInfo(
+-            type = AttachmentThumbnailType.Voice,
++    return when (val eventContent = inReplyTo.content) {
++        is MessageContent -> when (val type = eventContent.type) {
++            is ImageMessageType -> AttachmentThumbnailInfo(
++                thumbnailSource = type.info?.thumbnailSource ?: type.source,
++                textContent = eventContent.body,
++                type = AttachmentThumbnailType.Image,
++                blurHash = type.info?.blurhash,
++            )
++            is VideoMessageType -> AttachmentThumbnailInfo(
++                thumbnailSource = type.info?.thumbnailSource,
++                textContent = eventContent.body,
++                type = AttachmentThumbnailType.Video,
++                blurHash = type.info?.blurhash,
++            )
++            is FileMessageType -> AttachmentThumbnailInfo(
++                thumbnailSource = type.info?.thumbnailSource,
++                textContent = eventContent.body,
++                type = AttachmentThumbnailType.File,
++            )
++            is LocationMessageType -> AttachmentThumbnailInfo(
++                textContent = eventContent.body,
++                type = AttachmentThumbnailType.Location,
++            )
++            is AudioMessageType -> AttachmentThumbnailInfo(
++                textContent = eventContent.body,
++                type = AttachmentThumbnailType.Audio,
++            )
++            is VoiceMessageType -> AttachmentThumbnailInfo(
++                type = AttachmentThumbnailType.Voice,
++            )
++            else -> null
++        }
++        is PollContent -> AttachmentThumbnailInfo(
++            textContent = eventContent.question,
++            type = AttachmentThumbnailType.Poll,
+         )
+         else -> null
+     }
+diff --git a/features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/timeline/model/event/TimelineItemEventContent.kt b/features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/timeline/model/event/TimelineItemEventContent.kt
+index 56c0b63b0e..8678ae8826 100644
+--- a/features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/timeline/model/event/TimelineItemEventContent.kt
++++ b/features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/timeline/model/event/TimelineItemEventContent.kt
+@@ -41,8 +41,7 @@ fun TimelineItemEventContent.canBeCopied(): Boolean =
+ fun TimelineItemEventContent.canBeRepliedTo(): Boolean =
+     when (this) {
+         is TimelineItemRedactedContent,
+-        is TimelineItemStateContent,
+-        is TimelineItemPollContent -> false
++        is TimelineItemStateContent -> false
+         else -> true
+     }
+ 
+diff --git a/libraries/matrixui/src/main/kotlin/io/element/android/libraries/matrix/ui/components/AttachmentThumbnail.kt b/libraries/matrixui/src/main/kotlin/io/element/android/libraries/matrix/ui/components/AttachmentThumbnail.kt
+index 40c58fb578..7bc243df0c 100644
+--- a/libraries/matrixui/src/main/kotlin/io/element/android/libraries/matrix/ui/components/AttachmentThumbnail.kt
++++ b/libraries/matrixui/src/main/kotlin/io/element/android/libraries/matrix/ui/components/AttachmentThumbnail.kt
+@@ -25,6 +25,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
+ import androidx.compose.material.icons.Icons
+ import androidx.compose.material.icons.outlined.GraphicEq
+ import androidx.compose.material.icons.outlined.Image
++import androidx.compose.material.icons.outlined.Poll
+ import androidx.compose.material.icons.outlined.VideoCameraBack
+ import androidx.compose.material3.MaterialTheme
+ import androidx.compose.runtime.Composable
+@@ -122,6 +123,12 @@ fun AttachmentThumbnail(
+                     )
+                      */
+                 }
++                AttachmentThumbnailType.Poll -> {
++                    Icon(
++                        imageVector = Icons.Outlined.Poll,
++                        contentDescription = info.textContent,
++                    )
++                }
+             }
+         }
+     }
+@@ -129,7 +136,7 @@ fun AttachmentThumbnail(
+ 
+ @Parcelize
+ enum class AttachmentThumbnailType : Parcelable {
+-    Image, Video, File, Audio, Location, Voice
++    Image, Video, File, Audio, Location, Voice, Poll
+ }
+ 
+ @Parcelize
+diff --git a/libraries/matrixui/src/main/kotlin/io/element/android/libraries/matrix/ui/components/AttachmentThumbnailInfoProvider.kt b/libraries/matrixui/src/main/kotlin/io/element/android/libraries/matrix/ui/components/AttachmentThumbnailInfoProvider.kt
+index 83d1a84973..194e14de76 100644
+--- a/libraries/matrixui/src/main/kotlin/io/element/android/libraries/matrix/ui/components/AttachmentThumbnailInfoProvider.kt
++++ b/libraries/matrixui/src/main/kotlin/io/element/android/libraries/matrix/ui/components/AttachmentThumbnailInfoProvider.kt
+@@ -30,6 +30,7 @@ open class AttachmentThumbnailInfoProvider : PreviewParameterProvider<Attachment
+             anAttachmentThumbnailInfo(type = AttachmentThumbnailType.File),
+             anAttachmentThumbnailInfo(type = AttachmentThumbnailType.Location),
+             anAttachmentThumbnailInfo(type = AttachmentThumbnailType.Voice),
++            anAttachmentThumbnailInfo(type = AttachmentThumbnailType.Poll),
+         )
+ }
+ 
+

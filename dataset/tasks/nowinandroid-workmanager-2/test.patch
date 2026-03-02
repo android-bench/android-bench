@@ -1,0 +1,38 @@
+diff --git a/sync/work/src/androidTest/kotlin/com/google/samples/apps/nowinandroid/sync/workers/SyncWorkerTest.kt b/sync/work/src/androidTest/kotlin/com/google/samples/apps/nowinandroid/sync/workers/SyncWorkerTest.kt
+index 481875e..9cb5698 100644
+--- a/sync/work/src/androidTest/kotlin/com/google/samples/apps/nowinandroid/sync/workers/SyncWorkerTest.kt
++++ b/sync/work/src/androidTest/kotlin/com/google/samples/apps/nowinandroid/sync/workers/SyncWorkerTest.kt
+@@ -19,12 +19,14 @@
+ import android.util.Log
+ import androidx.test.platform.app.InstrumentationRegistry
+ import androidx.work.Configuration
++import androidx.work.NetworkType
+ import androidx.work.WorkInfo
+ import androidx.work.WorkManager
+ import androidx.work.testing.SynchronousExecutor
+ import androidx.work.testing.WorkManagerTestInitHelper
+ import dagger.hilt.android.testing.HiltAndroidRule
+ import dagger.hilt.android.testing.HiltAndroidTest
++import junit.framework.TestCase.assertTrue
+ import org.junit.Before
+ import org.junit.Rule
+ import org.junit.Test
+@@ -72,4 +74,18 @@
+         val postRequirementWorkInfo = workManager.getWorkInfoById(request.id).get()
+         assertEquals(WorkInfo.State.RUNNING, postRequirementWorkInfo?.state)
+     }
++
++    @Test
++    fun testSyncWorkOnlyInSpecificConstraints() {
++        // Create request
++        val request = SyncWorker.startUpSyncWork()
++        val workManager = WorkManager.getInstance(context)
++
++        workManager.enqueue(request).result.get()
++
++        val preRunWorkInfo = workManager.getWorkInfoById(request.id).get()
++
++        assertTrue(preRunWorkInfo?.constraints?.requiresStorageNotLow() == true)
++        assertTrue(preRunWorkInfo?.constraints?.requiredNetworkType == NetworkType.CONNECTED)
++    }
+ }

@@ -1,0 +1,14 @@
+diff --git a/appyx-components/stable/backstack/android/src/androidTest/kotlin/com/bumble/appyx/components/backstack/ui/parallax/BackStackParallaxTest.kt b/appyx-components/stable/backstack/android/src/androidTest/kotlin/com/bumble/appyx/components/backstack/ui/parallax/BackStackParallaxTest.kt
+index fb3584a44..12facf5bf 100644
+--- a/appyx-components/stable/backstack/android/src/androidTest/kotlin/com/bumble/appyx/components/backstack/ui/parallax/BackStackParallaxTest.kt
++++ b/appyx-components/stable/backstack/android/src/androidTest/kotlin/com/bumble/appyx/components/backstack/ui/parallax/BackStackParallaxTest.kt
+@@ -36,7 +36,7 @@ class BackStackParallaxTest {
+         with(visualisation.mapUpdate(backStackModel.output.value as Update<BackStackModel.State<InteractionTarget>>)) {
+             Assert.assertFalse(get(0).visibleState.value) // Child #1 should be false
+             Assert.assertFalse(get(1).visibleState.value) // Child #2 should be false
+-            Assert.assertTrue(get(2).visibleState.value)  // Child #3 should be true
++            Assert.assertFalse(get(2).visibleState.value)  // Child #3 should be false
+             Assert.assertTrue(get(3).visibleState.value)  // Child #4 should be true
+         }
+     }
+

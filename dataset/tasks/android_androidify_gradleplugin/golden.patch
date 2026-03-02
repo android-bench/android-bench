@@ -1,0 +1,916 @@
+diff --git a/.gitignore b/.gitignore
+index c4d5f1d..a4cd97c 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -10,3 +10,5 @@
+ /app/src/release/generated/*
+ /core/build/
+ /feature/build/
++/build-plugin/build
++/build-plugin/.gradle/*
+diff --git a/app/build.gradle.kts b/app/build.gradle.kts
+index d8b7f70..d580c78 100644
+--- a/app/build.gradle.kts
++++ b/app/build.gradle.kts
+@@ -16,9 +16,7 @@
+ import com.google.firebase.crashlytics.buildtools.gradle.CrashlyticsExtension
+ 
+ plugins {
+-    alias(libs.plugins.android.application)
+-    alias(libs.plugins.kotlin.android)
+-    alias(libs.plugins.kotlin.compose)
++    alias(libs.plugins.androidify.androidApplication)
+     alias(libs.plugins.serialization)
+     alias(libs.plugins.kotlin.ksp)
+     alias(libs.plugins.hilt)
+@@ -31,20 +29,10 @@ plugins {
+ 
+ android {
+     namespace = "com.android.developers.androidify"
+-    compileSdk = libs.versions.compileSdk.get().toInt()
+-
+     defaultConfig {
+         applicationId = "com.android.developers.androidify"
+-        minSdk = libs.versions.minSdk.get().toInt()
+-        targetSdk = 36
+         versionCode = libs.versions.appVersionCode.get().toInt()
+         versionName = libs.versions.appVersionName.get()
+-
+-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+-    }
+-
+-    signingConfigs {
+-
+     }
+ 
+     buildTypes {
+@@ -84,13 +72,6 @@ android {
+             }
+         }
+     }
+-    compileOptions {
+-        sourceCompatibility = JavaVersion.toVersion(libs.versions.javaVersion.get())
+-        targetCompatibility = JavaVersion.toVersion(libs.versions.javaVersion.get())
+-    }
+-    kotlinOptions {
+-        jvmTarget = libs.versions.javaVersion.get()
+-    }
+     testOptions {
+         unitTests {
+             isIncludeAndroidResources = true
+diff --git a/benchmark/build.gradle.kts b/benchmark/build.gradle.kts
+index 2c7e9dd..663c711 100644
+--- a/benchmark/build.gradle.kts
++++ b/benchmark/build.gradle.kts
+@@ -15,6 +15,7 @@
+  */
+ import com.android.build.api.dsl.ManagedVirtualDevice
+ import org.gradle.kotlin.dsl.create
++import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+ 
+ /*
+  * Copyright 2025 The Android Open Source Project
+@@ -39,21 +40,13 @@ plugins {
+ 
+ android {
+     namespace = "com.android.developers.androidify.benchmark"
+-    compileSdk = libs.versions.compileSdk.get().toInt()
+ 
+     compileOptions {
+         sourceCompatibility = JavaVersion.toVersion(libs.versions.javaVersion.get())
+         targetCompatibility = JavaVersion.toVersion(libs.versions.javaVersion.get())
+     }
+ 
+-    kotlinOptions {
+-        jvmTarget = libs.versions.javaVersion.get()
+-    }
+-
+     defaultConfig {
+-        minSdk = libs.versions.minSdk.get().toInt()
+-        targetSdk = libs.versions.compileSdk.get().toInt()
+-
+         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+     }
+ 
+@@ -80,6 +73,12 @@ android {
+     }
+ }
+ 
++kotlin {
++    compilerOptions {
++        jvmTarget = JvmTarget.fromTarget(libs.versions.javaVersion.get())
++    }
++}
++
+ // This is the configuration block for the Baseline Profile plugin.
+ // You can specify to run the generators on a managed devices or connected devices.
+ baselineProfile {
+diff --git a/build-plugin/build.gradle.kts b/build-plugin/build.gradle.kts
+new file mode 100644
+index 0000000..6113f37
+--- /dev/null
++++ b/build-plugin/build.gradle.kts
+@@ -0,0 +1,33 @@
++plugins {
++    `kotlin-dsl`
++}
++
++dependencies {
++    compileOnly(libs.android.gradlePluginApi)
++    compileOnly(libs.kotlin.gradlePlugin)
++}
++
++
++tasks {
++    validatePlugins {
++        enableStricterValidation = true
++        failOnWarning = true
++    }
++}
++
++gradlePlugin {
++    plugins {
++        register(libs.plugins.androidify.androidLibrary.get().pluginId) {
++            id = libs.plugins.androidify.androidLibrary.get().pluginId
++            implementationClass = "com.android.developers.androidify.plugin.AndroidLibraryPlugin"
++        }
++        register(libs.plugins.androidify.androidComposeLibrary.get().pluginId) {
++            id = libs.plugins.androidify.androidComposeLibrary.get().pluginId
++            implementationClass = "com.android.developers.androidify.plugin.AndroidComposeLibraryPlugin"
++        }
++        register(libs.plugins.androidify.androidApplication.get().pluginId) {
++            id = libs.plugins.androidify.androidApplication.get().pluginId
++            implementationClass = "com.android.developers.androidify.plugin.AndroidApplicationPlugin"
++        }
++    }
++}
+diff --git a/build-plugin/settings.gradle.kts b/build-plugin/settings.gradle.kts
+new file mode 100644
+index 0000000..25793bb
+--- /dev/null
++++ b/build-plugin/settings.gradle.kts
+@@ -0,0 +1,26 @@
++pluginManagement {
++    repositories {
++        gradlePluginPortal()
++        google()
++    }
++}
++
++dependencyResolutionManagement {
++    repositories {
++        google {
++            content {
++                includeGroupByRegex("com\\.android.*")
++                includeGroupByRegex("com\\.google.*")
++                includeGroupByRegex("androidx.*")
++            }
++        }
++        mavenCentral()
++    }
++    versionCatalogs {
++        create("libs") {
++            from(files("../gradle/libs.versions.toml"))
++        }
++    }
++}
++
++rootProject.name = "build-logic"
+diff --git a/build-plugin/src/main/kotlin/com/android/developers/androidify/plugin/AndroidApplicationPlugin.kt b/build-plugin/src/main/kotlin/com/android/developers/androidify/plugin/AndroidApplicationPlugin.kt
+new file mode 100644
+index 0000000..693b453
+--- /dev/null
++++ b/build-plugin/src/main/kotlin/com/android/developers/androidify/plugin/AndroidApplicationPlugin.kt
+@@ -0,0 +1,40 @@
++package com.android.developers.androidify.plugin
++
++import com.android.build.api.dsl.ApplicationExtension
++import org.gradle.api.JavaVersion
++import org.gradle.api.Plugin
++import org.gradle.api.Project
++import org.gradle.kotlin.dsl.apply
++import org.gradle.kotlin.dsl.assign
++import org.gradle.kotlin.dsl.configure
++import org.jetbrains.kotlin.gradle.dsl.JvmTarget
++import org.jetbrains.kotlin.gradle.dsl.KotlinAndroidProjectExtension
++
++class AndroidApplicationPlugin : Plugin<Project> {
++    override fun apply(project: Project) {
++        with(project) {
++            apply(plugin = "com.android.application")
++            apply(plugin = "org.jetbrains.kotlin.android")
++            apply(plugin = "org.jetbrains.kotlin.plugin.compose")
++
++            extensions.configure<ApplicationExtension> {
++                defaultConfig {
++                    testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
++                }
++                compileOptions {
++                    val javaVersion = JavaVersion.toVersion(getVersionByName("javaVersion"))
++                    sourceCompatibility = javaVersion
++                    targetCompatibility = javaVersion
++                }
++                buildFeatures {
++                    compose = true
++                }
++            }
++            extensions.configure<KotlinAndroidProjectExtension> {
++                compilerOptions {
++                    jvmTarget = JvmTarget.fromTarget(getVersionByName("javaVersion"))
++                }
++            }
++        }
++    }
++}
+diff --git a/build-plugin/src/main/kotlin/com/android/developers/androidify/plugin/AndroidComposeLibraryPlugin.kt b/build-plugin/src/main/kotlin/com/android/developers/androidify/plugin/AndroidComposeLibraryPlugin.kt
+new file mode 100644
+index 0000000..ed9eb0a
+--- /dev/null
++++ b/build-plugin/src/main/kotlin/com/android/developers/androidify/plugin/AndroidComposeLibraryPlugin.kt
+@@ -0,0 +1,22 @@
++package com.android.developers.androidify.plugin
++
++import com.android.build.api.dsl.LibraryExtension
++import org.gradle.api.Plugin
++import org.gradle.api.Project
++import org.gradle.kotlin.dsl.apply
++import org.gradle.kotlin.dsl.configure
++
++class AndroidComposeLibraryPlugin : Plugin<Project> {
++    override fun apply(project: Project) {
++        with(project) {
++            apply(plugin = "androidify.androidLibrary")
++            apply(plugin = "org.jetbrains.kotlin.plugin.compose")
++            extensions.configure<LibraryExtension> {
++                defaultConfig {
++                    testInstrumentationRunner = "com.android.developers.testing.AndroidifyTestRunner"
++                }
++                buildFeatures.compose = true
++            }
++        }
++    }
++}
+diff --git a/build-plugin/src/main/kotlin/com/android/developers/androidify/plugin/AndroidLibraryPlugin.kt b/build-plugin/src/main/kotlin/com/android/developers/androidify/plugin/AndroidLibraryPlugin.kt
+new file mode 100644
+index 0000000..29f5d19
+--- /dev/null
++++ b/build-plugin/src/main/kotlin/com/android/developers/androidify/plugin/AndroidLibraryPlugin.kt
+@@ -0,0 +1,33 @@
++package com.android.developers.androidify.plugin
++
++import com.android.build.api.dsl.LibraryExtension
++import org.gradle.api.JavaVersion
++import org.gradle.api.Plugin
++import org.gradle.api.Project
++import org.gradle.kotlin.dsl.apply
++import org.gradle.kotlin.dsl.assign
++import org.gradle.kotlin.dsl.configure
++import org.jetbrains.kotlin.gradle.dsl.JvmTarget
++import org.jetbrains.kotlin.gradle.dsl.KotlinAndroidProjectExtension
++
++class AndroidLibraryPlugin : Plugin<Project> {
++    override fun apply(project: Project) {
++        with(project) {
++            apply(plugin = "com.android.library")
++            apply(plugin = "org.jetbrains.kotlin.android")
++
++            extensions.configure<LibraryExtension> {
++                compileOptions {
++                    val javaVersion = JavaVersion.toVersion(getVersionByName("javaVersion"))
++                    sourceCompatibility = javaVersion
++                    targetCompatibility = javaVersion
++                }
++            }
++            extensions.configure<KotlinAndroidProjectExtension> {
++                compilerOptions {
++                    jvmTarget = JvmTarget.fromTarget(getVersionByName("javaVersion"))
++                }
++            }
++        }
++    }
++}
+diff --git a/build-plugin/src/main/kotlin/com/android/developers/androidify/plugin/VersionCatalogHelper.kt b/build-plugin/src/main/kotlin/com/android/developers/androidify/plugin/VersionCatalogHelper.kt
+new file mode 100644
+index 0000000..a1701d2
+--- /dev/null
++++ b/build-plugin/src/main/kotlin/com/android/developers/androidify/plugin/VersionCatalogHelper.kt
+@@ -0,0 +1,19 @@
++package com.android.developers.androidify.plugin
++
++import org.gradle.api.GradleException
++import org.gradle.api.Project
++import org.gradle.api.artifacts.VersionCatalog
++import org.gradle.api.artifacts.VersionCatalogsExtension
++import org.gradle.kotlin.dsl.getByType
++
++private val Project.versionCatalog: VersionCatalog
++    get() = project.extensions.getByType<VersionCatalogsExtension>().find("libs").get()
++
++internal fun Project.getVersionByName(name: String): String {
++    val version = versionCatalog.findVersion(name)
++    return if (version.isPresent) {
++        version.get().requiredVersion
++    } else {
++        throw GradleException("Could not find a version for `$name`")
++    }
++}
+diff --git a/core/network/build.gradle.kts b/core/network/build.gradle.kts
+index f228af5..faacf1b 100644
+--- a/core/network/build.gradle.kts
++++ b/core/network/build.gradle.kts
+@@ -14,8 +14,7 @@
+  * limitations under the License.
+  */
+ plugins {
+-    alias(libs.plugins.android.library)
+-    alias(libs.plugins.kotlin.android)
++    alias(libs.plugins.androidify.androidLibrary)
+     alias(libs.plugins.serialization)
+     alias(libs.plugins.kotlin.ksp)
+     alias(libs.plugins.hilt)
+@@ -23,10 +22,7 @@ plugins {
+ 
+ android {
+     namespace = "com.android.developers.androidify.network"
+-    compileSdk = libs.versions.compileSdk.get().toInt()
+-
+     defaultConfig {
+-        minSdk = libs.versions.minSdk.get().toInt()
+         testInstrumentationRunner = "com.android.developers.testing.AndroidifyTestRunner"
+     }
+     buildFeatures {
+@@ -40,14 +36,6 @@ android {
+             buildConfigField("boolean", "debug", "false")
+         }
+     }
+-
+-    compileOptions {
+-        sourceCompatibility = JavaVersion.toVersion(libs.versions.javaVersion.get())
+-        targetCompatibility = JavaVersion.toVersion(libs.versions.javaVersion.get())
+-    }
+-    kotlinOptions {
+-        jvmTarget = libs.versions.jvmTarget.get()
+-    }
+ }
+ 
+ // Explicitly disable the connectedAndroidTest task for this module
+diff --git a/core/testing/build.gradle.kts b/core/testing/build.gradle.kts
+index fdbe6b7..9cbb1fb 100644
+--- a/core/testing/build.gradle.kts
++++ b/core/testing/build.gradle.kts
+@@ -14,29 +14,13 @@
+  * limitations under the License.
+  */
+ plugins {
+-    alias(libs.plugins.android.library)
+-    alias(libs.plugins.kotlin.android)
+-    alias(libs.plugins.kotlin.compose)
++    alias(libs.plugins.androidify.androidComposeLibrary)
+     alias(libs.plugins.kotlin.ksp)
+     alias(libs.plugins.hilt)
+ }
+ 
+ android {
+     namespace = "com.android.developers.androidify.testing"
+-    compileSdk = libs.versions.compileSdk.get().toInt()
+-
+-    defaultConfig {
+-        minSdk = libs.versions.minSdk.get().toInt()
+-        testInstrumentationRunner = "com.android.developers.testing.AndroidifyTestRunner"
+-    }
+-
+-    compileOptions {
+-        sourceCompatibility = JavaVersion.toVersion(libs.versions.javaVersion.get())
+-        targetCompatibility = JavaVersion.toVersion(libs.versions.javaVersion.get())
+-    }
+-    kotlinOptions {
+-        jvmTarget = libs.versions.jvmTarget.get()
+-    }
+ }
+ 
+ // Explicitly disable the connectedAndroidTest task for this module
+diff --git a/core/theme/build.gradle.kts b/core/theme/build.gradle.kts
+index 16f06e7..aea70d6 100644
+--- a/core/theme/build.gradle.kts
++++ b/core/theme/build.gradle.kts
+@@ -14,25 +14,15 @@
+  * limitations under the License.
+  */
+ plugins {
+-    alias(libs.plugins.android.library)
+-    alias(libs.plugins.kotlin.android)
+-    alias(libs.plugins.kotlin.compose)
++    alias(libs.plugins.androidify.androidComposeLibrary)
+ }
+ val fontName = properties["fontName"] as String?
+ 
+ android {
+     namespace = "com.android.developers.androidify.theme"
+-    compileSdk = libs.versions.compileSdk.get().toInt()
+-
+-    defaultConfig {
+-        minSdk = libs.versions.minSdk.get().toInt()
+-    }
+-
+     buildFeatures {
+-        compose = true
+         buildConfig = true
+     }
+-
+     buildTypes {
+         debug {
+             buildConfigField("String" , "fontName" , fontName ?: "\"Roboto Flex\"")
+@@ -41,13 +31,6 @@ android {
+             buildConfigField("String" , "fontName" , fontName ?: "\"Roboto Flex\"")
+         }
+     }
+-    compileOptions {
+-        sourceCompatibility = JavaVersion.toVersion(libs.versions.javaVersion.get())
+-        targetCompatibility = JavaVersion.toVersion(libs.versions.javaVersion.get())
+-    }
+-    kotlinOptions {
+-        jvmTarget = libs.versions.jvmTarget.get()
+-    }
+     // To avoid packaging conflicts when using bouncycastle
+     packaging {
+         resources {
+diff --git a/core/util/build.gradle.kts b/core/util/build.gradle.kts
+index 48400d1..307fd53 100644
+--- a/core/util/build.gradle.kts
++++ b/core/util/build.gradle.kts
+@@ -14,28 +14,13 @@
+  * limitations under the License.
+  */
+ plugins {
+-    alias(libs.plugins.android.library)
+-    alias(libs.plugins.kotlin.android)
+-    alias(libs.plugins.kotlin.compose)
++    alias(libs.plugins.androidify.androidComposeLibrary)
+     alias(libs.plugins.kotlin.ksp)
+     alias(libs.plugins.hilt)
+ }
+ 
+ android {
+     namespace = "com.android.developers.androidify.util"
+-    compileSdk = libs.versions.compileSdk.get().toInt()
+-
+-    defaultConfig {
+-        minSdk = libs.versions.minSdk.get().toInt()
+-    }
+-
+-    compileOptions {
+-        sourceCompatibility = JavaVersion.toVersion(libs.versions.javaVersion.get())
+-        targetCompatibility = JavaVersion.toVersion(libs.versions.javaVersion.get())
+-    }
+-    kotlinOptions {
+-        jvmTarget = libs.versions.jvmTarget.get()
+-    }
+ }
+ // Explicitly disable the connectedAndroidTest task for this module
+ androidComponents {
+diff --git a/core/xr/build.gradle.kts b/core/xr/build.gradle.kts
+index 58b8918..aa83f59 100644
+--- a/core/xr/build.gradle.kts
++++ b/core/xr/build.gradle.kts
+@@ -14,30 +14,14 @@
+  * limitations under the License.
+  */
+ plugins {
+-    alias(libs.plugins.android.library)
+-    alias(libs.plugins.kotlin.android)
+-    alias(libs.plugins.kotlin.compose)
++    alias(libs.plugins.androidify.androidComposeLibrary)
+ }
++
+ android {
+     namespace = "com.android.developers.androidify.xr"
+-    compileSdk = libs.versions.compileSdk.get().toInt()
+-    defaultConfig {
+-        minSdk = libs.versions.minSdk.get().toInt()
+-    }
+-
+     buildFeatures {
+-        compose = true
+         buildConfig = true
+     }
+-
+-    compileOptions {
+-        sourceCompatibility = JavaVersion.toVersion(libs.versions.javaVersion.get())
+-        targetCompatibility = JavaVersion.toVersion(libs.versions.javaVersion.get())
+-    }
+-    kotlinOptions {
+-        jvmTarget = libs.versions.jvmTarget.get()
+-    }
+-
+ }
+ 
+ dependencies {
+diff --git a/data/build.gradle.kts b/data/build.gradle.kts
+index fa44d84..8f97869 100644
+--- a/data/build.gradle.kts
++++ b/data/build.gradle.kts
+@@ -14,27 +14,13 @@
+  * limitations under the License.
+  */
+ plugins {
+-    alias(libs.plugins.android.library)
+-    alias(libs.plugins.kotlin.android)
++    alias(libs.plugins.androidify.androidLibrary)
+     alias(libs.plugins.kotlin.ksp)
+     alias(libs.plugins.hilt)
+ }
+ 
+ android {
+     namespace = "com.android.developers.androidify.data"
+-    compileSdk = libs.versions.compileSdk.get().toInt()
+-
+-    defaultConfig {
+-        minSdk = libs.versions.minSdk.get().toInt()
+-    }
+-
+-    compileOptions {
+-        sourceCompatibility = JavaVersion.toVersion(libs.versions.javaVersion.get())
+-        targetCompatibility = JavaVersion.toVersion(libs.versions.javaVersion.get())
+-    }
+-    kotlinOptions {
+-        jvmTarget = libs.versions.jvmTarget.get()
+-    }
+ }
+ // Explicitly disable the connectedAndroidTest task for this module
+ androidComponents {
+diff --git a/feature/camera/build.gradle.kts b/feature/camera/build.gradle.kts
+index ea91ed5..069f805 100644
+--- a/feature/camera/build.gradle.kts
++++ b/feature/camera/build.gradle.kts
+@@ -14,36 +14,13 @@
+  * limitations under the License.
+  */
+ plugins {
+-    alias(libs.plugins.android.library)
+-    alias(libs.plugins.kotlin.android)
+-    alias(libs.plugins.kotlin.compose)
++    alias(libs.plugins.androidify.androidComposeLibrary)
+     alias(libs.plugins.kotlin.ksp)
+     alias(libs.plugins.hilt)
+ }
+ 
+ android {
+     namespace = "com.android.developers.androidify.camera"
+-    compileSdk = libs.versions.compileSdk.get().toInt()
+-
+-    defaultConfig {
+-        minSdk = libs.versions.minSdk.get().toInt()
+-        testInstrumentationRunner = "com.android.developers.testing.AndroidifyTestRunner"
+-    }
+-
+-    compileOptions {
+-        sourceCompatibility = JavaVersion.toVersion(libs.versions.javaVersion.get())
+-        targetCompatibility = JavaVersion.toVersion(libs.versions.javaVersion.get())
+-    }
+-    kotlinOptions {
+-        jvmTarget = libs.versions.jvmTarget.get()
+-    }
+-    buildFeatures {
+-        compose = true
+-    }
+-
+-    testOptions {
+-        targetSdk = 36
+-    }
+     // To avoid packaging conflicts when using bouncycastle
+     packaging {
+         resources {
+diff --git a/feature/creation/build.gradle.kts b/feature/creation/build.gradle.kts
+index 9aaa34f..4e5b834 100644
+--- a/feature/creation/build.gradle.kts
++++ b/feature/creation/build.gradle.kts
+@@ -14,41 +14,17 @@
+  * limitations under the License.
+  */
+ plugins {
+-    alias(libs.plugins.android.library)
+-    alias(libs.plugins.kotlin.android)
+-    alias(libs.plugins.kotlin.compose)
++    alias(libs.plugins.androidify.androidComposeLibrary)
+     alias(libs.plugins.kotlin.ksp)
+     alias(libs.plugins.hilt)
+ }
+ 
+ android {
+     namespace = "com.android.developers.androidify.creation"
+-    compileSdk = libs.versions.compileSdk.get().toInt()
+-
+-
+-    defaultConfig {
+-        minSdk = libs.versions.minSdk.get().toInt()
+-        testInstrumentationRunner = "com.android.developers.testing.AndroidifyTestRunner"
+-
+-    }
+-
+-    compileOptions {
+-        sourceCompatibility = JavaVersion.toVersion(libs.versions.javaVersion.get())
+-        targetCompatibility = JavaVersion.toVersion(libs.versions.javaVersion.get())
+-    }
+-    kotlinOptions {
+-        jvmTarget = libs.versions.jvmTarget.get()
+-    }
+-    buildFeatures {
+-        compose = true
+-    }
+-
+     testOptions {
+         unitTests {
+             isIncludeAndroidResources = true
+-
+         }
+-        targetSdk = 36
+     }
+     // To avoid packaging conflicts when using bouncycastle
+     packaging {
+diff --git a/feature/home/build.gradle.kts b/feature/home/build.gradle.kts
+index d08294b..52057db 100644
+--- a/feature/home/build.gradle.kts
++++ b/feature/home/build.gradle.kts
+@@ -14,36 +14,13 @@
+  * limitations under the License.
+  */
+ plugins {
+-    alias(libs.plugins.android.library)
+-    alias(libs.plugins.kotlin.android)
+-    alias(libs.plugins.kotlin.compose)
++    alias(libs.plugins.androidify.androidComposeLibrary)
+     alias(libs.plugins.kotlin.ksp)
+     alias(libs.plugins.hilt)
+ }
+ 
+ android {
+     namespace = "com.android.developers.androidify.home"
+-    compileSdk = libs.versions.compileSdk.get().toInt()
+-
+-    defaultConfig {
+-        minSdk = libs.versions.minSdk.get().toInt()
+-        testInstrumentationRunner = "com.android.developers.testing.AndroidifyTestRunner"
+-    }
+-
+-    compileOptions {
+-        sourceCompatibility = JavaVersion.toVersion(libs.versions.javaVersion.get())
+-        targetCompatibility = JavaVersion.toVersion(libs.versions.javaVersion.get())
+-    }
+-    kotlinOptions {
+-        jvmTarget = libs.versions.jvmTarget.get()
+-    }
+-    buildFeatures {
+-        compose = true
+-    }
+-
+-    testOptions {
+-        targetSdk = 36
+-    }
+     // To avoid packaging conflicts when using bouncycastle
+     packaging {
+         resources {
+diff --git a/feature/results/build.gradle.kts b/feature/results/build.gradle.kts
+index a2eb853..a127317 100644
+--- a/feature/results/build.gradle.kts
++++ b/feature/results/build.gradle.kts
+@@ -14,37 +14,13 @@
+  * limitations under the License.
+  */
+ plugins {
+-    alias(libs.plugins.android.library)
+-    alias(libs.plugins.kotlin.android)
+-    alias(libs.plugins.kotlin.compose)
++    alias(libs.plugins.androidify.androidComposeLibrary)
+     alias(libs.plugins.kotlin.ksp)
+     alias(libs.plugins.hilt)
+ }
+ 
+ android {
+     namespace = "com.android.developers.androidify.results"
+-    compileSdk = libs.versions.compileSdk.get().toInt()
+-
+-    defaultConfig {
+-        minSdk = libs.versions.minSdk.get().toInt()
+-        testInstrumentationRunner = "com.android.developers.testing.AndroidifyTestRunner"
+-    }
+-
+-    compileOptions {
+-        sourceCompatibility = JavaVersion.toVersion(libs.versions.javaVersion.get())
+-        targetCompatibility = JavaVersion.toVersion(libs.versions.javaVersion.get())
+-    }
+-    kotlinOptions {
+-        jvmTarget = libs.versions.jvmTarget.get()
+-    }
+-
+-    buildFeatures {
+-        compose = true
+-    }
+-
+-    testOptions {
+-        targetSdk = 36
+-    }
+     // To avoid packaging conflicts when using bouncycastle
+     packaging {
+         resources {
+diff --git a/gradle/libs.versions.toml b/gradle/libs.versions.toml
+index b8392e4..ea63693 100644
+--- a/gradle/libs.versions.toml
++++ b/gradle/libs.versions.toml
+@@ -5,14 +5,10 @@ appVersionName = "1.3.0"
+ appVersionWearOffset = "60000000"
+ agp = "8.13.1"
+ bcpkixJdk18on = "1.83"
+-compileSdk = "36"
+ core = "1.7.0"
+ extensionsXr = "1.1.0"
+ leakcanaryAndroid = "2.14"
+-minSdk = "26"
+ javaVersion = "17"
+-jvmTarget = "17"
+-wearMinSdk = "36"
+ 
+ #dependencies
+ accompanist = "0.37.3"
+@@ -185,7 +181,14 @@ google-firebase-appcheck-debug = { group = "com.google.firebase", name = "fireba
+ androidx-xr-compose = { group = "androidx.xr.compose", name="compose", version.ref = "xr-compose"}
+ androidx-xr-extensions = { module = "com.android.extensions.xr:extensions-xr", version.ref = "extensionsXr" }
+ 
++# Dependencies of the included build-logic
++android-gradlePluginApi = { group = "com.android.tools.build", name = "gradle-api", version.ref = "agp" }
++kotlin-gradlePlugin = { group = "org.jetbrains.kotlin", name = "kotlin-gradle-plugin", version.ref = "kotlin" }
++
+ [plugins]
++androidify-androidLibrary = { id = "androidify.androidLibrary" }
++androidify-androidComposeLibrary = { id = "androidify.androidComposeLibrary" }
++androidify-androidApplication = { id = "androidify.androidApplication" }
+ android-application = { id = "com.android.application", version.ref = "agp" }
+ android-library = { id = "com.android.library", version.ref = "agp" }
+ crashlytics = { id = "com.google.firebase.crashlytics", version.ref = "crashlytics" }
+diff --git a/settings.gradle.kts b/settings.gradle.kts
+index 7e3f7b8..7dc2664 100644
+--- a/settings.gradle.kts
++++ b/settings.gradle.kts
+@@ -26,9 +26,31 @@ dependencyResolutionManagement {
+     }
+ }
+ 
++plugins {
++    val agpVersion = File("gradle/libs.versions.toml").readLines().first {
++        it.startsWith("agp =")
++    }.split("\"")[1]
++    id("com.android.settings") version agpVersion
++}
++
++android {
++    compileSdk {
++        version = release(36)
++    }
++    targetSdk {
++        version = release(36)
++    }
++    minSdk {
++        version = release(26)
++    }
++}
++
+ enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
+ 
+ rootProject.name = "Androidify"
++
++includeBuild("build-plugin")
++
+ include(":app")
+ include(":feature:camera")
+ include(":feature:creation")
+diff --git a/watchface/build.gradle.kts b/watchface/build.gradle.kts
+index 6030560..4169274 100644
+--- a/watchface/build.gradle.kts
++++ b/watchface/build.gradle.kts
+@@ -15,8 +15,7 @@
+  */
+ 
+ plugins {
+-    alias(libs.plugins.android.library)
+-    alias(libs.plugins.kotlin.android)
++    alias(libs.plugins.androidify.androidLibrary)
+     alias(libs.plugins.hilt)
+     alias(libs.plugins.kotlin.ksp)
+     alias(libs.plugins.serialization)
+@@ -24,24 +23,13 @@ plugins {
+ 
+ android {
+     namespace = "com.android.developers.androidify.watchface"
+-    compileSdk = libs.versions.compileSdk.get().toInt()
+-
+     defaultConfig {
+-        minSdk = libs.versions.minSdk.get().toInt()
+-        targetSdk = 36
+         testInstrumentationRunner = "com.android.developers.testing.AndroidifyTestRunner"
+         consumerProguardFiles("proguard-rules.pro")
+     }
+     buildFeatures {
+         buildConfig = true
+     }
+-    compileOptions {
+-        sourceCompatibility = JavaVersion.toVersion(libs.versions.javaVersion.get())
+-        targetCompatibility = JavaVersion.toVersion(libs.versions.javaVersion.get())
+-    }
+-    kotlinOptions {
+-        jvmTarget = libs.versions.jvmTarget.get()
+-    }
+     sourceSets {
+         getByName("androidTest") {
+             assets.srcDir("src/androidTest/assets")
+diff --git a/wear/build.gradle.kts b/wear/build.gradle.kts
+index a3df535..8f42286 100644
+--- a/wear/build.gradle.kts
++++ b/wear/build.gradle.kts
+@@ -19,36 +19,20 @@ import org.gradle.api.attributes.Attribute
+ import com.android.build.api.attributes.BuildTypeAttr
+ 
+ plugins {
+-    alias(libs.plugins.android.application)
+-    alias(libs.plugins.kotlin.android)
+-    alias(libs.plugins.kotlin.compose)
++    alias(libs.plugins.androidify.androidApplication)
+     alias(libs.plugins.serialization)
+     alias(libs.plugins.kotlin.ksp)
+ }
+ 
+ android {
+     namespace = "com.android.developers.androidify"
+-    compileSdk = libs.versions.compileSdk.get().toInt()
+-
+     defaultConfig {
+-        minSdk = libs.versions.wearMinSdk.get().toInt()
++        minSdk = 36
+         applicationId = "com.android.developers.androidify"
+-        targetSdk = 36
+         // Ensure Wear OS app has its own version space
+         versionCode = libs.versions.appVersionWearOffset.get().toInt() + libs.versions.appVersionCode.get().toInt()
+         versionName = libs.versions.appVersionName.get()
+     }
+-
+-    compileOptions {
+-        sourceCompatibility = JavaVersion.toVersion(libs.versions.javaVersion.get())
+-        targetCompatibility = JavaVersion.toVersion(libs.versions.javaVersion.get())
+-    }
+-    kotlinOptions {
+-        jvmTarget = libs.versions.jvmTarget.get()
+-    }
+-    buildFeatures {
+-        compose = true
+-    }
+     sourceSets {
+         getByName("release") {
+             assets.srcDirs(layout.buildDirectory.dir("intermediates/watchfaceAssets/release"))
+diff --git a/wear/common/build.gradle.kts b/wear/common/build.gradle.kts
+index 7f02b06..19cf69c 100644
+--- a/wear/common/build.gradle.kts
++++ b/wear/common/build.gradle.kts
+@@ -14,26 +14,12 @@
+  * limitations under the License.
+  */
+ plugins {
+-    alias(libs.plugins.android.library)
+-    alias(libs.plugins.kotlin.android)
++    alias(libs.plugins.androidify.androidLibrary)
+     alias(libs.plugins.serialization)
+ }
+ 
+ android {
+     namespace = "com.android.developers.androidify.wear.common"
+-    compileSdk = libs.versions.compileSdk.get().toInt()
+-
+-    defaultConfig {
+-        minSdk = libs.versions.minSdk.get().toInt()
+-    }
+-
+-    compileOptions {
+-        sourceCompatibility = JavaVersion.toVersion(libs.versions.javaVersion.get())
+-        targetCompatibility = JavaVersion.toVersion(libs.versions.javaVersion.get())
+-    }
+-    kotlinOptions {
+-        jvmTarget = libs.versions.jvmTarget.get()
+-    }
+ }
+ 
+ dependencies {
+diff --git a/wear/watchface/build.gradle.kts b/wear/watchface/build.gradle.kts
+index c8bb7f9..b701308 100644
+--- a/wear/watchface/build.gradle.kts
++++ b/wear/watchface/build.gradle.kts
+@@ -20,12 +20,10 @@ plugins {
+ 
+ android {
+     namespace = "com.android.developers.androidify.watchfacepush.defaultwf"
+-    compileSdk = libs.versions.compileSdk.get().toInt()
+ 
+     defaultConfig {
+         applicationId = "com.android.developers.androidify.watchfacepush.defaultwf"
+         minSdk = 36
+-        targetSdk = 36
+         // The default watch face version is kept in lock step with the Wear OS app.
+         versionCode = libs.versions.appVersionWearOffset.get().toInt() + libs.versions.appVersionCode.get().toInt()
+         versionName = libs.versions.appVersionName.get()
+

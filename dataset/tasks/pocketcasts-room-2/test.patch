@@ -1,0 +1,152 @@
+diff --git a/app/src/androidTest/java/au/com/shiftyjelly/pocketcasts/models/db/EpisodeDaoTest.kt b/app/src/androidTest/java/au/com/shiftyjelly/pocketcasts/models/db/EpisodeDaoTest.kt
+index 9767835fc..04daf598b 100644
+--- a/app/src/androidTest/java/au/com/shiftyjelly/pocketcasts/models/db/EpisodeDaoTest.kt
++++ b/app/src/androidTest/java/au/com/shiftyjelly/pocketcasts/models/db/EpisodeDaoTest.kt
+@@ -8,12 +8,16 @@ import au.com.shiftyjelly.pocketcasts.models.db.dao.PodcastDao
+ import au.com.shiftyjelly.pocketcasts.models.di.ModelModule
+ import au.com.shiftyjelly.pocketcasts.models.di.addTypeConverters
+ import au.com.shiftyjelly.pocketcasts.models.entity.EpisodeDownloadFailureStatistics
++import au.com.shiftyjelly.pocketcasts.models.entity.Podcast
+ import au.com.shiftyjelly.pocketcasts.models.entity.PodcastEpisode
+ import au.com.shiftyjelly.pocketcasts.models.type.EpisodeStatusEnum
++import au.com.shiftyjelly.pocketcasts.utils.extensions.escapeLike
+ import com.squareup.moshi.Moshi
+ import java.time.Instant
+ import java.util.Date
++import kotlinx.coroutines.flow.first
+ import kotlinx.coroutines.runBlocking
++import kotlinx.coroutines.test.runTest
+ import org.junit.After
+ import org.junit.Assert.assertEquals
+ import org.junit.Before
+@@ -160,4 +164,63 @@ class EpisodeDaoTest {
+         )
+         assertEquals(expected, statistics)
+     }
++
++    @Test
++    fun getFilteredPlaybackHistoryResultForMatchedEpisodeTitle() = runTest {
++        val query = "test"
++        val episodes = listOf(PodcastEpisode(uuid = "1", title = "Test Episode", podcastUuid = "podcast_uuid", publishedDate = Date(), lastPlaybackInteraction = 1000))
++        val podcast = Podcast(uuid = "podcast_uuid")
++        episodeDao.insertAll(episodes)
++        podcastDao.insert(podcast)
++
++        val result = episodeDao.filteredPlaybackHistoryFlow(query.escapeLike('\\')).first()
++        assertEquals(episodes, result)
++    }
++
++    @Test
++    fun getFilteredPlaybackHistoryResultForMatchedPodcastTitle() = runTest {
++        val query = "test"
++        val episodes = listOf(PodcastEpisode(uuid = "1", title = "Episode", podcastUuid = "podcast_uuid", publishedDate = Date(), lastPlaybackInteraction = 1000))
++        val podcast = Podcast(uuid = "podcast_uuid", title = "Test Podcast")
++        episodeDao.insertAll(episodes)
++        podcastDao.insert(podcast)
++
++        val result = episodeDao.filteredPlaybackHistoryFlow(query.escapeLike('\\')).first()
++        assertEquals(episodes, result)
++    }
++
++    @Test
++    fun getOrderedFilteredPlaybackHistoryResults() = runTest {
++        val query = "test"
++        val episode1 = PodcastEpisode(uuid = "1", title = "Test Episode 1", publishedDate = Date(), lastPlaybackInteraction = 1000)
++        val episode2 = PodcastEpisode(uuid = "2", title = "Test Episode 2", publishedDate = Date(), lastPlaybackInteraction = 2000)
++        val episodes = listOf(episode2, episode1)
++        episodeDao.insertAll(episodes)
++
++        val result = episodeDao.filteredPlaybackHistoryFlow(query.escapeLike('\\')).first()
++        assertEquals(episodes, result)
++    }
++
++    @Test
++    fun getFilteredPlaybackHistoryResultForNoMatch() = runTest {
++        val query = "test"
++        val episodes = listOf(PodcastEpisode(uuid = "1", title = "Episode", podcastUuid = "podcast_uuid", publishedDate = Date(), lastPlaybackInteraction = 1000))
++        episodeDao.insertAll(episodes)
++
++        val result = episodeDao.filteredPlaybackHistoryFlow(query.escapeLike('\\')).first()
++        assertEquals(emptyList<PodcastEpisode>(), result)
++    }
++
++    @Test
++    fun getFilteredPlaybackHistorydResultForMatchSpecialChars() = runTest {
++        val query = "%test_"
++
++        val episode1 = PodcastEpisode(uuid = "1", title = "%Test_ Episode", podcastUuid = "podcast_uuid", publishedDate = Date(), lastPlaybackInteraction = 1000)
++        val episode2 = PodcastEpisode(uuid = "3", title = "Test Episode", podcastUuid = "podcast_uuid", publishedDate = Date(), lastPlaybackInteraction = 1000)
++        val episodes = listOf(episode1, episode2)
++        episodeDao.insertAll(episodes)
++
++        val result = episodeDao.filteredPlaybackHistoryFlow(query.escapeLike('\\')).first()
++        assertEquals(listOf(episode1), result)
++    }
+ }
+diff --git a/modules/features/podcasts/src/test/java/au/com/shiftyjelly/pocketcasts/podcasts/view/ProfileEpisodeListViewModelTest.kt b/modules/features/podcasts/src/test/java/au/com/shiftyjelly/pocketcasts/podcasts/view/ProfileEpisodeListViewModelTest.kt
+index e89a84644..abab41346 100644
+--- a/modules/features/podcasts/src/test/java/au/com/shiftyjelly/pocketcasts/podcasts/view/ProfileEpisodeListViewModelTest.kt
++++ b/modules/features/podcasts/src/test/java/au/com/shiftyjelly/pocketcasts/podcasts/view/ProfileEpisodeListViewModelTest.kt
+@@ -2,6 +2,7 @@ package au.com.shiftyjelly.pocketcasts.podcasts.view
+ 
+ import app.cash.turbine.test
+ import au.com.shiftyjelly.pocketcasts.analytics.AnalyticsTracker
++import au.com.shiftyjelly.pocketcasts.localization.R
+ import au.com.shiftyjelly.pocketcasts.models.entity.PodcastEpisode
+ import au.com.shiftyjelly.pocketcasts.podcasts.view.ProfileEpisodeListFragment.Mode
+ import au.com.shiftyjelly.pocketcasts.podcasts.view.ProfileEpisodeListViewModel.State
+@@ -20,6 +21,7 @@ import org.junit.Before
+ import org.junit.Rule
+ import org.junit.Test
+ import org.mockito.kotlin.any
++import org.mockito.kotlin.anyOrNull
+ import org.mockito.kotlin.doNothing
+ import org.mockito.kotlin.mock
+ import org.mockito.kotlin.whenever
+@@ -152,6 +154,37 @@ class ProfileEpisodeListViewModelTest {
+         }
+     }
+ 
++    @Test
++    fun `search returns filtered playback history episodes`() = runTest {
++        initViewModel()
++        val filteredEpisodes = listOf(mock<PodcastEpisode>())
++        whenever(episodeManager.filteredPlaybackHistoryEpisodesFlow("query")).thenReturn(flowOf(filteredEpisodes))
++        viewModel.setup(Mode.History)
++
++        viewModel.updateSearchQuery("query")
++
++        viewModel.state.test {
++            assertEquals(filteredEpisodes, (awaitItem() as State.Loaded).results)
++        }
++    }
++
++    @Test
++    fun `empty state is shown if no search results available`() = runTest {
++        initViewModel()
++        val filteredEpisodes = emptyList<PodcastEpisode>()
++        whenever(episodeManager.filteredPlaybackHistoryEpisodesFlow("query")).thenReturn(flowOf(filteredEpisodes))
++        viewModel.setup(Mode.History)
++
++        viewModel.updateSearchQuery("query")
++
++        viewModel.state.test {
++            assertEquals(
++                awaitItem(),
++                State.Empty,
++            )
++        }
++    }
++
+     private fun initViewModel(
+         downloadedEpisodes: List<PodcastEpisode> = downloadedEpisodesMock,
+         starredEpisodes: List<PodcastEpisode> = starredEpisodesMock,
+@@ -160,6 +193,7 @@ class ProfileEpisodeListViewModelTest {
+         whenever(episodeManager.observeDownloadEpisodes()).thenReturn(flowOf(downloadedEpisodes).asFlowable())
+         whenever(episodeManager.observeStarredEpisodes()).thenReturn(flowOf(starredEpisodes).asFlowable())
+         whenever(episodeManager.observePlaybackHistoryEpisodes()).thenReturn(flowOf(listeningHistoryEpisodes).asFlowable())
++        whenever(episodeManager.filteredPlaybackHistoryEpisodesFlow(anyOrNull())).thenReturn(flowOf(emptyList()))
+         doNothing().whenever(analyticsTracker).track(any(), any())
+ 
+         viewModel = ProfileEpisodeListViewModel(
+

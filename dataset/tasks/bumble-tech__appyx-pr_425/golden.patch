@@ -1,0 +1,110 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index ca93f086e..43b200667 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -2,7 +2,7 @@
+ 
+ ## Pending changes
+ 
+--
++- [#425](https://github.com/bumble-tech/appyx/pull/425) – **Fixed**: Up navigation should be properly propagated from Appyx to RIBs
+ 
+ ---
+ 
+diff --git a/libraries/interop-ribs/src/main/kotlin/com/bumble/appyx/interop/ribs/InteropBuilder.kt b/libraries/interop-ribs/src/main/kotlin/com/bumble/appyx/interop/ribs/InteropBuilder.kt
+index 954da28d7..947236fdd 100644
+--- a/libraries/interop-ribs/src/main/kotlin/com/bumble/appyx/interop/ribs/InteropBuilder.kt
++++ b/libraries/interop-ribs/src/main/kotlin/com/bumble/appyx/interop/ribs/InteropBuilder.kt
+@@ -7,6 +7,7 @@ import com.bumble.appyx.core.integrationpoint.IntegrationPoint
+ import com.bumble.appyx.core.modality.BuildContext
+ import com.bumble.appyx.core.node.Node
+ import com.bumble.appyx.core.node.build
++import com.bumble.appyx.core.state.SavedStateMap
+ import com.bumble.appyx.interop.ribs.InteropNodeImpl.Companion.InteropNodeKey
+ 
+ class InteropBuilder<N : Node>(
+@@ -15,15 +16,8 @@ class InteropBuilder<N : Node>(
+ ) : SimpleBuilder<InteropNode<N>>() {
+ 
+     override fun build(buildParams: BuildParams<Nothing?>): InteropNode<N> {
+-        val bundle = buildParams.savedInstanceState?.getBundle(InteropNodeKey)
+-        val stateMap = bundle?.let {
+-            val keys = bundle.keySet()
+-            val map = mutableMapOf<String, Any?>()
+-            keys.forEach {
+-                map[it] = bundle[it]
+-            }
+-            map
+-        }
++        val stateMap = buildAppyxSavedStateMap(buildParams)
++        val integrationPointDelegate = UpHandlingAppyxIntegrationPoint(integrationPoint)
+ 
+         val appyxNode = nodeFactory
+             .create(
+@@ -32,9 +26,26 @@ class InteropBuilder<N : Node>(
+                     customisations = buildParams.buildContext.customisations
+                 )
+             )
+-            .apply { integrationPoint = this@InteropBuilder.integrationPoint }
++            .apply { integrationPoint = integrationPointDelegate }
+             .build()
+ 
+         return InteropNodeImpl(buildParams = buildParams, appyxNode = appyxNode)
++            .apply {
++                integrationPointDelegate.setUpNavigationListener(::upNavigation)
++            }
++    }
++
++    private fun buildAppyxSavedStateMap(buildParams: BuildParams<Nothing?>): SavedStateMap? {
++        val bundle = buildParams.savedInstanceState?.getBundle(InteropNodeKey)
++        val stateMap = bundle?.let {
++            val keys = bundle.keySet()
++            val map = mutableMapOf<String, Any?>()
++            keys.forEach {
++                map[it] = bundle[it]
++            }
++            map
++        }
++        return stateMap
+     }
++
+ }
+diff --git a/libraries/interop-ribs/src/main/kotlin/com/bumble/appyx/interop/ribs/UpHandlingAppyxIntegrationPoint.kt b/libraries/interop-ribs/src/main/kotlin/com/bumble/appyx/interop/ribs/UpHandlingAppyxIntegrationPoint.kt
+new file mode 100644
+index 000000000..19fb48287
+--- /dev/null
++++ b/libraries/interop-ribs/src/main/kotlin/com/bumble/appyx/interop/ribs/UpHandlingAppyxIntegrationPoint.kt
+@@ -0,0 +1,32 @@
++package com.bumble.appyx.interop.ribs
++
++import com.badoo.ribs.util.RIBs
++import com.bumble.appyx.core.integrationpoint.IntegrationPoint
++import com.bumble.appyx.core.integrationpoint.activitystarter.ActivityStarter
++import com.bumble.appyx.core.integrationpoint.permissionrequester.PermissionRequester
++
++internal class UpHandlingAppyxIntegrationPoint(
++    private val delegate: IntegrationPoint,
++) : IntegrationPoint(null) {
++    private lateinit var upNavigationListener: () -> Unit
++
++    override val activityStarter: ActivityStarter get() = delegate.activityStarter
++    override val permissionRequester: PermissionRequester get() = delegate.permissionRequester
++    override val isChangingConfigurations: Boolean get() = delegate.isChangingConfigurations
++    override fun onRootFinished() = delegate.onRootFinished()
++
++    override fun handleUpNavigation() {
++        if (::upNavigationListener.isInitialized) {
++            upNavigationListener()
++        } else {
++            RIBs.errorHandler.handleNonFatalError(
++                "Up navigation from initialization sequence is not supported"
++            )
++        }
++    }
++
++    fun setUpNavigationListener(listener: () -> Unit) {
++        upNavigationListener = listener
++    }
++
++}
+

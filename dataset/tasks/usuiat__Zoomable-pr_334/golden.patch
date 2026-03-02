@@ -1,0 +1,16 @@
+diff --git a/zoomable/src/commonMain/kotlin/net/engawapg/lib/zoomable/DetectZoomableGestures.kt b/zoomable/src/commonMain/kotlin/net/engawapg/lib/zoomable/DetectZoomableGestures.kt
+index 8759e31..faf45e6 100644
+--- a/zoomable/src/commonMain/kotlin/net/engawapg/lib/zoomable/DetectZoomableGestures.kt
++++ b/zoomable/src/commonMain/kotlin/net/engawapg/lib/zoomable/DetectZoomableGestures.kt
+@@ -45,7 +45,9 @@ internal suspend fun PointerInputScope.detectZoomableGestures(
+     onLongPress: ((position: Offset) -> Unit)? = null,
+ ) = awaitEachGesture {
+     val firstDown = awaitFirstDown(requireUnconsumed = false)
+-    firstDown.consume()
++    if (onTap != null || onDoubleTap != null || onLongPress != null || enableOneFingerZoom()) {
++        firstDown.consume()
++    }
+     onGestureStart()
+     detectGesture(
+         cancelIfZoomCanceled = cancelIfZoomCanceled,
+

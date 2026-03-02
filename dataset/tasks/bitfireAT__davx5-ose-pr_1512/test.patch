@@ -1,0 +1,163 @@
+Subject: [PATCH] bitfireAT__davx5-ose-pr_1512
+---
+Index: app/build.gradle.kts
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/build.gradle.kts b/app/build.gradle.kts
+--- a/app/build.gradle.kts	(revision 16083844188b7f4cfa49f755f27a87a2e27b9981)
++++ b/app/build.gradle.kts	(date 1765200128818)
+@@ -216,4 +216,6 @@
+     testImplementation(libs.junit)
+     testImplementation(libs.mockk)
+     testImplementation(libs.okhttp.mockwebserver)
++    testImplementation(libs.kotlinx.coroutines.test)
++    testImplementation(libs.hilt.android.testing)
+ }
+Index: app/src/androidTest/kotlin/at/bitfire/davdroid/DeleteRemoteTests.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/androidTest/kotlin/at/bitfire/davdroid/DeleteRemoteTests.kt b/app/src/androidTest/kotlin/at/bitfire/davdroid/DeleteRemoteTests.kt
+new file mode 100644
+--- /dev/null	(date 1765270649001)
++++ b/app/src/androidTest/kotlin/at/bitfire/davdroid/DeleteRemoteTests.kt	(date 1765270649001)
+@@ -0,0 +1,135 @@
++/*
++ * Copyright © All Contributors. See LICENSE and AUTHORS in the root directory for details.
++ */
++
++package at.bitfire.davdroid
++
++import android.accounts.Account
++import android.accounts.AccountManager
++import android.os.Bundle
++import androidx.test.core.app.ApplicationProvider
++import androidx.test.platform.app.InstrumentationRegistry
++import at.bitfire.dav4jvm.exception.GoneException
++import at.bitfire.davdroid.db.AppDatabase
++import at.bitfire.davdroid.db.Collection
++import at.bitfire.davdroid.db.CollectionDao
++import at.bitfire.davdroid.db.Service
++import at.bitfire.davdroid.di.CoroutineDispatchersModule
++import at.bitfire.davdroid.di.LoggerModule
++import at.bitfire.davdroid.repository.DavCollectionRepository
++import at.bitfire.davdroid.settings.AccountSettings.Companion.KEY_SETTINGS_VERSION
++import dagger.hilt.android.testing.HiltAndroidRule
++import dagger.hilt.android.testing.HiltAndroidTest
++import dagger.hilt.android.testing.UninstallModules
++import junit.framework.TestCase.fail
++import kotlinx.coroutines.runBlocking
++import kotlinx.coroutines.test.runTest
++import okhttp3.mockwebserver.MockResponse
++import okhttp3.mockwebserver.MockWebServer
++import org.junit.After
++import org.junit.Before
++import org.junit.Rule
++import org.junit.Test
++import javax.inject.Inject
++
++@HiltAndroidTest
++@UninstallModules(
++    LoggerModule::class,
++    CoroutineDispatchersModule::class
++)
++class DeleteRemoteTests {
++
++    @get:Rule
++    val hiltRule = HiltAndroidRule(this)
++
++    @Inject
++    lateinit var db: AppDatabase
++
++    @Inject
++    lateinit var sut: DavCollectionRepository
++
++    private lateinit var collectionDao: CollectionDao
++
++    private lateinit var server: MockWebServer
++
++    private lateinit var dummyCollection: Collection
++
++    @Before
++    fun setup() {
++        val account = Account("testAccount", "bitfire.at.davdroid")
++        val userData = Bundle().apply {
++            putString(KEY_SETTINGS_VERSION, "1")
++        }
++        val am = AccountManager.get(ApplicationProvider.getApplicationContext())
++
++        am.addAccountExplicitly(account, "password", userData)
++
++        hiltRule.inject()
++
++        server = MockWebServer()
++        server.start()
++
++        val service = Service(
++            id = 1,
++            accountName = "testAccount",
++            type = Service.TYPE_CALDAV,
++            principal = null
++        )
++
++        val serviceDao = db.serviceDao()
++        val serviceId = serviceDao.insertOrReplace(service)
++
++        dummyCollection = Collection(
++            id = 1,
++            url = server.url("/collection/"),
++            serviceId = serviceId,
++            displayName = "Test",
++            type = Collection.TYPE_CALENDAR
++        )
++
++        collectionDao = db.collectionDao()
++        runBlocking {
++            collectionDao.insertAsync(dummyCollection)
++        }
++    }
++
++    @After
++    fun teardown() {
++        server.shutdown()
++    }
++
++    @Test
++    fun testCollectionIsDeletedLocallyWhenServerReturns200OK() = runTest {
++        server.enqueue(MockResponse().setResponseCode(200))
++
++        sut.deleteRemote(dummyCollection)
++
++        val deleted = collectionDao.getAsync(dummyCollection.id)
++        assert(deleted == null)
++    }
++
++    @Test
++    fun testCollectionIsDeletedLocallyWhenServerReturns404NotFound() = runTest {
++        server.enqueue(MockResponse().setResponseCode(404))
++
++        sut.deleteRemote(dummyCollection)
++
++        val deleted = collectionDao.getAsync(dummyCollection.id)
++        assert(deleted == null)
++    }
++
++    @Test
++    fun tesExceptionIsThrownForUnexpectedHTTPErrors() = runTest {
++        server.enqueue(MockResponse().setResponseCode(500))
++
++        try {
++            sut.deleteRemote(dummyCollection)
++            fail("Expected HttpException")
++        } catch (e: Exception) {
++            assert(e is at.bitfire.dav4jvm.exception.HttpException)
++        }
++
++        val stillThere = collectionDao.getAsync(dummyCollection.id)
++        assert(stillThere != null)
++    }
++}
+\ No newline at end of file

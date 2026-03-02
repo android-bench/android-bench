@@ -1,0 +1,95 @@
+Subject: [PATCH] elipsis test55
+---
+Index: app/src/androidTest/java/com/jerboa/CommunityNameOverflowTest.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/androidTest/java/com/jerboa/CommunityNameOverflowTest.kt b/app/src/androidTest/java/com/jerboa/CommunityNameOverflowTest.kt
+new file mode 100644
+--- /dev/null	(date 1766123864632)
++++ b/app/src/androidTest/java/com/jerboa/CommunityNameOverflowTest.kt	(date 1766123864632)
+@@ -0,0 +1,83 @@
++package com.jerboa
++
++import androidx.compose.foundation.layout.Box
++import androidx.compose.foundation.layout.padding
++import androidx.compose.foundation.layout.width
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.semantics.SemanticsActions
++import androidx.compose.ui.semantics.getOrNull
++import androidx.compose.ui.test.junit4.createComposeRule
++import androidx.compose.ui.test.onNodeWithText
++import androidx.compose.ui.text.TextLayoutResult
++import androidx.compose.ui.text.TextStyle
++import androidx.compose.ui.text.font.FontFamily
++import androidx.compose.ui.unit.dp
++import androidx.compose.ui.unit.sp
++import androidx.test.ext.junit.runners.AndroidJUnit4
++import com.jerboa.datatypes.sampleCommunity
++import com.jerboa.ui.components.community.CommunityName
++import org.junit.Assert
++import org.junit.Rule
++import org.junit.Test
++import org.junit.runner.RunWith
++
++
++@RunWith(AndroidJUnit4::class)
++class CommunityNameOverflowTest {
++
++    @get:Rule
++    val composeTestRule = createComposeRule()
++
++    @Test
++    fun checkOverflowTest() {
++        val longName = "A Very Long Name That Will Definitely Overflow"
++
++        // "local - true" -> CommunityName renders the title directly.
++        val testCommunity = sampleCommunity.copy(title = longName, local = true)
++
++        composeTestRule.setContent {
++            Box(
++                Modifier
++                    .padding(20.dp)
++            ) {
++                // Call CommunityName WITHOUT the 'overflow' parameter to remain AGNOSTIC.
++                CommunityName(
++                    community = testCommunity,
++                    style = TextStyle(
++                        fontFamily = FontFamily.Monospace,
++                        fontSize = 20.sp
++                    ),
++                    // Small width forces overflow
++                    modifier = Modifier.width(50.dp)
++                )
++            }
++        }
++
++        composeTestRule.waitForIdle()
++
++        // Retrieve the TextLayoutResult using Semantics
++        val textLayoutResults = mutableListOf<TextLayoutResult>()
++        val node = composeTestRule.onNodeWithText(longName).fetchSemanticsNode()
++
++        // Execute the GetTextLayoutResult action to populate our list
++        val action = node.config.getOrNull(SemanticsActions.GetTextLayoutResult)
++        Assert.assertNotNull(
++            "Could not find GetTextLayoutResult semantic action on the text node.",
++            action
++        )
++
++        action?.action?.invoke(textLayoutResults)
++
++        val layoutResult = textLayoutResults.firstOrNull()
++        Assert.assertNotNull(
++            "TextLayoutResult was null. Could not retrieve text layout.",
++            layoutResult
++        )
++
++        // Check if the line (index 0) is ellipsized.
++        Assert.assertTrue(
++            "Expected text to be ellipsized (using proper TextOverflow.Ellipsis), but it reported false.",
++            layoutResult!!.isLineEllipsized(0)
++        )
++    }
++}

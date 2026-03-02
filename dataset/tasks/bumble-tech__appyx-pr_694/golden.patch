@@ -1,0 +1,26 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 23ec1740f..e6e888808 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -12,6 +12,7 @@
+ - [#670](https://github.com/bumble-tech/appyx/pull/670) - Fixes ios lifecycle
+ - [#673](https://github.com/bumble-tech/appyx/pull/673) – Fix canHandeBackPress typo
+ - [#671](https://github.com/bumble-tech/appyx/issue/671) – Fix ui state saving issue
++- [#694](https://github.com/bumble-tech/appyx/pull/694) – Fix appyxComponent state saving issue
+ 
+ ### Enhancement
+ 
+diff --git a/appyx-navigation/common/src/commonMain/kotlin/com/bumble/appyx/navigation/node/Node.kt b/appyx-navigation/common/src/commonMain/kotlin/com/bumble/appyx/navigation/node/Node.kt
+index 5d1c605ae..b71daa307 100644
+--- a/appyx-navigation/common/src/commonMain/kotlin/com/bumble/appyx/navigation/node/Node.kt
++++ b/appyx-navigation/common/src/commonMain/kotlin/com/bumble/appyx/navigation/node/Node.kt
+@@ -91,7 +91,7 @@ abstract class Node<NavTarget : Any>(
+     val id: String
+         get() = nodeContext.identifier
+ 
+-    val plugins: List<Plugin> = plugins + listOfNotNull(this as? Plugin)
++    val plugins: List<Plugin> = plugins + appyxComponent + childAware + listOfNotNull(this as? Plugin)
+ 
+     val ancestryInfo: AncestryInfo =
+         nodeContext.ancestryInfo
+

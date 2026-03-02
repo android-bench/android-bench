@@ -1,0 +1,53 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 3bee53446..3f884e3c9 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -6,6 +6,10 @@
+ 
+ - [#630](https://github.com/bumble-tech/appyx/pull/630) – Pass initial state into Spotlights visualisations
+ 
++### Fixed
++
++- [#638](https://github.com/bumble-tech/appyx/pull/638) - Fix visibility issue for bottom element in BackStackParallax
++
+ ---
+ 
+ ## 2.0.0-alpha09
+diff --git a/appyx-components/stable/backstack/common/src/commonMain/kotlin/com/bumble/appyx/components/backstack/ui/parallax/BackStackParallax.kt b/appyx-components/stable/backstack/common/src/commonMain/kotlin/com/bumble/appyx/components/backstack/ui/parallax/BackStackParallax.kt
+index a6144a6e4..cbb5e3a36 100644
+--- a/appyx-components/stable/backstack/common/src/commonMain/kotlin/com/bumble/appyx/components/backstack/ui/parallax/BackStackParallax.kt
++++ b/appyx-components/stable/backstack/common/src/commonMain/kotlin/com/bumble/appyx/components/backstack/ui/parallax/BackStackParallax.kt
+@@ -36,16 +36,19 @@ class BackStackParallax<InteractionTarget : Any>(
+     private val right = TargetUiState(
+         offsetMultiplier = 1f,
+         shadow = Shadow.Target(value = 0f, easing = slowOutFastInEasing),
++        alpha = Alpha.Target(1f),
+     )
+ 
+     private val bottom = TargetUiState(
+         offsetMultiplier = -0.2f,
+         colorOverlay = ColorOverlay.Target(0.7f),
++        alpha = Alpha.Target(value = 0f, easing = { fraction -> if (fraction == 1f) 1f else 0f })
+     )
+ 
+     private val top = TargetUiState(
+         offsetMultiplier = 0f,
+         shadow = Shadow.Target(25f),
++        alpha = Alpha.Target(value = 1f, easing = { fraction -> if (fraction == 0f) 0f else 1f })
+     )
+ 
+     override fun State<InteractionTarget>.toUiTargets(): List<MatchedTargetUiState<InteractionTarget, TargetUiState>> {
+diff --git a/appyx-components/stable/backstack/common/src/commonMain/kotlin/com/bumble/appyx/components/backstack/ui/parallax/TargetUiState.kt b/appyx-components/stable/backstack/common/src/commonMain/kotlin/com/bumble/appyx/components/backstack/ui/parallax/TargetUiState.kt
+index 8d1ac4860..dd0e4cd00 100644
+--- a/appyx-components/stable/backstack/common/src/commonMain/kotlin/com/bumble/appyx/components/backstack/ui/parallax/TargetUiState.kt
++++ b/appyx-components/stable/backstack/common/src/commonMain/kotlin/com/bumble/appyx/components/backstack/ui/parallax/TargetUiState.kt
+@@ -21,7 +21,7 @@ class TargetUiState(
+         offsetMultiplier: Float,
+         colorOverlay: ColorOverlay.Target = ColorOverlay.Target(0f),
+         shadow: Shadow.Target = Shadow.Target(0f),
+-        alpha: Alpha.Target = Alpha.Target(1f),
++        alpha: Alpha.Target,
+     ) : this(
+         positionAlignment = PositionAlignment.Target(
+             OutsideAlignment(
+

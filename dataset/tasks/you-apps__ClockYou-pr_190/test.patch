@@ -1,0 +1,128 @@
+Subject: [PATCH] you-apps__ClockYou-pr_190
+---
+Index: app/src/androidTest/java/com/bnyro/clock/NavigationTest.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/androidTest/java/com/bnyro/clock/NavigationTest.kt b/app/src/androidTest/java/com/bnyro/clock/NavigationTest.kt
+new file mode 100644
+--- /dev/null	(date 1768470434242)
++++ b/app/src/androidTest/java/com/bnyro/clock/NavigationTest.kt	(date 1768470434242)
+@@ -0,0 +1,99 @@
++package com.bnyro.clock
++
++import android.Manifest
++import androidx.compose.ui.semantics.SemanticsProperties
++import androidx.compose.ui.test.SemanticsMatcher
++import androidx.compose.ui.test.SemanticsNodeInteraction
++import androidx.compose.ui.test.filter
++import androidx.compose.ui.test.hasClickAction
++import androidx.compose.ui.test.hasNoClickAction
++import androidx.compose.ui.test.hasText
++import androidx.compose.ui.test.junit4.createAndroidComposeRule
++import androidx.compose.ui.test.onAllNodesWithText
++import androidx.compose.ui.test.onChildren
++import androidx.compose.ui.test.onFirst
++import androidx.compose.ui.test.onLast
++import androidx.compose.ui.test.onNodeWithText
++import androidx.compose.ui.test.onParent
++import androidx.compose.ui.test.performClick
++import androidx.test.rule.GrantPermissionRule
++import com.bnyro.clock.ui.MainActivity
++import com.bnyro.clock.util.TimeHelper
++import org.junit.Rule
++import org.junit.Test
++
++class NavigationTest {
++
++    @get:Rule
++    val composeTestRule = createAndroidComposeRule<MainActivity>()
++
++    @get:Rule
++    val permissionRule: GrantPermissionRule =
++        GrantPermissionRule.grant(
++            Manifest.permission.POST_NOTIFICATIONS
++        )
++
++    @Test
++    fun checkSettingsNavigationDoesNotTriggerRecompose() {
++        composeTestRule.mainClock.autoAdvance = false
++        val context = composeTestRule.activity
++
++        composeTestRule.mainClock.advanceTimeBy(1_000)
++
++        val (date, _) = TimeHelper.formatDateTime(TimeHelper.getTimeByZone())
++        mapOf(
++            R.string.alarm to composeTestRule.onNode(isCollection()),
++            R.string.clock to composeTestRule.onNodeWithText(date),
++            R.string.timer to composeTestRule.onNodeWithText(context.getString(R.string.hours)),
++            R.string.stopwatch to composeTestRule.onAllNodesWithText("00").onFirst(),
++        ).forEach { nameRes, content ->
++            checkContentPositionBeforeAndAfterSettings(
++                tabName = context.getString(nameRes),
++                content = content,
++            )
++        }
++    }
++
++    private fun checkContentPositionBeforeAndAfterSettings(
++        tabName: String,
++        content: SemanticsNodeInteraction,
++    ) {
++        // Navigate to tab
++        composeTestRule.onNode(hasText(tabName).and(hasClickAction()))
++            .performClick()
++
++        composeTestRule.mainClock.advanceTimeBy(1_000)
++
++        val positionBefore = content
++            .assertExists()
++            .fetchSemanticsNode()
++            .positionInWindow
++
++        // Click on settings icon in toolbar
++        composeTestRule.onNode(hasText(tabName).and(hasNoClickAction()))
++            .onParent()
++            .onChildren()
++            .filter(hasClickAction())
++            .onLast()
++            .performClick()
++
++        composeTestRule.mainClock.advanceTimeBy(1_000)
++
++        composeTestRule.runOnUiThread {
++            composeTestRule.activity.onBackPressed()
++        }
++
++        composeTestRule.mainClock.advanceTimeBy(100)
++
++        val positionAfter = content
++            .assertExists()
++            .fetchSemanticsNode()
++            .positionInWindow
++
++        assert(positionBefore == positionAfter) { "Content should not move" }
++    }
++
++    private fun isCollection() = SemanticsMatcher("Is Collection") {
++        it.config.contains(SemanticsProperties.CollectionInfo)
++    }
++}
+\ No newline at end of file
+Index: app/build.gradle.kts
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/build.gradle.kts b/app/build.gradle.kts
+--- a/app/build.gradle.kts	(revision f1a1bc50c48bf2a3403f5659f53ee21de5cd16c6)
++++ b/app/build.gradle.kts	(date 1768470275522)
+@@ -88,6 +88,7 @@
+     androidTestImplementation(libs.espresso.core)
+     androidTestImplementation(platform(libs.compose.bom))
+     androidTestImplementation(libs.ui.test.junit4)
++    androidTestImplementation("androidx.test:rules:1.7.0")
+     debugImplementation(libs.ui.tooling)
+     debugImplementation(libs.ui.test.manifest)
+ 

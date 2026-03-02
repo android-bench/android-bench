@@ -1,0 +1,36 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index e3e989218..85e3b061a 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -1,5 +1,10 @@
+ # Braintree Android SDK Release Notes
+ 
++## unreleased
++
++* ThreeDSecure
++    * Fix an issue where the `ThreeDSecureTokenizeCallback` would return a `Failure` and `Success` result (fixes #1321)
++
+ ## 5.10.0 (2025-04-29)
+ 
+ * PayPal
+diff --git a/ThreeDSecure/src/main/java/com/braintreepayments/api/threedsecure/ThreeDSecureClient.kt b/ThreeDSecure/src/main/java/com/braintreepayments/api/threedsecure/ThreeDSecureClient.kt
+index 0bc00989b..f52d548ae 100644
+--- a/ThreeDSecure/src/main/java/com/braintreepayments/api/threedsecure/ThreeDSecureClient.kt
++++ b/ThreeDSecure/src/main/java/com/braintreepayments/api/threedsecure/ThreeDSecureClient.kt
+@@ -349,10 +349,11 @@ class ThreeDSecureClient internal constructor(
+                                     threeDSecureResult.threeDSecureNonce
+                                 )
+                             )
+-                        }
+-                        threeDSecureResult.threeDSecureNonce?.let {
+-                            braintreeClient.sendAnalyticsEvent(ThreeDSecureAnalytics.JWT_AUTH_SUCCEEDED)
+-                            callbackTokenizeSuccess(callback, ThreeDSecureResult.Success(it))
++                        } else {
++                            threeDSecureResult.threeDSecureNonce?.let {
++                                braintreeClient.sendAnalyticsEvent(ThreeDSecureAnalytics.JWT_AUTH_SUCCEEDED)
++                                callbackTokenizeSuccess(callback, ThreeDSecureResult.Success(it))
++                            }
+                         }
+                     } else if (error != null) {
+                         braintreeClient.sendAnalyticsEvent(
+

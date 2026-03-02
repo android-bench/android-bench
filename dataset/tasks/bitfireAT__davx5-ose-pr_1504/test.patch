@@ -1,0 +1,177 @@
+Subject: [PATCH] bitfireAT__davx5-ose-pr_1504
+---
+Index: app/build.gradle.kts
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/build.gradle.kts b/app/build.gradle.kts
+--- a/app/build.gradle.kts	(revision e7189d66b081a90349f377cbaccbe7fa5fbdf9b0)
++++ b/app/build.gradle.kts	(date 1765194877002)
+@@ -213,6 +213,13 @@
+     androidTestImplementation(libs.mockk.android)
+     androidTestImplementation(libs.okhttp.mockwebserver)
+     androidTestImplementation(libs.room.testing)
++    androidTestImplementation(platform(libs.compose.bom))
++    androidTestImplementation(libs.compose.material3)
++    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
++    debugImplementation("androidx.compose.ui:ui-test-manifest")
++    debugImplementation("androidx.compose.ui:ui-tooling")
++    androidTestImplementation("androidx.test.espresso:espresso-idling-resource:3.7.0")
++    androidTestImplementation("androidx.test.uiautomator:uiautomator:2.3.0")
+ 
+     testImplementation(libs.bitfire.dav4jvm)
+     testImplementation(libs.junit)
+Index: app/src/androidTest/kotlin/at/bitfire/davdroid/ui/LoginScreenTests.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/androidTest/kotlin/at/bitfire/davdroid/ui/LoginScreenTests.kt b/app/src/androidTest/kotlin/at/bitfire/davdroid/ui/LoginScreenTests.kt
+new file mode 100644
+--- /dev/null	(date 1765194670023)
++++ b/app/src/androidTest/kotlin/at/bitfire/davdroid/ui/LoginScreenTests.kt	(date 1765194670023)
+@@ -0,0 +1,142 @@
++package at.bitfire.davdroid.ui
++
++import android.view.KeyEvent
++import androidx.activity.ComponentActivity
++import androidx.compose.material3.SnackbarHostState
++import androidx.compose.runtime.remember
++import androidx.compose.ui.test.ExperimentalTestApi
++import androidx.compose.ui.test.assertIsFocused
++import androidx.compose.ui.test.hasText
++import androidx.compose.ui.test.junit4.createAndroidComposeRule
++import androidx.compose.ui.test.onNodeWithText
++import androidx.test.espresso.IdlingRegistry
++import androidx.test.ext.junit.runners.AndroidJUnit4
++import androidx.test.platform.app.InstrumentationRegistry
++import androidx.test.uiautomator.UiDevice
++import at.bitfire.davdroid.ui.setup.AdvancedLoginScreen
++import at.bitfire.davdroid.ui.setup.EmailLoginScreen
++import at.bitfire.davdroid.ui.setup.UrlLoginScreen
++import org.junit.Rule
++import org.junit.Test
++import org.junit.runner.RunWith
++
++@RunWith(AndroidJUnit4::class)
++class LoginScreenTests {
++
++    @get:Rule
++    val composeTestRule = createAndroidComposeRule<ComponentActivity>()
++
++    @Test
++    fun testFocusSwitchingOnEmailLoginScreen() {
++        IdlingRegistry.getInstance().resources.forEach {
++            if (it.name == "Compose-Espresso link") {
++                IdlingRegistry.getInstance().unregister(it)
++            }
++        }
++        composeTestRule.setContent {
++            EmailLoginScreen(
++                email = "test@email.com",
++                onSetEmail = { },
++                password = "test_password",
++                onSetPassword = { },
++                canContinue = false,
++            )
++        }
++
++        composeTestRule.waitForIdle()
++
++        composeTestRule.onNodeWithText("test@email.com")
++            .assertIsFocused()
++
++        val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
++        device.pressKeyCode(KeyEvent.KEYCODE_TAB)
++
++        composeTestRule.waitForIdle()
++
++        composeTestRule.onNodeWithText("test_password")
++            .assertIsFocused()
++    }
++
++    @Test
++    fun testFocusSwitchingOnAdvancedLoginScreen() {
++        IdlingRegistry.getInstance().resources.forEach {
++            if (it.name == "Compose-Espresso link") {
++                IdlingRegistry.getInstance().unregister(it)
++            }
++        }
++        composeTestRule.setContent {
++            AdvancedLoginScreen(
++                snackbarHostState = remember { SnackbarHostState() },
++                url = "https://test.com",
++                onSetUrl = {},
++                username = "TestUser",
++                onSetUsername = {},
++                password = "test_password",
++                onSetPassword = {},
++                certAlias = "test_cert",
++                onSetCertAlias = {},
++                canContinue = false,
++            )
++        }
++
++        composeTestRule.waitForIdle()
++
++        composeTestRule.onNodeWithText("https://test.com")
++            .assertIsFocused()
++
++        val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
++        device.pressKeyCode(KeyEvent.KEYCODE_TAB)
++
++        composeTestRule.waitForIdle()
++
++        composeTestRule.onNodeWithText("TestUser")
++            .assertIsFocused()
++
++        device.pressKeyCode(KeyEvent.KEYCODE_TAB)
++
++        composeTestRule.waitForIdle()
++
++        composeTestRule.onNodeWithText("test_password")
++            .assertIsFocused()
++    }
++
++    @Test
++    fun testFocusSwitchingOnUrlLoginScreen() {
++        IdlingRegistry.getInstance().resources.forEach {
++            if (it.name == "Compose-Espresso link") {
++                IdlingRegistry.getInstance().unregister(it)
++            }
++        }
++        composeTestRule.setContent {
++            UrlLoginScreen(
++                url = "https://test.com",
++                onSetUrl = {},
++                username = "TestUser",
++                onSetUsername = {},
++                password = "test_password",
++                onSetPassword = {},
++                canContinue = false,
++            )
++        }
++
++        composeTestRule.waitForIdle()
++
++        composeTestRule.onNodeWithText("https://test.com")
++            .assertIsFocused()
++
++        val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
++        device.pressKeyCode(KeyEvent.KEYCODE_TAB)
++
++        composeTestRule.waitForIdle()
++
++        composeTestRule.onNodeWithText("TestUser")
++            .assertIsFocused()
++
++        device.pressKeyCode(KeyEvent.KEYCODE_TAB)
++
++        composeTestRule.waitForIdle()
++
++        composeTestRule.onNodeWithText("test_password")
++            .assertIsFocused()
++    }
++}
+\ No newline at end of file

@@ -1,0 +1,249 @@
+Subject: [PATCH] tests
+---
+Index: features/roomlist/impl/build.gradle.kts
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/features/roomlist/impl/build.gradle.kts b/features/roomlist/impl/build.gradle.kts
+--- a/features/roomlist/impl/build.gradle.kts	(revision eff515e5445abed2b93986ef8bbc806cd6c5b4a3)
++++ b/features/roomlist/impl/build.gradle.kts	(revision 31cc216148ee0976c07e71731da29a6bbd96b4a4)
+@@ -75,4 +75,12 @@
+     testImplementation(projects.features.networkmonitor.test)
+     testImplementation(projects.tests.testutils)
+     testImplementation(projects.features.leaveroom.test)
++
++    androidTestImplementation(libs.androidx.compose.ui.test.junit)
++    androidTestImplementation(projects.libraries.matrix.test)
++    androidTestImplementation(projects.libraries.dateformatter.test)
++    androidTestImplementation(projects.libraries.eventformatter.test)
++    androidTestImplementation(projects.libraries.featureflag.test)
++    androidTestImplementation(projects.features.networkmonitor.test)
++    androidTestImplementation(projects.features.leaveroom.test)
+ }
+Index: features/roomlist/impl/src/androidTest/kotlin/io/element/android/features/roomlist/impl/FakeInviteDataSource.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/features/roomlist/impl/src/androidTest/kotlin/io/element/android/features/roomlist/impl/FakeInviteDataSource.kt b/features/roomlist/impl/src/androidTest/kotlin/io/element/android/features/roomlist/impl/FakeInviteDataSource.kt
+new file mode 100644
+--- /dev/null	(revision 31cc216148ee0976c07e71731da29a6bbd96b4a4)
++++ b/features/roomlist/impl/src/androidTest/kotlin/io/element/android/features/roomlist/impl/FakeInviteDataSource.kt	(revision 31cc216148ee0976c07e71731da29a6bbd96b4a4)
+@@ -0,0 +1,19 @@
++
++package io.element.android.features.roomlist.impl
++
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.collectAsState
++import io.element.android.features.roomlist.impl.InvitesState
++import io.element.android.features.roomlist.impl.datasource.InviteStateDataSource
++import kotlinx.coroutines.flow.Flow
++import kotlinx.coroutines.flow.flowOf
++
++class FakeInviteDataSource(
++    private val flow: Flow<InvitesState> = flowOf()
++) : InviteStateDataSource {
++    @Composable
++    override fun inviteState(): InvitesState {
++        val state = flow.collectAsState(initial = InvitesState.NoInvites)
++        return state.value
++    }
++}
+Index: features/roomlist/impl/src/androidTest/kotlin/io/element/android/features/roomlist/impl/RoomListViewTest.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/features/roomlist/impl/src/androidTest/kotlin/io/element/android/features/roomlist/impl/RoomListViewTest.kt b/features/roomlist/impl/src/androidTest/kotlin/io/element/android/features/roomlist/impl/RoomListViewTest.kt
+new file mode 100644
+--- /dev/null	(revision 31cc216148ee0976c07e71731da29a6bbd96b4a4)
++++ b/features/roomlist/impl/src/androidTest/kotlin/io/element/android/features/roomlist/impl/RoomListViewTest.kt	(revision 31cc216148ee0976c07e71731da29a6bbd96b4a4)
+@@ -0,0 +1,187 @@
++
++package io.element.android.features.roomlist.impl
++
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.State
++import androidx.compose.runtime.mutableStateOf
++import androidx.compose.runtime.remember
++import androidx.compose.ui.test.assertIsDisplayed
++import androidx.compose.ui.test.junit4.createComposeRule
++import androidx.compose.ui.test.onNodeWithText
++import androidx.compose.ui.test.performClick
++import androidx.test.platform.app.InstrumentationRegistry
++import io.element.android.features.leaveroom.fake.FakeLeaveRoomPresenter
++import io.element.android.features.networkmonitor.test.FakeNetworkMonitor
++import io.element.android.features.roomlist.impl.datasource.RoomListDataSource
++import io.element.android.features.roomlist.impl.datasource.RoomListRoomSummaryFactory
++import io.element.android.libraries.core.coroutine.CoroutineDispatchers
++import io.element.android.libraries.dateformatter.test.FakeLastMessageTimestampFormatter
++import io.element.android.libraries.designsystem.utils.snackbar.SnackbarDispatcher
++import io.element.android.libraries.eventformatter.test.FakeRoomLastMessageFormatter
++import io.element.android.libraries.featureflag.test.FakeFeatureFlagService
++import io.element.android.libraries.indicator.api.IndicatorService
++import io.element.android.libraries.matrix.api.core.RoomId
++import io.element.android.libraries.matrix.api.room.message.RoomMessage
++import io.element.android.libraries.matrix.api.roomlist.RoomList
++import io.element.android.libraries.matrix.api.roomlist.RoomSummary
++import io.element.android.libraries.matrix.api.roomlist.RoomSummaryDetails
++import io.element.android.libraries.matrix.test.AN_EVENT_ID
++import io.element.android.libraries.matrix.test.A_USER_ID
++import io.element.android.libraries.matrix.test.FakeMatrixClient
++import io.element.android.libraries.matrix.test.encryption.FakeEncryptionService
++import io.element.android.libraries.matrix.test.notificationsettings.FakeNotificationSettingsService
++import io.element.android.libraries.matrix.test.roomlist.FakeRoomListService
++import io.element.android.libraries.matrix.test.timeline.anEventTimelineItem
++import io.element.android.libraries.matrix.test.verification.FakeSessionVerificationService
++import io.element.android.libraries.ui.strings.CommonStrings
++import junit.framework.TestCase.assertEquals
++import kotlinx.collections.immutable.ImmutableList
++import kotlinx.collections.immutable.toImmutableList
++import kotlinx.coroutines.CoroutineName
++import kotlinx.coroutines.MainScope
++import kotlinx.coroutines.plus
++import kotlinx.coroutines.test.UnconfinedTestDispatcher
++import kotlinx.coroutines.test.runTest
++import org.junit.Rule
++import org.junit.Test
++
++class RoomListViewTest {
++
++    @get:Rule
++    val composeRule = createComposeRule()
++
++    @Test
++    fun shouldShowEmptyRoomListView() = runTest {
++        val createRoomClickCount = loadRoomListView(
++            mockRoomListServiceMethods = { roomListService ->
++                roomListService.postAllRooms(emptyList())
++                roomListService.postAllRoomsLoadingState(RoomList.LoadingState.Loaded(0))
++            },
++            checkViews = {
++                val context = InstrumentationRegistry.getInstrumentation().targetContext
++                composeRule.onNodeWithText(context.getString(R.string.screen_roomlist_empty_title)).assertIsDisplayed()
++                composeRule.onNodeWithText(context.getString(R.string.screen_roomlist_empty_message)).assertIsDisplayed()
++                composeRule.onNodeWithText(context.getString(CommonStrings.action_start_chat))
++                    .assertIsDisplayed()
++                    .performClick()
++            }
++        )
++        assertEquals(1, createRoomClickCount)
++    }
++
++    @Test
++    fun shouldShowFilledRoomListView() = runTest {
++        val createRoomClickCount = loadRoomListView(
++            mockRoomListServiceMethods = { roomListService ->
++                roomListService.postAllRooms(createFakeList())
++                roomListService.postAllRoomsLoadingState(RoomList.LoadingState.Loaded(16))
++            },
++            checkViews = {
++                val context = InstrumentationRegistry.getInstrumentation().targetContext
++                composeRule.onNodeWithText(context.getString(R.string.screen_roomlist_empty_title)).assertDoesNotExist()
++                composeRule.onNodeWithText(context.getString(R.string.screen_roomlist_empty_message)).assertDoesNotExist()
++                composeRule.onNodeWithText(context.getString(CommonStrings.action_start_chat))
++                    .assertDoesNotExist()
++                composeRule.onNodeWithText("Room name !fakeRoom0:domain")
++                    .assertIsDisplayed()
++                composeRule.onNodeWithText("Room name !fakeRoom1:domain")
++                    .assertIsDisplayed()
++                composeRule.onNodeWithText("Room name !fakeRoom2:domain")
++                    .assertIsDisplayed()
++            }
++        )
++        assertEquals(0, createRoomClickCount)
++    }
++
++    private suspend fun loadRoomListView(
++        mockRoomListServiceMethods: suspend (FakeRoomListService) -> Unit,
++        checkViews: () -> Unit
++    ): Int {
++        val roomListService = FakeRoomListService()
++        mockRoomListServiceMethods(roomListService)
++        val presenter = RoomListPresenter(
++            client = FakeMatrixClient(),
++            sessionVerificationService = FakeSessionVerificationService(),
++            networkMonitor = FakeNetworkMonitor(),
++            snackbarDispatcher = SnackbarDispatcher(),
++            inviteStateDataSource = FakeInviteDataSource(),
++            leaveRoomPresenter = FakeLeaveRoomPresenter(),
++            roomListDataSource = RoomListDataSource(
++                roomListService = roomListService,
++                roomListRoomSummaryFactory = RoomListRoomSummaryFactory(
++                    lastMessageTimestampFormatter = FakeLastMessageTimestampFormatter(),
++                    roomLastMessageFormatter = FakeRoomLastMessageFormatter()
++                ),
++                coroutineDispatchers = CoroutineDispatchers(
++                    io = UnconfinedTestDispatcher(),
++                    computation = UnconfinedTestDispatcher(),
++                    main = UnconfinedTestDispatcher()
++                ),
++                notificationSettingsService = FakeNotificationSettingsService(),
++                appScope = MainScope() + CoroutineName("ElementX Scope")
++            ),
++            encryptionService = FakeEncryptionService(),
++            featureFlagService = FakeFeatureFlagService(),
++            indicatorService = object : IndicatorService {
++                @Composable
++                override fun showRoomListTopBarIndicator(): State<Boolean> {
++                    return remember { mutableStateOf(true) }
++                }
++
++                @Composable
++                override fun showSettingChatBackupIndicator(): State<Boolean> {
++                    return remember { mutableStateOf(true) }
++                }
++            }
++        )
++        var onCreateRoomCalled = 0
++        composeRule.setContent {
++            val state = presenter.present()
++            RoomListView(
++                state = state,
++                onRoomClicked = {},
++                onSettingsClicked = {},
++                onVerifyClicked = {},
++                onCreateRoomClicked = {
++                    onCreateRoomCalled++
++                },
++                onInvitesClicked = {},
++                onRoomSettingsClicked = {},
++                onMenuActionClicked = {},
++            )
++        }
++        checkViews()
++        return onCreateRoomCalled
++    }
++
++    private fun createPlaceholder(id: String): RoomSummary {
++        return RoomSummary.Filled(
++            details = RoomSummaryDetails(
++                roomId = RoomId(id),
++                name = "Room name $id",
++                canonicalAlias = null,
++                isDirect = true,
++                avatarUrl = null,
++                lastMessage = RoomMessage(
++                    eventId = AN_EVENT_ID,
++                    event = anEventTimelineItem(),
++                    sender = A_USER_ID,
++                    originServerTs = 6480L,
++                ),
++                numUnreadMessages = 10,
++                numUnreadMentions = 2,
++                numUnreadNotifications = 1,
++                inviter = null,
++                userDefinedNotificationMode = null,
++                hasRoomCall = false,
++                isDm = false
++            )
++        )
++    }
++
++    private fun createFakeList(): ImmutableList<RoomSummary> {
++        return List(16) {
++            createPlaceholder("!fakeRoom$it:domain")
++        }.toImmutableList()
++    }
++}

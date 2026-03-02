@@ -1,0 +1,492 @@
+Subject: [PATCH] LemmyNet__jerboa-pr_1068
+---
+Index: app/src/androidTest/java/com/jerboa/TestActivity.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/androidTest/java/com/jerboa/TestActivity.kt b/app/src/androidTest/java/com/jerboa/TestActivity.kt
+new file mode 100644
+--- /dev/null	(date 1764314025679)
++++ b/app/src/androidTest/java/com/jerboa/TestActivity.kt	(date 1764314025679)
+@@ -0,0 +1,50 @@
++package com.jerboa
++
++import android.os.Bundle
++import androidx.activity.ComponentActivity
++import androidx.activity.compose.setContent
++import androidx.lifecycle.viewmodel.compose.viewModel
++import androidx.navigation.compose.NavHost
++import androidx.navigation.compose.composable
++import androidx.navigation.compose.rememberNavController
++import arrow.core.Either
++import com.jerboa.model.AccountViewModelFactory
++import com.jerboa.ui.components.common.MarkdownHelper
++import com.jerboa.ui.components.post.PostActivity
++
++class TestActivity : ComponentActivity() {
++
++    override fun onCreate(savedInstanceState: Bundle?) {
++        super.onCreate(savedInstanceState)
++
++        setContent {
++            val navController = rememberNavController()
++
++            NavHost(
++                navController = navController,
++                startDestination = "graph_root"
++            ) {
++                composable("graph_root") {
++                    val appState = rememberJerboaAppState(navController = navController)
++                    MarkdownHelper.init(appState, useCustomTabs = true, usePrivateTabs = false)
++
++                    PostActivity(
++                        id = Either.Left(1),
++                        siteViewModel = viewModel(),
++                        accountViewModel = viewModel(factory = AccountViewModelFactory.Factory),
++                        appState = appState,
++                        useCustomTabs = false,
++                        usePrivateTabs = false,
++                        showCollapsedCommentContent = false,
++                        showActionBarByDefault = false,
++                        showVotingArrowsInListView = false,
++                        showParentCommentNavigationButtons = false,
++                        navigateParentCommentsWithVolumeButtons = false,
++                        blurNSFW = false,
++                        showPostLinkPreview = false,
++                    )
++                }
++            }
++        }
++    }
++}
+Index: app/src/androidTest/java/com/jerboa/PostActivityTests.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/androidTest/java/com/jerboa/PostActivityTests.kt b/app/src/androidTest/java/com/jerboa/PostActivityTests.kt
+new file mode 100644
+--- /dev/null	(date 1764315507884)
++++ b/app/src/androidTest/java/com/jerboa/PostActivityTests.kt	(date 1764315507884)
+@@ -0,0 +1,59 @@
++package com.jerboa
++
++import androidx.compose.ui.geometry.Offset
++import androidx.compose.ui.test.ExperimentalTestApi
++import androidx.compose.ui.test.assertAny
++import androidx.compose.ui.test.click
++import androidx.compose.ui.test.hasClickAction
++import androidx.compose.ui.test.hasText
++import androidx.compose.ui.test.junit4.createAndroidComposeRule
++import androidx.compose.ui.test.onAllNodesWithText
++import androidx.compose.ui.test.onNodeWithText
++import androidx.compose.ui.test.performTouchInput
++import com.jerboa.api.API
++import com.jerboa.datatypes.sampleCommentView
++import com.jerboa.datatypes.sampleReplyCommentView
++import kotlinx.coroutines.test.runTest
++import org.junit.Rule
++import org.junit.Test
++
++class PostActivityTests {
++
++    @get:Rule
++    val composeTestRule = createAndroidComposeRule<TestActivity>()
++
++    @OptIn(ExperimentalTestApi::class)
++    @Test
++    fun testCollapsedCommentsPersistAfterRecreate() = runTest {
++        val companion = API::class.java.getDeclaredField("Companion").get(null)
++        val instanceField = companion.javaClass.getDeclaredField("api")
++        instanceField.isAccessible = true
++        instanceField.set(companion, MockAPI)
++
++        composeTestRule.activityRule.scenario.onActivity { }
++
++        val mainCommentAuthor = sampleCommentView.creator.let { it.display_name ?: it.name }
++        val replyCommentAuthor = sampleReplyCommentView.creator.let { it.display_name ?: it.name }
++
++        // verify both comments are visible
++        composeTestRule.waitUntilAtLeastOneExists(hasText(replyCommentAuthor), 1_000)
++        composeTestRule.onAllNodesWithText(mainCommentAuthor).assertAny(hasClickAction())
++        composeTestRule.onNodeWithText(replyCommentAuthor).assertExists()
++
++        // click on main comment content to collapse the thread
++        composeTestRule.onNodeWithText(replyCommentAuthor).performTouchInput {
++            click(position = Offset(0f, -100f))
++        }
++
++        // verify the thread was collapsed
++        composeTestRule.waitUntilDoesNotExist(hasText(replyCommentAuthor), 1_000)
++
++        // recreate the activity
++        composeTestRule.activityRule.scenario.recreate()
++
++        composeTestRule.awaitIdle()
++
++        // check the thread stayed collapsed
++        composeTestRule.waitUntilDoesNotExist(hasText(replyCommentAuthor), 1_000)
++    }
++}
+Index: app/src/main/AndroidManifest.xml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/main/AndroidManifest.xml b/app/src/main/AndroidManifest.xml
+--- a/app/src/main/AndroidManifest.xml	(revision 3aa898f8ea73a31804cd115a0145b8407f686cff)
++++ b/app/src/main/AndroidManifest.xml	(date 1764314701482)
+@@ -140,6 +140,10 @@
+                 android:name="com.crazylegend.crashyreporter.initializer.CrashyInitializer"
+                 android:value="androidx.startup" />
+         </provider>
++
++        <activity
++            android:name="com.jerboa.TestActivity"
++            android:exported="true"/>
+     </application>
+ 
+ </manifest>
+Index: app/src/androidTest/java/com/jerboa/MockAPI.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/androidTest/java/com/jerboa/MockAPI.kt b/app/src/androidTest/java/com/jerboa/MockAPI.kt
+new file mode 100644
+--- /dev/null	(date 1764314883373)
++++ b/app/src/androidTest/java/com/jerboa/MockAPI.kt	(date 1764314883373)
+@@ -0,0 +1,332 @@
++package com.jerboa
++
++import com.jerboa.api.API
++import com.jerboa.datatypes.sampleCommentView
++import com.jerboa.datatypes.sampleCommunityView
++import com.jerboa.datatypes.sampleImagePostView
++import com.jerboa.datatypes.sampleLinkPostView
++import com.jerboa.datatypes.sampleLocalSite
++import com.jerboa.datatypes.sampleMarkdownPostView
++import com.jerboa.datatypes.samplePerson
++import com.jerboa.datatypes.samplePersonAggregates
++import com.jerboa.datatypes.samplePostView
++import com.jerboa.datatypes.sampleReplyCommentView
++import com.jerboa.datatypes.sampleSiteView
++import com.jerboa.datatypes.types.BlockCommunity
++import com.jerboa.datatypes.types.BlockCommunityResponse
++import com.jerboa.datatypes.types.BlockPerson
++import com.jerboa.datatypes.types.BlockPersonResponse
++import com.jerboa.datatypes.types.Comment
++import com.jerboa.datatypes.types.CommentAggregates
++import com.jerboa.datatypes.types.CommentReplyResponse
++import com.jerboa.datatypes.types.CommentReportResponse
++import com.jerboa.datatypes.types.CommentResponse
++import com.jerboa.datatypes.types.CommentView
++import com.jerboa.datatypes.types.Community
++import com.jerboa.datatypes.types.CommunityAggregates
++import com.jerboa.datatypes.types.CommunityResponse
++import com.jerboa.datatypes.types.CommunityView
++import com.jerboa.datatypes.types.CreateComment
++import com.jerboa.datatypes.types.CreateCommentLike
++import com.jerboa.datatypes.types.CreateCommentReport
++import com.jerboa.datatypes.types.CreatePost
++import com.jerboa.datatypes.types.CreatePostLike
++import com.jerboa.datatypes.types.CreatePostReport
++import com.jerboa.datatypes.types.CreatePrivateMessage
++import com.jerboa.datatypes.types.DeleteComment
++import com.jerboa.datatypes.types.DeletePost
++import com.jerboa.datatypes.types.EditComment
++import com.jerboa.datatypes.types.EditPost
++import com.jerboa.datatypes.types.FollowCommunity
++import com.jerboa.datatypes.types.GetCommentsResponse
++import com.jerboa.datatypes.types.GetCommunityResponse
++import com.jerboa.datatypes.types.GetPersonDetailsResponse
++import com.jerboa.datatypes.types.GetPersonMentionsResponse
++import com.jerboa.datatypes.types.GetPostResponse
++import com.jerboa.datatypes.types.GetPostsResponse
++import com.jerboa.datatypes.types.GetRepliesResponse
++import com.jerboa.datatypes.types.GetSiteMetadataResponse
++import com.jerboa.datatypes.types.GetSiteResponse
++import com.jerboa.datatypes.types.GetUnreadCountResponse
++import com.jerboa.datatypes.types.ListingType
++import com.jerboa.datatypes.types.LocalSite
++import com.jerboa.datatypes.types.LocalSiteRateLimit
++import com.jerboa.datatypes.types.LocalUser
++import com.jerboa.datatypes.types.LocalUserView
++import com.jerboa.datatypes.types.Login
++import com.jerboa.datatypes.types.LoginResponse
++import com.jerboa.datatypes.types.MarkAllAsRead
++import com.jerboa.datatypes.types.MarkCommentReplyAsRead
++import com.jerboa.datatypes.types.MarkPersonMentionAsRead
++import com.jerboa.datatypes.types.MarkPrivateMessageAsRead
++import com.jerboa.datatypes.types.MyUserInfo
++import com.jerboa.datatypes.types.Person
++import com.jerboa.datatypes.types.PersonAggregates
++import com.jerboa.datatypes.types.PersonMentionResponse
++import com.jerboa.datatypes.types.PictrsImages
++import com.jerboa.datatypes.types.Post
++import com.jerboa.datatypes.types.PostAggregates
++import com.jerboa.datatypes.types.PostReportResponse
++import com.jerboa.datatypes.types.PostResponse
++import com.jerboa.datatypes.types.PostView
++import com.jerboa.datatypes.types.PrivateMessageResponse
++import com.jerboa.datatypes.types.PrivateMessagesResponse
++import com.jerboa.datatypes.types.RegistrationMode
++import com.jerboa.datatypes.types.SaveComment
++import com.jerboa.datatypes.types.SavePost
++import com.jerboa.datatypes.types.SaveUserSettings
++import com.jerboa.datatypes.types.SearchResponse
++import com.jerboa.datatypes.types.Site
++import com.jerboa.datatypes.types.SiteAggregates
++import com.jerboa.datatypes.types.SiteView
++import com.jerboa.datatypes.types.SortType
++import com.jerboa.datatypes.types.SubscribedType
++import okhttp3.MultipartBody
++import retrofit2.Response
++
++object MockAPI : API {
++
++    // ---------------------------
++    // Minimal required endpoints
++    // ---------------------------
++
++    override suspend fun getSite(form: Map<String, String>): Response<GetSiteResponse> {
++        return Response.success(
++            GetSiteResponse(
++                site_view = sampleSiteView,
++                admins = emptyList(),
++                version = "0.0.0-test",
++                my_user = MyUserInfo(
++                    local_user_view = LocalUserView(
++                        person = samplePerson,
++                        local_user = sampleLocalSite.toLocalUser(),
++                        counts = samplePersonAggregates
++                    ),
++                    community_blocks = emptyList(),
++                    discussion_languages = emptyList(),
++                    follows = emptyList(),
++                    moderates = emptyList(),
++                    person_blocks = emptyList()
++                ),
++                all_languages = emptyList(),
++                discussion_languages = emptyList(),
++                taglines = emptyList(),
++                custom_emojis = emptyList()
++            )
++        )
++    }
++
++    private fun LocalSite.toLocalUser(personId: Int = 1): LocalUser {
++        return LocalUser(
++            id = this.id, // just reuse LocalSite id for simplicity
++            person_id = personId,
++            email = null,
++            show_avatars = true,
++            send_notifications_to_email = false,
++            show_bot_accounts = true,
++            show_read_posts = true,
++            theme = this.default_theme,
++            default_sort_type = SortType.Hot, // you can customize if needed
++            default_listing_type = this.default_post_listing_type,
++            interface_language = "en",
++            accepted_application = true,
++            email_verified = !this.require_email_verification,
++            show_new_post_notifs = false,
++            show_nsfw = this.enable_nsfw,
++            show_scores = true,
++            validator_time = ""
++        )
++    }
++
++    override suspend fun getPosts(form: Map<String, String>): Response<GetPostsResponse> {
++        val posts = listOf(samplePostView, sampleLinkPostView, sampleImagePostView, sampleMarkdownPostView)
++        return Response.success(GetPostsResponse(posts))
++    }
++
++    override suspend fun getPost(form: Map<String, String>): Response<GetPostResponse> {
++        return Response.success(
++            GetPostResponse(
++                post_view = samplePostView,
++                moderators = emptyList(),
++                community_view = sampleCommunityView,
++                cross_posts = emptyList(),
++            )
++        )
++    }
++
++    override suspend fun getComments(form: Map<String, String>): Response<GetCommentsResponse> {
++        return Response.success(GetCommentsResponse(listOf(sampleCommentView, sampleReplyCommentView)))
++    }
++
++    override suspend fun getCommunity(form: Map<String, String>): Response<GetCommunityResponse> {
++        val community = Community(
++            id = 50,
++            name = "TestCommunity",
++            title = "Test Community",
++            description = "Community for testing",
++            removed = false,
++            published = "2024-01-01T00:00:00Z",
++            updated = null,
++            deleted = false,
++            nsfw = false,
++            icon = null,
++            banner = null,
++            hidden = false,
++            posting_restricted_to_mods = false,
++            instance_id = 1,
++            actor_id = "",
++            local = true,
++        )
++
++        val aggregates = CommunityAggregates(
++            id = 1,
++            community_id = 50,
++            subscribers = 123,
++            posts = 10,
++            comments = 2,
++            published = "",
++            users_active_day = 3,
++            users_active_week = 30,
++            users_active_month = 300,
++            users_active_half_year = 3000,
++            hot_rank = 1,
++        )
++
++        return Response.success(
++            GetCommunityResponse(
++                community_view = CommunityView(
++                    community = community,
++                    subscribed = SubscribedType.NotSubscribed,
++                    blocked = false,
++                    counts = aggregates
++                ),
++                discussion_languages = emptyList(),
++                moderators = emptyList(),
++            )
++        )
++    }
++
++    // ---------------------------
++    // Everything else stubbed
++    // ---------------------------
++
++    override suspend fun login(form: Login): Response<LoginResponse> {
++        TODO("Not yet implemented")
++    }
++
++    override suspend fun likePost(form: CreatePostLike): Response<PostResponse> {
++        TODO("Not yet implemented")
++    }
++
++    override suspend fun likeComment(form: CreateCommentLike): Response<CommentResponse> {
++        TODO("Not yet implemented")
++    }
++
++    override suspend fun createComment(form: CreateComment): Response<CommentResponse> {
++        TODO("Not yet implemented")
++    }
++
++    override suspend fun editComment(form: EditComment): Response<CommentResponse> {
++        TODO("Not yet implemented")
++    }
++
++    override suspend fun deleteComment(form: DeleteComment): Response<CommentResponse> {
++        TODO("Not yet implemented")
++    }
++
++    override suspend fun savePost(form: SavePost): Response<PostResponse> {
++        TODO("Not yet implemented")
++    }
++
++    override suspend fun saveComment(form: SaveComment): Response<CommentResponse> {
++        TODO("Not yet implemented")
++    }
++
++    override suspend fun getPersonDetails(form: Map<String, String>): Response<GetPersonDetailsResponse> {
++        TODO("Not yet implemented")
++    }
++
++    override suspend fun getReplies(form: Map<String, String>): Response<GetRepliesResponse> {
++        TODO("Not yet implemented")
++    }
++
++    override suspend fun markCommentReplyAsRead(form: MarkCommentReplyAsRead): Response<CommentReplyResponse> {
++        TODO("Not yet implemented")
++    }
++
++    override suspend fun markPersonMentionAsRead(form: MarkPersonMentionAsRead): Response<PersonMentionResponse> {
++        TODO("Not yet implemented")
++    }
++
++    override suspend fun markPrivateMessageAsRead(form: MarkPrivateMessageAsRead): Response<PrivateMessageResponse> {
++        TODO("Not yet implemented")
++    }
++
++    override suspend fun markAllAsRead(form: MarkAllAsRead): Response<GetRepliesResponse> {
++        TODO("Not yet implemented")
++    }
++
++    override suspend fun getPersonMentions(form: Map<String, String>): Response<GetPersonMentionsResponse> {
++        TODO("Not yet implemented")
++    }
++
++    override suspend fun getPrivateMessages(form: Map<String, String>): Response<PrivateMessagesResponse> {
++        TODO("Not yet implemented")
++    }
++
++    override suspend fun createPrivateMessage(form: CreatePrivateMessage): Response<PrivateMessageResponse> {
++        TODO("Not yet implemented")
++    }
++
++    override suspend fun getUnreadCount(form: Map<String, String>): Response<GetUnreadCountResponse> {
++        TODO("Not yet implemented")
++    }
++
++    override suspend fun followCommunity(form: FollowCommunity): Response<CommunityResponse> {
++        TODO("Not yet implemented")
++    }
++
++    override suspend fun createPost(form: CreatePost): Response<PostResponse> {
++        TODO("Not yet implemented")
++    }
++
++    override suspend fun editPost(form: EditPost): Response<PostResponse> {
++        TODO("Not yet implemented")
++    }
++
++    override suspend fun deletePost(form: DeletePost): Response<PostResponse> {
++        TODO("Not yet implemented")
++    }
++
++    override suspend fun search(form: Map<String, String>): Response<SearchResponse> {
++        TODO("Not yet implemented")
++    }
++
++    override suspend fun getSiteMetadata(form: Map<String, String>): Response<GetSiteMetadataResponse> {
++        TODO("Not yet implemented")
++    }
++
++    override suspend fun createCommentReport(form: CreateCommentReport): Response<CommentReportResponse> {
++        TODO("Not yet implemented")
++    }
++
++    override suspend fun createPostReport(form: CreatePostReport): Response<PostReportResponse> {
++        TODO("Not yet implemented")
++    }
++
++    override suspend fun blockPerson(form: BlockPerson): Response<BlockPersonResponse> {
++        TODO("Not yet implemented")
++    }
++
++    override suspend fun blockCommunity(form: BlockCommunity): Response<BlockCommunityResponse> {
++        TODO("Not yet implemented")
++    }
++
++    override suspend fun saveUserSettings(form: SaveUserSettings): Response<LoginResponse> {
++        TODO("Not yet implemented")
++    }
++
++    override suspend fun uploadImage(url: String, token: String, filePart: MultipartBody.Part): Response<PictrsImages> {
++        TODO("Not yet implemented")
++    }
++}

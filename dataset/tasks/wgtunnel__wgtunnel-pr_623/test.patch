@@ -1,0 +1,293 @@
+Subject: [PATCH] wgtunnel__wgtunnel-pr_623
+---
+Index: gradle/libs.versions.toml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/gradle/libs.versions.toml b/gradle/libs.versions.toml
+--- a/gradle/libs.versions.toml	(revision a873546e9e75b2e6d91f6bd71b6d480fa17697ce)
++++ b/gradle/libs.versions.toml	(date 1768310158050)
+@@ -20,7 +20,7 @@
+ roomVersion = "2.6.1"
+ timber = "5.0.1"
+ tunnel = "1.2.7"
+-androidGradlePlugin = "8.8.0-alpha05"
++androidGradlePlugin = "8.8.0"
+ kotlin = "2.1.10"
+ ksp = "2.1.10-1.0.31"
+ composeBom = "2025.03.00"
+Index: app/build.gradle.kts
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/build.gradle.kts b/app/build.gradle.kts
+--- a/app/build.gradle.kts	(revision a873546e9e75b2e6d91f6bd71b6d480fa17697ce)
++++ b/app/build.gradle.kts	(date 1768312216402)
+@@ -225,6 +225,9 @@
+ 	// worker
+ 	implementation(libs.androidx.work.runtime)
+ 	implementation(libs.androidx.hilt.work)
++
++	androidTestImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
++	androidTestImplementation("com.squareup.okhttp3:okhttp-tls:4.12.0")
+ }
+ 
+ fun determineVersionName(): String {
+Index: app/src/androidTest/java/com/zaneschepke/wireguardautotunnel/MainScreenTests.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/androidTest/java/com/zaneschepke/wireguardautotunnel/MainScreenTests.kt b/app/src/androidTest/java/com/zaneschepke/wireguardautotunnel/MainScreenTests.kt
+new file mode 100644
+--- /dev/null	(date 1768319059198)
++++ b/app/src/androidTest/java/com/zaneschepke/wireguardautotunnel/MainScreenTests.kt	(date 1768319059198)
+@@ -0,0 +1,246 @@
++package com.zaneschepke.wireguardautotunnel
++
++import androidx.compose.ui.semantics.Role
++import androidx.compose.ui.semantics.SemanticsProperties
++import androidx.compose.ui.semantics.getOrNull
++import androidx.compose.ui.test.ExperimentalTestApi
++import androidx.compose.ui.test.SemanticsMatcher
++import androidx.compose.ui.test.SemanticsNodeInteraction
++import androidx.compose.ui.test.SemanticsNodeInteractionCollection
++import androidx.compose.ui.test.assertIsDisplayed
++import androidx.compose.ui.test.hasAnyAncestor
++import androidx.compose.ui.test.hasContentDescription
++import androidx.compose.ui.test.hasSetTextAction
++import androidx.compose.ui.test.hasText
++import androidx.compose.ui.test.isDialog
++import androidx.compose.ui.test.junit4.createAndroidComposeRule
++import androidx.compose.ui.test.onNodeWithContentDescription
++import androidx.compose.ui.test.onNodeWithText
++import androidx.compose.ui.test.onParent
++import androidx.compose.ui.test.onRoot
++import androidx.compose.ui.test.performClick
++import androidx.compose.ui.test.performTextInput
++import androidx.compose.ui.test.printToLog
++import okhttp3.mockwebserver.MockResponse
++import okhttp3.mockwebserver.MockWebServer
++import okhttp3.tls.HandshakeCertificates
++import okhttp3.tls.HeldCertificate
++import org.junit.After
++import org.junit.Before
++import org.junit.Rule
++import org.junit.Test
++import javax.net.ssl.HostnameVerifier
++import javax.net.ssl.HttpsURLConnection
++import javax.net.ssl.SSLSocketFactory
++
++class MainScreenTests {
++
++	@get:Rule
++	val composeTestRule = createAndroidComposeRule<MainActivity>()
++
++	private lateinit var server: MockWebServer
++
++	private lateinit var oldSslSocketFactory: SSLSocketFactory
++	private lateinit var oldHostnameVerifier: HostnameVerifier
++
++	@Before
++	fun setupServer() {
++		oldSslSocketFactory = HttpsURLConnection.getDefaultSSLSocketFactory()
++		oldHostnameVerifier = HttpsURLConnection.getDefaultHostnameVerifier()
++
++		server = MockWebServer()
++		val localhostCert = HeldCertificate.Builder()
++			.addSubjectAlternativeName("localhost")
++			.build()
++
++		val serverCertificates = HandshakeCertificates.Builder()
++			.heldCertificate(localhostCert)
++			.build()
++
++		val clientCertificates = HandshakeCertificates.Builder()
++			.addTrustedCertificate(localhostCert.certificate)
++			.build()
++
++		HttpsURLConnection.setDefaultSSLSocketFactory(
++			clientCertificates.sslSocketFactory(),
++		)
++
++		server.useHttps(serverCertificates.sslSocketFactory(), false)
++		server.start()
++	}
++
++	@After
++	fun tearDown() {
++		HttpsURLConnection.setDefaultSSLSocketFactory(oldSslSocketFactory)
++		HttpsURLConnection.setDefaultHostnameVerifier(oldHostnameVerifier)
++	}
++
++	@OptIn(ExperimentalTestApi::class)
++	@Test
++	fun testAddingTunnelByUrl() {
++		val validConfig = """
++		[Interface]
++		PrivateKey = qJ1b7cJ9uF1f4n8n3YcB6Pz4ZzYvF4kFzZ9zv5x6xG4=
++		Address = 10.0.0.2/32
++
++		[Peer]
++		PublicKey = 6v3Y9xgCqJx9P6Jb5Tn8xJ4y9YcH4cF6x8J4YF9bP2k=
++		Endpoint = example.com:51820
++		AllowedIPs = 0.0.0.0/0
++		""".trimIndent()
++
++		server.enqueue(
++			MockResponse()
++				.setResponseCode(200)
++				.setBody(validConfig),
++		)
++
++		composeTestRule.onNodeWithContentDescription("Filled.Add")
++			.performClick()
++
++		composeTestRule.waitForIdle()
++
++		composeTestRule.onNodeWithText("url", substring = true, ignoreCase = true)
++			.assertIsDisplayed()
++			.performClick()
++
++		composeTestRule.waitForIdle()
++
++		composeTestRule.onNode(hasSetTextAction())
++			.performTextInput(server.url("/test_tunnel.conf").toUrl().toString())
++
++		composeTestRule.onAllNodes(hasRole(Role.Button).and(hasAnyAncestor(isDialog())))
++			.onRightMost()
++			.performClick()
++
++		composeTestRule.waitUntilAtLeastOneExists(hasText("test_tunnel"))
++
++		composeTestRule.onNodeWithText("test_tunnel")
++			.assertIsDisplayed()
++	}
++
++	@OptIn(ExperimentalTestApi::class)
++	@Test
++	fun testAddingTunnelByUrlWithIncorrectConfig() {
++		val invalidConfig = """
++		[Interface]
++		PrivateKey = abcd=
++		Address = 10.0.0.2/32
++
++		[Peer]
++		PublicKey = efgh=
++		Endpoint = example.com:51820
++		AllowedIPs = 0.0.0.0/0
++		""".trimIndent()
++
++		server.enqueue(
++			MockResponse()
++				.setResponseCode(200)
++				.setBody(invalidConfig),
++		)
++
++		composeTestRule.onNodeWithContentDescription("Filled.Add")
++			.performClick()
++
++		composeTestRule.waitForIdle()
++
++		composeTestRule.onNodeWithText("url", substring = true, ignoreCase = true)
++			.assertIsDisplayed()
++			.performClick()
++
++		composeTestRule.waitForIdle()
++
++		composeTestRule.onNode(hasSetTextAction())
++			.performTextInput(server.url("/test_tunnel.conf").toUrl().toString())
++
++		composeTestRule.onAllNodes(hasRole(Role.Button).and(hasAnyAncestor(isDialog())))
++			.onRightMost()
++			.performClick()
++
++		composeTestRule.waitUntilDoesNotExist(hasText("/test_tunnel.conf", substring = true))
++
++		// check that snackbar is displayed
++		composeTestRule.waitUntilAtLeastOneExists(hasContentDescription("Rounded.Info"), 5_000)
++	}
++
++	@OptIn(ExperimentalTestApi::class)
++	@Test
++	fun testAddingTunnelByUrlWithoutConfig() {
++		server.enqueue(
++			MockResponse()
++				.setResponseCode(200)
++				.setBody("Hello Test"),
++		)
++
++		composeTestRule.onNodeWithContentDescription("Filled.Add")
++			.performClick()
++
++		composeTestRule.waitForIdle()
++
++		composeTestRule.onNodeWithText("url", substring = true, ignoreCase = true)
++			.assertIsDisplayed()
++			.performClick()
++
++		composeTestRule.waitForIdle()
++
++		composeTestRule.onNode(hasSetTextAction())
++			.performTextInput(server.url("/test_tunnel").toUrl().toString())
++
++		composeTestRule.onAllNodes(hasRole(Role.Button).and(hasAnyAncestor(isDialog())))
++			.onRightMost()
++			.performClick()
++
++		composeTestRule.waitUntilDoesNotExist(hasText("/test_tunnel", substring = true))
++
++		// check that snackbar is displayed
++		composeTestRule.waitUntilAtLeastOneExists(hasContentDescription("Rounded.Info"), 5_000)
++	}
++
++	@OptIn(ExperimentalTestApi::class)
++	@Test
++	fun testAddingTunnelByIncorrectUrl() {
++		composeTestRule.onNodeWithContentDescription("Filled.Add")
++			.performClick()
++
++		composeTestRule.waitForIdle()
++
++		composeTestRule.onNodeWithText("url", substring = true, ignoreCase = true)
++			.assertIsDisplayed()
++			.performClick()
++
++		composeTestRule.waitForIdle()
++
++		composeTestRule.onNode(hasSetTextAction())
++			.performTextInput("https://incorrect.com/test_tunnel.conf")
++
++		composeTestRule.onAllNodes(hasRole(Role.Button).and(hasAnyAncestor(isDialog())))
++			.onRightMost()
++			.performClick()
++
++		composeTestRule.waitUntilDoesNotExist(hasText("/test_tunnel", substring = true))
++
++		// check that snackbar is displayed
++		composeTestRule.waitUntilAtLeastOneExists(hasContentDescription("Rounded.Info"), 5_000)
++	}
++
++	private fun hasRole(role: Role): SemanticsMatcher = SemanticsMatcher("Has role $role") { node ->
++		val role = node.config.getOrNull(SemanticsProperties.Role)
++		role == Role.Button
++	}
++
++	private fun SemanticsNodeInteractionCollection.onRightMost(): SemanticsNodeInteraction {
++		val nodes = this
++			.fetchSemanticsNodes()
++
++		require(nodes.isNotEmpty()) {
++			"No clickable nodes found"
++		}
++
++		val leftMostIndex = nodes
++			.withIndex()
++			.maxBy { it.value.boundsInRoot.left }
++			.index
++
++		return this[leftMostIndex]
++	}
++}

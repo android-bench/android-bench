@@ -1,0 +1,192 @@
+diff --git a/feature/foryou/src/androidTest/kotlin/com/google/samples/apps/nowinandroid/feature/foryou/ForYouScreenTest.kt b/feature/foryou/src/androidTest/kotlin/com/google/samples/apps/nowinandroid/feature/foryou/ForYouScreenTest.kt
+index c3ec5c56..b93b8d24 100644
+--- a/feature/foryou/src/androidTest/kotlin/com/google/samples/apps/nowinandroid/feature/foryou/ForYouScreenTest.kt
++++ b/feature/foryou/src/androidTest/kotlin/com/google/samples/apps/nowinandroid/feature/foryou/ForYouScreenTest.kt
+@@ -18,6 +18,7 @@ package com.google.samples.apps.nowinandroid.feature.foryou
+
+ import androidx.activity.ComponentActivity
+ import androidx.compose.foundation.layout.Box
++import androidx.compose.runtime.CompositionLocalProvider
+ import androidx.compose.ui.test.assertHasClickAction
+ import androidx.compose.ui.test.assertIsEnabled
+ import androidx.compose.ui.test.assertIsNotEnabled
+@@ -26,11 +27,18 @@ import androidx.compose.ui.test.hasText
+ import androidx.compose.ui.test.junit4.createAndroidComposeRule
+ import androidx.compose.ui.test.onFirst
+ import androidx.compose.ui.test.onNodeWithContentDescription
++import androidx.compose.ui.test.onNodeWithTag
+ import androidx.compose.ui.test.onNodeWithText
+ import androidx.compose.ui.test.performScrollToNode
++import androidx.compose.ui.test.performTouchInput
++import androidx.compose.ui.test.swipeDown
++import androidx.compose.ui.test.swipeUp
++import com.google.samples.apps.nowinandroid.core.analytics.AnalyticsEvent
++import com.google.samples.apps.nowinandroid.core.analytics.LocalAnalyticsHelper
+ import com.google.samples.apps.nowinandroid.core.rules.GrantPostNotificationsPermissionRule
+ import com.google.samples.apps.nowinandroid.core.testing.data.followableTopicTestData
+ import com.google.samples.apps.nowinandroid.core.testing.data.userNewsResourcesTestData
++import com.google.samples.apps.nowinandroid.core.testing.util.TestAnalyticsHelper
+ import com.google.samples.apps.nowinandroid.core.ui.NewsFeedUiState
+ import org.junit.Rule
+ import org.junit.Test
+@@ -153,12 +162,12 @@ class ForYouScreenTest {
+                 ForYouScreen(
+                     isSyncing = false,
+                     onboardingUiState =
+-                    OnboardingUiState.Shown(
+-                        // Follow one topic
+-                        topics = followableTopicTestData.mapIndexed { index, testTopic ->
+-                            testTopic.copy(isFollowed = index == 1)
+-                        },
+-                    ),
++                        OnboardingUiState.Shown(
++                            // Follow one topic
++                            topics = followableTopicTestData.mapIndexed { index, testTopic ->
++                                testTopic.copy(isFollowed = index == 1)
++                            },
++                        ),
+                     feedState = NewsFeedUiState.Success(
+                         feed = emptyList(),
+                     ),
+@@ -200,7 +209,7 @@ class ForYouScreenTest {
+                 ForYouScreen(
+                     isSyncing = false,
+                     onboardingUiState =
+-                    OnboardingUiState.Shown(topics = followableTopicTestData),
++                        OnboardingUiState.Shown(topics = followableTopicTestData),
+                     feedState = NewsFeedUiState.Loading,
+                     deepLinkedUserNewsResource = null,
+                     onTopicCheckedChanged = { _, _ -> },
+@@ -289,4 +298,131 @@ class ForYouScreenTest {
+             .assertExists()
+             .assertHasClickAction()
+     }
++
++    @Test
++    fun feed_captureScrollDirection_impression_up() {
++        val testAnalyticsHelper = TestAnalyticsHelper()
++        composeTestRule.setContent {
++            CompositionLocalProvider(LocalAnalyticsHelper provides testAnalyticsHelper) {
++                ForYouScreen(
++                    isSyncing = false,
++                    onboardingUiState = OnboardingUiState.NotShown,
++                    feedState = NewsFeedUiState.Success(
++                        feed = userNewsResourcesTestData,
++                    ),
++                    deepLinkedUserNewsResource = null,
++                    onTopicCheckedChanged = { _, _ -> },
++                    onTopicClick = {},
++                    saveFollowedTopics = {},
++                    onNewsResourcesCheckedChanged = { _, _ -> },
++                    onNewsResourceViewed = {},
++                    onDeepLinkOpened = {},
++                )
++            }
++        }
++
++        composeTestRule
++            .onNodeWithTag("forYou:feed")
++            .performTouchInput {
++                swipeUp()
++            }
++
++        assert(
++            testAnalyticsHelper.hasLogged(
++                AnalyticsEvent(
++                    "impression",
++                    listOf(
++                        AnalyticsEvent.Param(
++                            "swipe_direction", "UP",
++                        ),
++                    ),
++                ),
++            ),
++        )
++    }
++
++    @Test
++    fun feed_captureScrollDirection_impression_down() {
++        val testAnalyticsHelper = TestAnalyticsHelper()
++        composeTestRule.setContent {
++            CompositionLocalProvider(LocalAnalyticsHelper provides testAnalyticsHelper) {
++                ForYouScreen(
++                    isSyncing = false,
++                    onboardingUiState = OnboardingUiState.NotShown,
++                    feedState = NewsFeedUiState.Success(
++                        feed = userNewsResourcesTestData,
++                    ),
++                    deepLinkedUserNewsResource = null,
++                    onTopicCheckedChanged = { _, _ -> },
++                    onTopicClick = {},
++                    saveFollowedTopics = {},
++                    onNewsResourcesCheckedChanged = { _, _ -> },
++                    onNewsResourceViewed = {},
++                    onDeepLinkOpened = {},
++                )
++            }
++        }
++
++        composeTestRule
++            .onNodeWithTag("forYou:feed")
++            .performTouchInput {
++                swipeDown()
++            }
++
++        assert(
++            testAnalyticsHelper.hasLogged(
++                AnalyticsEvent(
++                    "impression",
++                    listOf(
++                        AnalyticsEvent.Param(
++                            "swipe_direction", "DOWN",
++                        ),
++                    ),
++                ),
++            ),
++        )
++    }
++
++    @Test
++    fun feed_captureScrollDirection_impression_no_move() {
++        val testAnalyticsHelper = TestAnalyticsHelper()
++        composeTestRule.setContent {
++            CompositionLocalProvider(LocalAnalyticsHelper provides testAnalyticsHelper) {
++                ForYouScreen(
++                    isSyncing = false,
++                    onboardingUiState = OnboardingUiState.NotShown,
++                    feedState = NewsFeedUiState.Success(
++                        feed = userNewsResourcesTestData,
++                    ),
++                    deepLinkedUserNewsResource = null,
++                    onTopicCheckedChanged = { _, _ -> },
++                    onTopicClick = {},
++                    saveFollowedTopics = {},
++                    onNewsResourcesCheckedChanged = { _, _ -> },
++                    onNewsResourceViewed = {},
++                    onDeepLinkOpened = {},
++                )
++            }
++        }
++
++        composeTestRule
++            .onNodeWithTag("forYou:feed")
++            .performTouchInput {
++                down(center)
++                up()
++            }
++
++        assert(
++            testAnalyticsHelper.hasLogged(
++                AnalyticsEvent(
++                    "impression",
++                    listOf(
++                        AnalyticsEvent.Param(
++                            "swipe_direction", "",
++                        ),
++                    ),
++                ),
++            ),
++        )
++    }
+ }
+

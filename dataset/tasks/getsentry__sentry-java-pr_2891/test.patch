@@ -1,0 +1,88 @@
+Index: sentry-android-core/src/test/java/io/sentry/android/core/internal/gestures/SentryGestureListenerTracingTest.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/sentry-android-core/src/test/java/io/sentry/android/core/internal/gestures/SentryGestureListenerTracingTest.kt b/sentry-android-core/src/test/java/io/sentry/android/core/internal/gestures/SentryGestureListenerTracingTest.kt
+--- a/sentry-android-core/src/test/java/io/sentry/android/core/internal/gestures/SentryGestureListenerTracingTest.kt	(revision ee21d538d271e16bdd8ff1bc2c8e87875154463f)
++++ b/sentry-android-core/src/test/java/io/sentry/android/core/internal/gestures/SentryGestureListenerTracingTest.kt	(date 1770931319559)
+@@ -28,6 +28,7 @@
+ import org.mockito.kotlin.doAnswer
+ import org.mockito.kotlin.mock
+ import org.mockito.kotlin.never
++import org.mockito.kotlin.times
+ import org.mockito.kotlin.verify
+ import org.mockito.kotlin.whenever
+ import kotlin.test.Test
+@@ -333,21 +334,68 @@
+             SpanContext(SentryId.EMPTY_ID, SpanId.EMPTY_ID, "op", null, null)
+         )
+ 
++        // when the same button is clicked twice
++        sut.onSingleTapUp(fixture.event)
+         sut.onSingleTapUp(fixture.event)
+ 
+-        verify(fixture.hub).startTransaction(
++        // then two transaction should be captured
++        verify(fixture.hub, times(2)).startTransaction(
+             check {
+                 assertEquals("Activity.test_button", it.name)
+                 assertEquals(TransactionNameSource.COMPONENT, it.transactionNameSource)
+             },
+             any<TransactionOptions>()
+         )
++    }
++
++    @Test
++    fun `scroll view test to check for idleTimeout reset`() {
++        // first view interaction
++        val transaction = mock<SentryTracer>()
++        val sut = fixture.getSut<ScrollableListView>(resourceName = "test_scroll_view")
++
++        whenever(transaction.spanContext).thenReturn(
++            SpanContext(SentryId.EMPTY_ID, SpanId.EMPTY_ID, "op", null, null)
++        )
++
++        // when the same button is clicked twice
++        sut.onScroll(fixture.event, mock(), 10.0f, 0f)
++        sut.onUp(mock())
++        sut.onUp(mock())
++
++        // then single transaction should be captured
++        verify(fixture.hub, times(1)).startTransaction(
++            check {
++                assertEquals("Activity.test_scroll_view", it.name)
++                assertEquals("ui.action.scroll", it.operation)
++                assertEquals(TransactionNameSource.COMPONENT, it.transactionNameSource)
++            },
++            any<TransactionOptions>()
++        )
++    }
+ 
+-        // second view interaction
++    @Test
++    fun `when tracing is disabled, it calls startNewTrace for click and scroll`() {
++        // Disable tracing by setting tracesSampleRate to null
++        val sut = fixture.getSut<ScrollableListView>(tracesSampleRate = null)
++
++        // 1. Test Click
+         sut.onSingleTapUp(fixture.event)
++        sut.onSingleTapUp(fixture.event)
++        // startNewTrace calls hub.configureScope to update propagation context
++        verify(fixture.hub, times(2)).configureScope(any())
++
++        // 2. Test Scroll
++        clearInvocations(fixture.hub)
++        sut.onScroll(fixture.event, mock(), 10.0f, 0f)
++        sut.onUp(fixture.event)
++        sut.onUp(fixture.event)
++        verify(fixture.hub, times(1)).configureScope(any())
+ 
+-        verify(fixture.transaction).scheduleFinish()
++        // Ensure no transaction was started since tracing is disabled
++        verify(fixture.hub, never()).startTransaction(any(), any<TransactionOptions>())
+     }
++
+ 
+     @Test
+     fun `captures transaction and sets trace origin`() {

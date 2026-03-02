@@ -1,0 +1,19 @@
+diff --git a/app/src/main/java/com/keylesspalace/tusky/BottomSheetActivity.kt b/app/src/main/java/com/keylesspalace/tusky/BottomSheetActivity.kt
+index 60d1966d1..8df0c6617 100644
+--- a/app/src/main/java/com/keylesspalace/tusky/BottomSheetActivity.kt
++++ b/app/src/main/java/com/keylesspalace/tusky/BottomSheetActivity.kt
+@@ -86,8 +86,11 @@ abstract class BottomSheetActivity : BaseActivity() {
+                     if (statuses.isNotEmpty()) {
+                         viewThread(statuses[0].id, statuses[0].url)
+                         return@subscribe
+-                    } else if (accounts.isNotEmpty()) {
+-                        viewAccount(accounts[0].id)
++                    }
++                    accounts.firstOrNull { it.url == url }?.let { account ->
++                        // Some servers return (unrelated) accounts for url searches (#2804)
++                        // Verify that the account's url matches the query
++                        viewAccount(account.id)
+                         return@subscribe
+                     }
+ 
+

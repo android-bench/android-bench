@@ -1,0 +1,67 @@
+diff --git a/feature/account/common/src/test/kotlin/app/k9mail/core/ui/compose/designsystem/organism/drawer/NavigationDrawerItemTest.kt b/feature/account/common/src/test/kotlin/app/k9mail/core/ui/compose/designsystem/organism/drawer/NavigationDrawerItemTest.kt
+new file mode 100644
+index 0000000000..3f02f99295
+--- /dev/null
++++ b/feature/account/common/src/test/kotlin/app/k9mail/core/ui/compose/designsystem/organism/drawer/NavigationDrawerItemTest.kt
+@@ -0,0 +1,60 @@
++package app.k9mail.core.ui.compose.designsystem.organism.drawer
++
++import android.os.Build
++import androidx.compose.foundation.layout.width
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.semantics.SemanticsActions
++import androidx.compose.ui.semantics.SemanticsProperties
++import androidx.compose.ui.test.SemanticsMatcher
++import androidx.compose.ui.test.SemanticsNodeInteraction
++import androidx.compose.ui.test.assert
++import androidx.compose.ui.text.TextLayoutResult
++import androidx.compose.ui.unit.dp
++import app.k9mail.core.ui.compose.testing.ComposeTest
++import app.k9mail.core.ui.compose.testing.onNodeWithText
++import app.k9mail.core.ui.compose.testing.setContentWithTheme
++import kotlin.test.Test
++import kotlinx.coroutines.test.runTest
++import org.robolectric.annotation.Config
++import org.robolectric.annotation.GraphicsMode
++
++@Config(sdk = [Build.VERSION_CODES.TIRAMISU])
++@GraphicsMode(GraphicsMode.Mode.NATIVE)
++internal class NavigationDrawerItemTest : ComposeTest() {
++
++    @Test
++    fun `navigation drawer item label should not exceed 2 lines`() = runTest {
++        val longLabel = "Test ".repeat(100)
++
++        setContentWithTheme {
++            NavigationDrawerItem(
++                label = longLabel,
++                selected = false,
++                onClick = {},
++                modifier = Modifier.width(100.dp)
++            )
++        }
++
++        onNodeWithText("Test", substring = true, useUnmergedTree = true).assertLineCount(2)
++    }
++
++    fun SemanticsNodeInteraction.assertLineCount(lineCount: Int): SemanticsNodeInteraction {
++        return assert(
++            SemanticsMatcher("Line count should be = $lineCount") { node ->
++                val getTextLayoutResult = node.config.getOrElseNullable(SemanticsActions.GetTextLayoutResult) { null }
++
++                // Fail explicitly if we are checking a node that isn't text
++                if (getTextLayoutResult == null) {
++                    throw AssertionError("Node with text '${node.config.getOrElseNullable(SemanticsProperties.Text) { emptyList() }}' does not contain text layout information. Did you forget 'useUnmergedTree = true'?")
++                }
++
++                val textLayoutResults = mutableListOf<TextLayoutResult>()
++                getTextLayoutResult.action?.invoke(textLayoutResults)
++
++                val res = textLayoutResults.firstOrNull()
++                res != null && res.lineCount == lineCount
++            }
++        )
++    }
++
++}
+

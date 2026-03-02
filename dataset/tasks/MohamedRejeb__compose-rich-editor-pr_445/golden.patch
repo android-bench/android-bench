@@ -1,0 +1,17 @@
+diff --git a/richeditor-compose/src/commonMain/kotlin/com/mohamedrejeb/richeditor/parser/markdown/RichTextStateMarkdownParser.kt b/richeditor-compose/src/commonMain/kotlin/com/mohamedrejeb/richeditor/parser/markdown/RichTextStateMarkdownParser.kt
+index c4199ac..d7ac28b 100644
+--- a/richeditor-compose/src/commonMain/kotlin/com/mohamedrejeb/richeditor/parser/markdown/RichTextStateMarkdownParser.kt
++++ b/richeditor-compose/src/commonMain/kotlin/com/mohamedrejeb/richeditor/parser/markdown/RichTextStateMarkdownParser.kt
+@@ -183,7 +183,10 @@ internal object RichTextStateMarkdownParser : RichTextStateParser<String> {
+                         newRichSpan.text = "$".repeat(node.endOffset - node.startOffset)
+                 }
+ 
+-                if (node.type == GFMTokenTypes.GFM_AUTOLINK) {
++                if (
++                    node.type == GFMTokenTypes.GFM_AUTOLINK ||
++                    node.type == MarkdownTokenTypes.CODE_LINE
++                ) {
+                     onText(node.getTextInNode(input).toString())
+                 }
+             },
+

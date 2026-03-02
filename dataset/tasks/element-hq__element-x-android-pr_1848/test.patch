@@ -1,0 +1,100 @@
+diff --git a/features/messages/impl/src/test/kotlin/io/element/android/features/messages/MessagesPresenterTest.kt b/features/messages/impl/src/test/kotlin/io/element/android/features/messages/MessagesPresenterTest.kt
+index 7fdb2885c4..0ecb148f99 100644
+--- a/features/messages/impl/src/test/kotlin/io/element/android/features/messages/MessagesPresenterTest.kt
++++ b/features/messages/impl/src/test/kotlin/io/element/android/features/messages/MessagesPresenterTest.kt
+@@ -41,6 +41,7 @@ import io.element.android.features.messages.impl.timeline.model.event.TimelineIt
+ import io.element.android.features.messages.impl.timeline.model.event.TimelineItemImageContent
+ import io.element.android.features.messages.impl.timeline.model.event.TimelineItemTextContent
+ import io.element.android.features.messages.impl.timeline.model.event.TimelineItemVideoContent
++import io.element.android.features.messages.impl.timeline.model.event.aTimelineItemPollContent
+ import io.element.android.features.messages.impl.voicemessages.composer.VoiceMessageComposerPlayer
+ import io.element.android.features.messages.impl.voicemessages.composer.VoiceMessageComposerPresenter
+ import io.element.android.features.messages.media.FakeLocalMediaFactory
+@@ -612,6 +613,28 @@ class MessagesPresenterTest {
+         }
+     }
+ 
++    @Test
++    fun `present - handle action reply to a poll`() = runTest {
++        val presenter = createMessagesPresenter()
++        moleculeFlow(RecompositionMode.Immediate) {
++            presenter.present()
++        }.test {
++            skipItems(1)
++            val initialState = awaitItem()
++            val poll = aMessageEvent(
++                content = aTimelineItemPollContent()
++            )
++            initialState.eventSink.invoke(MessagesEvents.HandleAction(TimelineItemAction.Reply, poll))
++            val finalState = awaitItem()
++            assertThat(finalState.composerState.mode).isInstanceOf(MessageComposerMode.Reply::class.java)
++            val replyMode = finalState.composerState.mode as MessageComposerMode.Reply
++            assertThat(replyMode.attachmentThumbnailInfo).isNotNull()
++            assertThat(replyMode.attachmentThumbnailInfo?.textContent)
++                .isEqualTo("What type of food should we have at the party?")
++            assertThat(awaitItem().actionListState.target).isEqualTo(ActionListState.Target.None)
++        }
++    }
++
+     private fun TestScope.createMessagesPresenter(
+         coroutineDispatchers: CoroutineDispatchers = testCoroutineDispatchers(),
+         matrixRoom: MatrixRoom = FakeMatrixRoom().apply {
+diff --git a/features/messages/impl/src/test/kotlin/io/element/android/features/messages/actionlist/ActionListPresenterTest.kt b/features/messages/impl/src/test/kotlin/io/element/android/features/messages/actionlist/ActionListPresenterTest.kt
+index 460979f289..1cdba992a2 100644
+--- a/features/messages/impl/src/test/kotlin/io/element/android/features/messages/actionlist/ActionListPresenterTest.kt
++++ b/features/messages/impl/src/test/kotlin/io/element/android/features/messages/actionlist/ActionListPresenterTest.kt
+@@ -426,6 +426,7 @@ class ActionListPresenterTest {
+                 ActionListState.Target.Success(
+                     messageEvent,
+                     persistentListOf(
++                        TimelineItemAction.Reply,
+                         TimelineItemAction.EndPoll,
+                         TimelineItemAction.Redact,
+                     )
+@@ -452,6 +453,7 @@ class ActionListPresenterTest {
+                 ActionListState.Target.Success(
+                     messageEvent,
+                     persistentListOf(
++                        TimelineItemAction.Reply,
+                         TimelineItemAction.Redact,
+                     )
+                 )
+diff --git a/tests/uitests/src/test/snapshots/images/ui_S_t[f.messages.impl.actionlist_SheetContent_null_SheetContent-Day-1_1_null_10,NEXUS_5,1.0,en].png b/tests/uitests/src/test/snapshots/images/ui_S_t[f.messages.impl.actionlist_SheetContent_null_SheetContent-Day-1_1_null_10,NEXUS_5,1.0,en].png
+index cd2c26834e..eb49998d3f 100644
+--- a/tests/uitests/src/test/snapshots/images/ui_S_t[f.messages.impl.actionlist_SheetContent_null_SheetContent-Day-1_1_null_10,NEXUS_5,1.0,en].png
++++ b/tests/uitests/src/test/snapshots/images/ui_S_t[f.messages.impl.actionlist_SheetContent_null_SheetContent-Day-1_1_null_10,NEXUS_5,1.0,en].png
+@@ -1,3 +1,3 @@
+ version https://git-lfs.github.com/spec/v1
+-oid sha256:1aecc7465d731f46d32ea9222022b6f640a3aa86c81a77c93487d5f35bfcad1b
+-size 28689
++oid sha256:217c310a2262594c4ae38ca905237d06b34eca6a28f3a74864b13055caa5e79e
++size 27614
+diff --git a/tests/uitests/src/test/snapshots/images/ui_S_t[f.messages.impl.actionlist_SheetContent_null_SheetContent-Night-1_2_null_10,NEXUS_5,1.0,en].png b/tests/uitests/src/test/snapshots/images/ui_S_t[f.messages.impl.actionlist_SheetContent_null_SheetContent-Night-1_2_null_10,NEXUS_5,1.0,en].png
+index 6dd671d42a..84077069ea 100644
+--- a/tests/uitests/src/test/snapshots/images/ui_S_t[f.messages.impl.actionlist_SheetContent_null_SheetContent-Night-1_2_null_10,NEXUS_5,1.0,en].png
++++ b/tests/uitests/src/test/snapshots/images/ui_S_t[f.messages.impl.actionlist_SheetContent_null_SheetContent-Night-1_2_null_10,NEXUS_5,1.0,en].png
+@@ -1,3 +1,3 @@
+ version https://git-lfs.github.com/spec/v1
+-oid sha256:eabb7309eef1e5bf0d496e053c1531f44262e109b3847e2de5e60ffd6df4e942
+-size 27505
++oid sha256:50dd24c985850b9842eb769c7a747903b814bb0fc11ff014c38d75a9531f0855
++size 26196
+diff --git a/tests/uitests/src/test/snapshots/images/ui_S_t[l.matrix.ui.components_AttachmentThumbnail_null_AttachmentThumbnail-Day-0_1_null_8,NEXUS_5,1.0,en].png b/tests/uitests/src/test/snapshots/images/ui_S_t[l.matrix.ui.components_AttachmentThumbnail_null_AttachmentThumbnail-Day-0_1_null_8,NEXUS_5,1.0,en].png
+new file mode 100644
+index 0000000000..72009884ab
+--- /dev/null
++++ b/tests/uitests/src/test/snapshots/images/ui_S_t[l.matrix.ui.components_AttachmentThumbnail_null_AttachmentThumbnail-Day-0_1_null_8,NEXUS_5,1.0,en].png
+@@ -0,0 +1,3 @@
++version https://git-lfs.github.com/spec/v1
++oid sha256:9e3fbf0f17f47df6d0889ed1b0ab0ec8aed643c244a34360cf538171ddf76be5
++size 4701
+diff --git a/tests/uitests/src/test/snapshots/images/ui_S_t[l.matrix.ui.components_AttachmentThumbnail_null_AttachmentThumbnail-Night-0_2_null_8,NEXUS_5,1.0,en].png b/tests/uitests/src/test/snapshots/images/ui_S_t[l.matrix.ui.components_AttachmentThumbnail_null_AttachmentThumbnail-Night-0_2_null_8,NEXUS_5,1.0,en].png
+new file mode 100644
+index 0000000000..3f3043f461
+--- /dev/null
++++ b/tests/uitests/src/test/snapshots/images/ui_S_t[l.matrix.ui.components_AttachmentThumbnail_null_AttachmentThumbnail-Night-0_2_null_8,NEXUS_5,1.0,en].png
+@@ -0,0 +1,3 @@
++version https://git-lfs.github.com/spec/v1
++oid sha256:334067772ec7b12afd075e80653bafa465e96cd13385db48891e2b0afa913543
++size 4707
+

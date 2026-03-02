@@ -1,0 +1,68 @@
+diff --git a/feature/topic/src/androidTest/kotlin/com/google/samples/apps/nowinandroid/feature/topic/TopicScreenTest.kt b/feature/topic/src/androidTest/kotlin/com/google/samples/apps/nowinandroid/feature/topic/TopicScreenTest.kt
+index 2b87baf9..2bd8a62f 100644
+--- a/feature/topic/src/androidTest/kotlin/com/google/samples/apps/nowinandroid/feature/topic/TopicScreenTest.kt
++++ b/feature/topic/src/androidTest/kotlin/com/google/samples/apps/nowinandroid/feature/topic/TopicScreenTest.kt
+@@ -17,6 +17,10 @@
+ package com.google.samples.apps.nowinandroid.feature.topic
+ 
+ import androidx.activity.ComponentActivity
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
++import androidx.compose.ui.input.nestedscroll.nestedScroll
++import androidx.compose.ui.test.hasScrollToIndexAction
+ import androidx.compose.ui.test.hasScrollToNodeAction
+ import androidx.compose.ui.test.hasText
+ import androidx.compose.ui.test.junit4.createAndroidComposeRule
+@@ -24,6 +28,9 @@ import androidx.compose.ui.test.onFirst
+ import androidx.compose.ui.test.onNodeWithContentDescription
+ import androidx.compose.ui.test.onNodeWithText
+ import androidx.compose.ui.test.performScrollToNode
++import androidx.compose.ui.test.performTouchInput
++import androidx.compose.ui.test.swipeUp
++import androidx.compose.ui.unit.Velocity
+ import com.google.samples.apps.nowinandroid.core.testing.data.followableTopicTestData
+ import com.google.samples.apps.nowinandroid.core.testing.data.userNewsResourcesTestData
+ import org.junit.Before
+@@ -141,4 +148,41 @@ class TopicScreenTest {
+             .onFirst()
+             .performScrollToNode(hasText(userNewsResourcesTestData.first().title))
+     }
++
++    @Test
++    fun news_whenScrolled_doNoFLing() {
++        val testTopic = followableTopicTestData.first()
++        val spyNestedScrollConnection = object : NestedScrollConnection {
++            override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
++                assert(available.y == 0f){
++                    "There shouldn't be any velocity available"
++                }
++                return Velocity.Zero
++            }
++        }
++
++        composeTestRule.setContent {
++            TopicScreen(
++                modifier = Modifier.nestedScroll(spyNestedScrollConnection),
++                topicUiState = TopicUiState.Success(testTopic),
++                newsUiState = NewsUiState.Success(
++                    userNewsResourcesTestData,
++                ),
++                showBackButton = true,
++                onBackClick = {},
++                onFollowClick = {},
++                onTopicClick = {},
++                onBookmarkChanged = { _, _ -> },
++                onNewsResourceViewed = {},
++            )
++        }
++
++        composeTestRule
++            .onNode(hasScrollToIndexAction())
++            .performTouchInput {
++                swipeUp()
++            }
++
++        composeTestRule.waitForIdle()
++    }
+ }
+

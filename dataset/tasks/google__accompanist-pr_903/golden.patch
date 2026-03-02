@@ -1,0 +1,47 @@
+diff --git a/pager/src/main/java/com/google/accompanist/pager/Pager.kt b/pager/src/main/java/com/google/accompanist/pager/Pager.kt
+index f3734cda..300bf49f 100644
+--- a/pager/src/main/java/com/google/accompanist/pager/Pager.kt
++++ b/pager/src/main/java/com/google/accompanist/pager/Pager.kt
+@@ -254,6 +254,13 @@ internal fun Pager(
+             .drop(1)
+             .collect { state.onScrollFinished() }
+     }
++    LaunchedEffect(state) {
++        snapshotFlow { state.currentLayoutPageInfo }
++            // we want to react on the currentLayoutPageInfo changes happened not because of the
++            // scroll. for example the current page could change because the items were reordered.
++            .filter { !state.isScrollInProgress }
++            .collect { state.updateCurrentPageBasedOnLazyListState() }
++    }
+ 
+     val pagerScope = remember(state) { PagerScopeImpl(state) }
+ 
+diff --git a/pager/src/main/java/com/google/accompanist/pager/PagerState.kt b/pager/src/main/java/com/google/accompanist/pager/PagerState.kt
+index 30a6f8d7..f9b3e7e8 100644
+--- a/pager/src/main/java/com/google/accompanist/pager/PagerState.kt
++++ b/pager/src/main/java/com/google/accompanist/pager/PagerState.kt
+@@ -78,7 +78,7 @@ class PagerState(
+ 
+     private var _currentPage by mutableStateOf(currentPage)
+ 
+-    private val currentLayoutPageInfo: LazyListItemInfo?
++    internal val currentLayoutPageInfo: LazyListItemInfo?
+         get() = lazyListState.layoutInfo.visibleItemsInfo.lastOrNull { it.offset <= 0 }
+ 
+     private val currentLayoutPageOffset: Float
+@@ -278,9 +278,13 @@ class PagerState(
+         }
+     }
+ 
+-    internal fun onScrollFinished() {
++    internal fun updateCurrentPageBasedOnLazyListState() {
+         // Then update the current page to our layout page
+         currentPage = currentLayoutPageInfo?.index ?: 0
++    }
++
++    internal fun onScrollFinished() {
++        updateCurrentPageBasedOnLazyListState()
+         // Clear the animation target page
+         animationTargetPage = null
+     }
+

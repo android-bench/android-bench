@@ -1,0 +1,161 @@
+diff --git a/.java-version b/.java-version
+new file mode 100644
+index 0000000..7273c0f
+--- /dev/null
++++ b/.java-version
+@@ -0,0 +1 @@
++25
+diff --git a/gradle/libs.versions.toml b/gradle/libs.versions.toml
+index d02cdf7..57c4c2c 100644
+--- a/gradle/libs.versions.toml
++++ b/gradle/libs.versions.toml
+@@ -2,7 +2,7 @@
+ accompanist = "0.36.0"
+ activityKtx = "1.10.1"
+ android-googleid = "1.1.1"
+-androidGradlePlugin = "8.12.1"
++androidGradlePlugin = "8.13.2"
+ androidx-activity-compose = "1.10.1"
+ androidx-appcompat = "1.7.0"
+ androidx-compose-bom = "2025.08.00"
+@@ -44,15 +44,15 @@ glide = "1.0.0-beta01"
+ google-maps = "19.2.0"
+ gradle-versions = "0.52.0"
+ guava = "33.4.8-jre"
+-hilt = "2.57"
++hilt = "2.57.2"
+ horologist = "0.8.1-alpha"
+ junit = "4.13.2"
+ ktlint = "1.5.0"
+-kotlin = "2.2.10"
++kotlin = "2.3.0"
+ kotlinCoroutinesOkhttp = "1.0"
+ kotlinxCoroutinesGuava = "1.10.2"
+ kotlinxSerializationJson = "1.9.0"
+-ksp = "2.2.10-2.0.2"
++ksp = "2.3.4"
+ lifecycleService = "2.9.2"
+ maps-compose = "6.7.2"
+ material = "1.14.0-alpha03"
+diff --git a/identity/credentialmanager/build.gradle.kts b/identity/credentialmanager/build.gradle.kts
+index 2e35608..32f291a 100644
+--- a/identity/credentialmanager/build.gradle.kts
++++ b/identity/credentialmanager/build.gradle.kts
+@@ -33,8 +33,8 @@ android {
+         sourceCompatibility = JavaVersion.VERSION_11
+         targetCompatibility = JavaVersion.VERSION_11
+     }
+-    kotlinOptions {
+-        jvmTarget = "11"
++    kotlin {
++        jvmToolchain(11)
+     }
+     buildFeatures {
+         compose = true
+diff --git a/misc/build.gradle.kts b/misc/build.gradle.kts
+index cb09054..56c2380 100644
+--- a/misc/build.gradle.kts
++++ b/misc/build.gradle.kts
+@@ -65,6 +65,7 @@ dependencies {
+     implementation(libs.androidx.hilt.navigation.compose)
+     implementation(libs.kotlinx.serialization.json)
+     ksp(libs.hilt.compiler)
++    ksp("org.jetbrains.kotlin:kotlin-metadata-jvm:2.3.0")
+ 
+     implementation(libs.androidx.constraintlayout)
+     implementation(libs.androidx.lifecycle.runtime)
+diff --git a/views/build.gradle.kts b/views/build.gradle.kts
+index 80ee4ed..8584626 100644
+--- a/views/build.gradle.kts
++++ b/views/build.gradle.kts
+@@ -19,10 +19,10 @@ plugins {
+ 
+ android {
+     namespace = "com.example.example.snippet.views"
+-    compileSdk = 35
++    compileSdk = 36
+ 
+     defaultConfig {
+-        minSdk = 35
++        minSdk = 36
+ 
+         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+         consumerProguardFiles("consumer-rules.pro")
+@@ -38,11 +38,11 @@ android {
+         }
+     }
+     compileOptions {
+-        sourceCompatibility = JavaVersion.VERSION_1_8
+-        targetCompatibility = JavaVersion.VERSION_1_8
++        sourceCompatibility = JavaVersion.VERSION_25
++        targetCompatibility = JavaVersion.VERSION_25
+     }
+-    kotlinOptions {
+-        jvmTarget = "1.8"
++    kotlin {
++        jvmToolchain(25)
+     }
+ }
+ 
+diff --git a/watchfacepush/validator/build.gradle.kts b/watchfacepush/validator/build.gradle.kts
+index 0b9289a..c05de02 100644
+--- a/watchfacepush/validator/build.gradle.kts
++++ b/watchfacepush/validator/build.gradle.kts
+@@ -13,6 +13,7 @@
+  * See the License for the specific language governing permissions and
+  * limitations under the License.
+  */
++import org.gradle.jvm.toolchain.JavaLanguageVersion
+ 
+ group = "com.example.validator"
+ version = "1.0"
+@@ -22,6 +23,16 @@ plugins {
+     application
+ }
+ 
++java {
++    toolchain {
++        languageVersion.set(JavaLanguageVersion.of(25))
++    }
++}
++
++kotlin {
++    jvmToolchain(25)
++}
++
+ application {
+     mainClass.set("com.example.validator.Main")
+ }
+diff --git a/wear/build.gradle.kts b/wear/build.gradle.kts
+index d88421c..57d335b 100644
+--- a/wear/build.gradle.kts
++++ b/wear/build.gradle.kts
+@@ -46,9 +46,6 @@ android {
+             excludes += "/META-INF/{AL2.0,LGPL2.1}"
+         }
+     }
+-    kotlinOptions {
+-        jvmTarget = "17"
+-    }
+ }
+ 
+ dependencies {
+diff --git a/xr/build.gradle.kts b/xr/build.gradle.kts
+index 51c224f..08fdfa5 100644
+--- a/xr/build.gradle.kts
++++ b/xr/build.gradle.kts
+@@ -16,11 +16,11 @@ android {
+         versionName = "1.0"
+     }
+     compileOptions {
+-        sourceCompatibility = JavaVersion.VERSION_11
+-        targetCompatibility = JavaVersion.VERSION_11
++        sourceCompatibility = JavaVersion.VERSION_25
++        targetCompatibility = JavaVersion.VERSION_25
+     }
+     kotlin {
+-        jvmToolchain(11)
++        jvmToolchain(25)
+     }
+     buildFeatures {
+         compose = true

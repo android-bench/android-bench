@@ -1,0 +1,55 @@
+diff --git a/modules/features/filters/src/main/java/au/com/shiftyjelly/pocketcasts/playlists/component/PlaylistHeader.kt b/modules/features/filters/src/main/java/au/com/shiftyjelly/pocketcasts/playlists/component/PlaylistHeader.kt
+index 9a07d0208..4344a8a03 100644
+--- a/modules/features/filters/src/main/java/au/com/shiftyjelly/pocketcasts/playlists/component/PlaylistHeader.kt
++++ b/modules/features/filters/src/main/java/au/com/shiftyjelly/pocketcasts/playlists/component/PlaylistHeader.kt
+@@ -400,7 +400,7 @@ private fun PlaylistInfoText(
+     }
+     val durationLeftText = remember(resources, playbackDurationLeft, episodeCount) {
+         playbackDurationLeft
+-            ?.takeIf { episodeCount != null && episodeCount > 0 }
++            ?.takeIf { episodeCount != null && episodeCount > 0 && it > Duration.ZERO }
+             ?.toFriendlyString(resources, pluralResourceId = { unit -> unit.shortResourceId })
+     }
+     val playlistInfoText = remember(episodeCountText, durationLeftText) {
+diff --git a/modules/services/model/src/main/java/au/com/shiftyjelly/pocketcasts/models/converter/EpisodePlayingStatusConverter.kt b/modules/services/model/src/main/java/au/com/shiftyjelly/pocketcasts/models/converter/EpisodePlayingStatusConverter.kt
+index 77ae4ba13..a2ee997b4 100644
+--- a/modules/services/model/src/main/java/au/com/shiftyjelly/pocketcasts/models/converter/EpisodePlayingStatusConverter.kt
++++ b/modules/services/model/src/main/java/au/com/shiftyjelly/pocketcasts/models/converter/EpisodePlayingStatusConverter.kt
+@@ -7,7 +7,7 @@ class EpisodePlayingStatusConverter {
+ 
+     @TypeConverter
+     fun toEpisodePlayingStatus(value: Int?): EpisodePlayingStatus? {
+-        return if (value == null) null else EpisodePlayingStatus.values()[value]
++        return if (value == null) null else EpisodePlayingStatus.entries[value]
+     }
+ 
+     @TypeConverter
+diff --git a/modules/services/model/src/main/java/au/com/shiftyjelly/pocketcasts/models/db/dao/PlaylistDao.kt b/modules/services/model/src/main/java/au/com/shiftyjelly/pocketcasts/models/db/dao/PlaylistDao.kt
+index 36d95b323..3c41983bb 100644
+--- a/modules/services/model/src/main/java/au/com/shiftyjelly/pocketcasts/models/db/dao/PlaylistDao.kt
++++ b/modules/services/model/src/main/java/au/com/shiftyjelly/pocketcasts/models/db/dao/PlaylistDao.kt
+@@ -220,7 +220,7 @@ abstract class PlaylistDao {
+           SUM(IFNULL(podcastEpisode.archived, 0)) AS archived_episode_count,
+           SUM(
+             CASE
+-              WHEN playlist.showArchivedEpisodes != 0 OR podcastEpisode.archived = 0
++              WHEN (playlist.showArchivedEpisodes != 0 OR podcastEpisode.archived = 0) AND podcastEpisode.playing_status != 2
+               THEN MAX(0, IFNULL(podcastEpisode.duration, 0) - IFNULL(podcastEpisode.played_up_to, 0))
+               ELSE 0
+             END
+@@ -467,7 +467,13 @@ abstract class PlaylistDao {
+             selectClause = """
+                 COUNT(*) AS episode_count, 
+                 0 AS archived_episode_count,
+-                SUM(MAX(episode.duration - episode.played_up_to, 0)) AS time_left
++                SUM(
++                  CASE
++                    WHEN episode.playing_status != 2
++                    THEN MAX(0, IFNULL(episode.duration, 0) - IFNULL(episode.played_up_to, 0))
++                    ELSE 0
++                  END
++                ) AS time_left
+             """.trimIndent(),
+             whereClause = smartRules.toSqlWhereClause(clock),
+             orderByClause = null,
+

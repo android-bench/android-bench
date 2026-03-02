@@ -1,0 +1,144 @@
+Subject: [PATCH] test: Create gradle task and unit test to check Compose bom is applied and compose dependencies use the bom
+---
+Index: app/src/test/java/com/jerboa/ComposeBomTest.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/test/java/com/jerboa/ComposeBomTest.kt b/app/src/test/java/com/jerboa/ComposeBomTest.kt
+new file mode 100644
+--- /dev/null	(revision f996a8f622bec440b6778d50352d1d6114ebe472)
++++ b/app/src/test/java/com/jerboa/ComposeBomTest.kt	(revision f996a8f622bec440b6778d50352d1d6114ebe472)
+@@ -0,0 +1,38 @@
++package com.jerboa
++
++import org.junit.Test
++import java.io.File
++
++class ComposeBomTest {
++
++    @Test
++    fun composeBomIsApplied() {
++        val path = System.getProperty("buildConfigGuard.composeBomApplied")
++        val dependenciesPath = System.getProperty("buildConfigGuard.composeDependencies")
++        val modules = path.readFile()
++            .map {
++                val list = it.split("->")
++                list[0] to list[1].toBooleanStrict()
++            }
++
++        val dependencies = dependenciesPath.readFile()
++
++        assert(modules.isNotEmpty() && modules.all { it.second }) {
++            """ComposeBom is not applied at the following modules in api or implementation configuration:
++${modules.joinToString("\n") { it.first }}
++            """
++        }
++        assert(dependencies.isEmpty()) {
++            """The following dependencies are not using Compose BOM:
++${dependencies.joinToString("\n")}
++            """
++        }
++    }
++
++    private fun String?.readFile(): List<String> = this?.let(::File)
++        ?.takeIf { it.exists() }
++        ?.readLines()
++        ?.map { it.trim() }
++        ?.filter { it.isNotEmpty() }
++        .orEmpty()
++}
+\ No newline at end of file
+Index: build.gradle.kts
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/build.gradle.kts b/build.gradle.kts
+--- a/build.gradle.kts	(revision 0fda5605f58924a46a840426b738afb15de79bc4)
++++ b/build.gradle.kts	(revision f996a8f622bec440b6778d50352d1d6114ebe472)
+@@ -43,4 +43,84 @@
+             )
+         }
+     }
++
++    tasks.withType<Test>().configureEach {
++        if (name.matches(Regex("(?i)testDebugUnitTest"))) {
++            dependsOn(rootProject.tasks.named("computeBuildConfigOffenders"))
++            val isBomAppliedPath = rootProject.layout.buildDirectory
++                .file("isComposeBomApplied.txt")
++                .map { it.asFile.absolutePath }
++            val composeDependenciesNotUsingBom = rootProject.layout.buildDirectory
++                .file("composeDependencies.txt")
++                .map { it.asFile.absolutePath }
++            systemProperty("buildConfigGuard.composeBomApplied", isBomAppliedPath.get())
++            systemProperty(
++                "buildConfigGuard.composeDependencies",
++                composeDependenciesNotUsingBom.get()
++            )
++            
++            doFirst {
++                println(
++                    "[guard] $path isBomAppliedFile = " +
++                            systemProperties["buildConfigGuard.composeBomApplied"]
++                )
++                println(
++                    "[guard] $path composeDependenciesNotUsingBomFile = " +
++                            systemProperties["buildConfigGuard.composeDependencies"]
++                )
++            }
++        }
++    }
++}
++
++val isComposeBomApplied = layout.buildDirectory.file("isComposeBomApplied.txt")
++val composeDependenciesNotUsingBom = layout.buildDirectory.file("composeDependencies.txt")
++val computeBuildConfigOffenders by tasks.registering {
++    notCompatibleWithConfigurationCache("Test task")
++    doLast {
++        val targetGroup = "androidx.compose"
++        val targetName = "compose-bom"
++        val outBomDeclaration = isComposeBomApplied.get().asFile
++        val outDependencies = composeDependenciesNotUsingBom.get().asFile
++        outBomDeclaration.parentFile.mkdirs()
++        outDependencies.parentFile.mkdirs()
++        rootProject.allprojects.firstOrNull { it.name == "app" }?.let { p ->
++            p.configurations.filter { it.name in listOf("implementation", "api") }
++                .any { config ->
++                    config.dependencies.any { dep ->
++                        val matchesName = dep.group == targetGroup && dep.name == targetName
++
++                        val isPlatform = if (dep is ModuleDependency) {
++                            val category = dep.attributes.getAttribute(Category.CATEGORY_ATTRIBUTE)
++                            category?.name == Category.REGULAR_PLATFORM || category?.name == Category.ENFORCED_PLATFORM
++                        } else {
++                            false
++                        }
++
++                        matchesName && isPlatform
++                    }
++                }.apply {
++                    outBomDeclaration.writeText("${p.name}->$this")
++                }
++            p.configurations.filter {
++                it.name in listOf(
++                    "implementation",
++                    "api",
++                    "debugImplementation",
++                    "androidTestImplementation"
++                )
++            }.flatMap {
++                it.dependencies.filterIsInstance<ExternalModuleDependency>()
++                    .filter { dep ->
++                        dep.group?.startsWith(targetGroup) == true && dep.group != "androidx.compose.material3" && dep.name != targetName && dep.version != null
++                    }.map { dep ->
++                        it to dep
++                    }
++            }.apply {
++                outDependencies.writeText(joinToString("\n") {
++                    "$p -> ${it.first.name} -> ${it.second.group}:${it.second.name}:${it.second.version}"
++                })
++            }
++        }
++    }
+ }

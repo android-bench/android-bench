@@ -1,0 +1,67 @@
+diff --git a/richeditor-compose/src/commonTest/kotlin/com.mohamedrejeb.richeditor/parser/html/CssDecoderTest.kt b/richeditor-compose/src/commonTest/kotlin/com.mohamedrejeb.richeditor/parser/html/CssDecoderTest.kt
+index 86050bb..91b702a 100644
+--- a/richeditor-compose/src/commonTest/kotlin/com.mohamedrejeb.richeditor/parser/html/CssDecoderTest.kt
++++ b/richeditor-compose/src/commonTest/kotlin/com.mohamedrejeb.richeditor/parser/html/CssDecoderTest.kt
+@@ -16,7 +16,7 @@ import kotlin.test.Test
+ import kotlin.test.assertContains
+ import kotlin.test.assertEquals
+ 
+-internal class CssDecoderTest {
++class CssDecoderTest {
+     @Test
+     fun testDecodeCssStyleMap() {
+         val map = mapOf(
+diff --git a/richeditor-compose/src/commonTest/kotlin/com.mohamedrejeb.richeditor/parser/html/CssEncoderTest.kt b/richeditor-compose/src/commonTest/kotlin/com.mohamedrejeb.richeditor/parser/html/CssEncoderTest.kt
+index 527380f..29104b5 100644
+--- a/richeditor-compose/src/commonTest/kotlin/com.mohamedrejeb.richeditor/parser/html/CssEncoderTest.kt
++++ b/richeditor-compose/src/commonTest/kotlin/com.mohamedrejeb.richeditor/parser/html/CssEncoderTest.kt
+@@ -13,7 +13,7 @@ import kotlin.math.roundToInt
+ import kotlin.test.Test
+ import kotlin.test.assertEquals
+ 
+-internal class CssEncoderTest {
++class CssEncoderTest {
+     @Test
+     fun testParseCssStyle() {
+         val style = "font-weight: bold; color: #ff0000; font-size: 12px;"
+diff --git a/richeditor-compose/src/commonTest/kotlin/com.mohamedrejeb.richeditor/parser/html/RichTextStateHtmlParserTest.kt b/richeditor-compose/src/commonTest/kotlin/com.mohamedrejeb.richeditor/parser/html/RichTextStateHtmlParserTest.kt
+index fa27f6b..8e412d8 100644
+--- a/richeditor-compose/src/commonTest/kotlin/com.mohamedrejeb.richeditor/parser/html/RichTextStateHtmlParserTest.kt
++++ b/richeditor-compose/src/commonTest/kotlin/com.mohamedrejeb.richeditor/parser/html/RichTextStateHtmlParserTest.kt
+@@ -8,7 +8,7 @@ import kotlin.test.assertEquals
+ import kotlin.test.assertIs
+ import kotlin.test.assertTrue
+ 
+-internal class RichTextStateHtmlParserTest {
++class RichTextStateHtmlParserTest {
+     @Test
+     fun testRemoveHtmlTextExtraSpaces() {
+         val html = """
+@@ -150,6 +150,26 @@ internal class RichTextStateHtmlParserTest {
+         assertEquals("second", richTextState.annotatedString.text)
+     }
+ 
++    @Test
++    fun testBrEncodeDecode() {
++        val html = "<p>ABC</p><br><br><br>"
++
++        val state = RichTextStateHtmlParser.encode(html)
++
++        assertEquals(5, state.richParagraphList.size)
++        assertEquals(html, state.toHtml())
++    }
++
++    @Test
++    fun testBrEncodeDecode2() {
++        val html = "<br><p>ABC</p><br><br><p>ABC</p><br><br>"
++
++        val state = RichTextStateHtmlParser.encode(html)
++
++        assertEquals(8, state.richParagraphList.size)
++        assertEquals(html, state.toHtml())
++    }
++
+     @Test
+     fun testBrInMiddleOrParagraph() {
+         val html = """
+

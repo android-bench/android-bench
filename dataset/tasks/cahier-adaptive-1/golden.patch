@@ -1,0 +1,73 @@
+diff --git a/app/src/main/java/com/example/cahier/ui/TextNoteCanvasScreen.kt b/app/src/main/java/com/example/cahier/ui/TextNoteCanvasScreen.kt
+index 3f5e8df..46248c4 100644
+--- a/app/src/main/java/com/example/cahier/ui/TextNoteCanvasScreen.kt
++++ b/app/src/main/java/com/example/cahier/ui/TextNoteCanvasScreen.kt
+@@ -95,11 +95,11 @@ fun TextNoteCanvasScreen(
+ ) {
+     val uiState by canvasScreenViewModel.uiState.collectAsStateWithLifecycle()
+ 
+-    var titleState by remember {
++    var titleState by rememberSaveable(stateSaver = TextFieldValue.Saver) {
+         mutableStateOf(TextFieldValue(uiState.note.title))
+     }
+ 
+-    var bodyState by remember {
++    var bodyState by rememberSaveable(stateSaver = TextFieldValue.Saver) {
+         mutableStateOf(TextFieldValue(uiState.note.text ?: ""))
+     }
+ 
+@@ -125,10 +125,12 @@ fun TextNoteCanvasScreen(
+         titleState = titleState,
+         onTitleChange = {
+             titleState = it
++            canvasScreenViewModel.updateNoteTitle(it.text)
+         },
+         bodyState = bodyState,
+         onBodyChange = {
+             bodyState = it
++            canvasScreenViewModel.updateNoteText(it.text)
+         },
+         onExit = onExit,
+         imagePickerLauncher = imagePickerLauncher,
+diff --git a/app/src/main/java/com/example/cahier/ui/viewmodels/CanvasScreenViewModel.kt b/app/src/main/java/com/example/cahier/ui/viewmodels/CanvasScreenViewModel.kt
+index 9b7c31a..56b0dae 100644
+--- a/app/src/main/java/com/example/cahier/ui/viewmodels/CanvasScreenViewModel.kt
++++ b/app/src/main/java/com/example/cahier/ui/viewmodels/CanvasScreenViewModel.kt
+@@ -25,6 +25,7 @@ import androidx.core.net.toUri
+ import androidx.lifecycle.SavedStateHandle
+ import androidx.lifecycle.ViewModel
+ import androidx.lifecycle.viewModelScope
++import com.example.cahier.data.Note
+ import com.example.cahier.data.NotesRepository
+ import com.example.cahier.navigation.TextCanvasDestination
+ import com.example.cahier.ui.CahierUiState
+@@ -70,6 +71,28 @@ class CanvasScreenViewModel @Inject constructor(
+         }
+     }
+ 
++    fun updateNoteTitle(title: String) {
++        updateNoteField(title) { note, value -> note.copy(title = value) }
++    }
++
++    fun updateNoteText(text: String) {
++        updateNoteField(text) { note, value -> note.copy(text = value) }
++    }
++
++    private fun <T> updateNoteField(value: T, updater: (Note, T) -> Note) {
++        try {
++            _uiState.value = _uiState.value.copy(
++                note = updater(_uiState.value.note, value)
++            )
++            viewModelScope.launch {
++                if (noteId != null)
++                    noteRepository.updateNote(_uiState.value.note)
++            }
++        } catch (e: Exception) {
++            _uiState.value = _uiState.value.copy(error = "Error updating note: ${e.message}")
++        }
++    }
++
+     fun addImage(localUri: Uri?) {
+         if (localUri == null) {
+             Log.w(TAG, "addImage called with null URI, ignoring.")
+

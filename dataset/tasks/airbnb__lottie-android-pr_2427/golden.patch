@@ -1,0 +1,123 @@
+diff --git a/lottie/src/main/java/com/airbnb/lottie/model/content/GradientColor.java b/lottie/src/main/java/com/airbnb/lottie/model/content/GradientColor.java
+index 3485d583..41e1e29e 100644
+--- a/lottie/src/main/java/com/airbnb/lottie/model/content/GradientColor.java
++++ b/lottie/src/main/java/com/airbnb/lottie/model/content/GradientColor.java
+@@ -28,6 +28,19 @@ public class GradientColor {
+   }
+ 
+   public void lerp(GradientColor gc1, GradientColor gc2, float progress) {
++    // Fast return in case start and end is the same
++    // or if progress is at start/end or out of [0,1] bounds
++    if (gc1.equals(gc2)) {
++      copyFrom(gc1);
++      return;
++    } else if (progress <= 0f) {
++      copyFrom(gc1);
++      return;
++    } else if (progress >= 1f) {
++      copyFrom(gc2);
++      return;
++    }
++
+     if (gc1.colors.length != gc2.colors.length) {
+       throw new IllegalArgumentException("Cannot interpolate between gradients. Lengths vary (" +
+           gc1.colors.length + " vs " + gc2.colors.length + ")");
+@@ -56,6 +69,25 @@ public class GradientColor {
+     return new GradientColor(positions, colors);
+   }
+ 
++  @Override
++  public boolean equals(Object o) {
++    if (this == o) {
++      return true;
++    }
++    if (o == null || getClass() != o.getClass()) {
++      return false;
++    }
++    GradientColor that = (GradientColor) o;
++    return Arrays.equals(positions, that.positions) && Arrays.equals(colors, that.colors);
++  }
++
++  @Override
++  public int hashCode() {
++    int result = Arrays.hashCode(positions);
++    result = 31 * result + Arrays.hashCode(colors);
++    return result;
++  }
++
+   private int getColorForPosition(float position) {
+     int existingIndex = Arrays.binarySearch(positions, position);
+     if (existingIndex >= 0) {
+@@ -76,4 +108,11 @@ public class GradientColor {
+     float fraction = (position - startPosition) / (endPosition - startPosition);
+     return GammaEvaluator.evaluate(fraction, startColor, endColor);
+   }
++
++  private void copyFrom(GradientColor other) {
++    for (int i = 0; i < other.colors.length; i++) {
++      positions[i] = other.positions[i];
++      colors[i] = other.colors[i];
++    }
++  }
+ }
+diff --git a/lottie/src/main/java/com/airbnb/lottie/parser/GradientColorParser.java b/lottie/src/main/java/com/airbnb/lottie/parser/GradientColorParser.java
+index 84f20273..5d779790 100644
+--- a/lottie/src/main/java/com/airbnb/lottie/parser/GradientColorParser.java
++++ b/lottie/src/main/java/com/airbnb/lottie/parser/GradientColorParser.java
+@@ -189,12 +189,16 @@ public class GradientColorParser implements com.airbnb.lottie.parser.ValueParser
+       float distanceBetweenColors = colorStopPositions[i] - colorStopPositions[i - 1];
+       float distanceToLowerColor = position - colorStopPositions[i - 1];
+       float percentage = distanceToLowerColor / distanceBetweenColors;
++
+       int upperColor = colorStopColors[i];
+       int lowerColor = colorStopColors[i - 1];
++      int intermediateColor = GammaEvaluator.evaluate(percentage, lowerColor, upperColor);
++
+       int a = (int) (opacity * 255);
+-      int r = GammaEvaluator.evaluate(percentage, Color.red(lowerColor), Color.red(upperColor));
+-      int g = GammaEvaluator.evaluate(percentage, Color.green(lowerColor), Color.green(upperColor));
+-      int b = GammaEvaluator.evaluate(percentage, Color.blue(lowerColor), Color.blue(upperColor));
++      int r = Color.red(intermediateColor);
++      int g = Color.green(intermediateColor);
++      int b = Color.blue(intermediateColor);
++
+       return Color.argb(a, r, g, b);
+     }
+     throw new IllegalArgumentException("Unreachable code.");
+@@ -269,7 +273,6 @@ public class GradientColorParser implements com.airbnb.lottie.parser.ValueParser
+       return mergedNotTruncated;
+     }
+ 
+-
+     return Arrays.copyOf(mergedNotTruncated, mergedNotTruncated.length - numDuplicates);
+   }
+ }
+diff --git a/lottie/src/main/java/com/airbnb/lottie/utils/GammaEvaluator.java b/lottie/src/main/java/com/airbnb/lottie/utils/GammaEvaluator.java
+index d509fcf0..3580d13d 100644
+--- a/lottie/src/main/java/com/airbnb/lottie/utils/GammaEvaluator.java
++++ b/lottie/src/main/java/com/airbnb/lottie/utils/GammaEvaluator.java
+@@ -25,9 +25,16 @@ public class GammaEvaluator {
+   }
+ 
+   public static int evaluate(float fraction, int startInt, int endInt) {
++    // Fast return in case start and end is the same
++    // or if fraction is at start/end or out of [0,1] bounds
+     if (startInt == endInt) {
+       return startInt;
++    } else if (fraction <= 0f) {
++      return startInt;
++    } else if (fraction >= 1f) {
++      return endInt;
+     }
++
+     float startA = ((startInt >> 24) & 0xff) / 255.0f;
+     float startR = ((startInt >> 16) & 0xff) / 255.0f;
+     float startG = ((startInt >> 8) & 0xff) / 255.0f;
+@@ -61,4 +68,4 @@ public class GammaEvaluator {
+ 
+     return Math.round(a) << 24 | Math.round(r) << 16 | Math.round(g) << 8 | Math.round(b);
+   }
+-}
+\ No newline at end of file
++}
+

@@ -1,0 +1,83 @@
+Subject: [PATCH] loginform test222
+---
+Index: app/src/androidTest/java/com/jerboa/LoginFormTest.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/androidTest/java/com/jerboa/LoginFormTest.kt b/app/src/androidTest/java/com/jerboa/LoginFormTest.kt
+new file mode 100644
+--- /dev/null	(date 1765694534938)
++++ b/app/src/androidTest/java/com/jerboa/LoginFormTest.kt	(date 1765694534938)
+@@ -0,0 +1,71 @@
++package com.jerboa
++
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.ui.test.junit4.createComposeRule
++import androidx.compose.ui.test.onAllNodesWithText
++import androidx.compose.ui.test.onNodeWithText
++import androidx.compose.ui.test.performClick
++import androidx.compose.ui.test.performTextInput
++import androidx.test.ext.junit.runners.AndroidJUnit4
++import androidx.test.platform.app.InstrumentationRegistry
++import com.jerboa.ui.components.login.LoginForm
++import junit.framework.TestCase.assertTrue
++import org.junit.Rule
++import org.junit.Test
++import org.junit.runner.RunWith
++import java.util.concurrent.atomic.AtomicReference
++
++@RunWith(AndroidJUnit4::class)
++class LoginFormTest {
++
++    @get:Rule
++    val composeTestRule = createComposeRule()
++
++    @Test
++    fun testLoginFormHasTextField() {
++        composeTestRule.setContent {
++            MaterialTheme {
++                LoginForm()
++            }
++        }
++
++        composeTestRule.onNodeWithText("Enter 2FA Token if enabled").assertExists()
++    }
++
++    @Test
++    fun testLoginFlowWith2FA() {
++        val capturedFormString = AtomicReference("")
++        val totpToken = "1234"
++        val context = InstrumentationRegistry.getInstrumentation().targetContext
++
++        composeTestRule.setContent {
++            MaterialTheme {
++                LoginForm(
++                    onClickLogin = { form, _ ->
++                        capturedFormString.set(form.toString())
++                    }
++                )
++            }
++        }
++        composeTestRule.waitForIdle()
++
++        composeTestRule.onNodeWithText(context.getString(R.string.login_email_or_username)).performTextInput("user")
++        composeTestRule.onNodeWithText(context.getString(R.string.login_password)).performTextInput("password")
++        // Hardcoded since it is new.
++        composeTestRule.onNodeWithText("Enter 2FA Token if enabled").performTextInput(totpToken)
++
++        composeTestRule.onNodeWithText(context.getString(R.string.login_instance)).performTextInput(DEFAULT_LEMMY_INSTANCES[0])
++        composeTestRule.waitForIdle()
++        composeTestRule.onAllNodesWithText(DEFAULT_LEMMY_INSTANCES[0])[1].performClick()
++        composeTestRule.waitForIdle()
++
++        composeTestRule.onNodeWithText(context.getString(R.string.login_login)).performClick()
++        composeTestRule.waitForIdle()
++
++        val formPayload = capturedFormString.get()
++        assertTrue(
++            "The Login payload should contain the 2FA token. Actual payload: $formPayload",
++            formPayload.contains(totpToken)
++        )
++    }
++}

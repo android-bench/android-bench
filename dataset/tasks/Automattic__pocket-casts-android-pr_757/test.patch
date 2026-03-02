@@ -1,0 +1,46 @@
+diff --git a/app/src/androidTest/java/au/com/shiftyjelly/pocketcasts/ui/MainActivityTest.kt b/app/src/androidTest/java/au/com/shiftyjelly/pocketcasts/ui/MainActivityTest.kt
+index 73256b64286..52395fecb0c 100644
+--- a/app/src/androidTest/java/au/com/shiftyjelly/pocketcasts/ui/MainActivityTest.kt
++++ b/app/src/androidTest/java/au/com/shiftyjelly/pocketcasts/ui/MainActivityTest.kt
+@@ -30,7 +30,9 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
+ import androidx.test.filters.LargeTest
+ import androidx.test.platform.app.InstrumentationRegistry.getInstrumentation
+ import androidx.test.rule.GrantPermissionRule
++import androidx.test.uiautomator.By
+ import androidx.test.uiautomator.UiDevice
++import androidx.test.uiautomator.Until
+ import au.com.shiftyjelly.pocketcasts.ui.theme.Theme
+ import com.adevinta.android.barista.interaction.BaristaClickInteractions.clickOn
+ import org.hamcrest.Description
+@@ -45,6 +47,7 @@ import org.junit.Test
+ import org.junit.runner.RunWith
+ import timber.log.Timber
+ import java.io.File
++import junit.framework.TestCase.assertNotNull
+ import au.com.shiftyjelly.pocketcasts.discover.R as DR
+ import au.com.shiftyjelly.pocketcasts.podcasts.R as PR
+ import au.com.shiftyjelly.pocketcasts.views.R as VR
+@@ -79,6 +82,23 @@ class MainActivityTest {
+         }
+     }
+ 
++    @Test
++    fun notificationPermissionDialogShown_ifNotEnabled() {
++        val dialogText = device.wait(
++            Until.findObject(By.textContains("notifications")),
++            2000
++        )
++        val allowButton = device.wait(
++            Until.findObject(By.text("Allow")),
++            2000
++        )
++
++        // Assert that the dialog with button exists
++        assertNotNull("Notification permission dialog not shown", dialogText)
++        assertNotNull("Notification permission dialog not shown", allowButton)
++
++    }
++
+     private fun takeScreenshots() {
+         // open the podcasts tab
+         doubleClickOn(VR.id.navigation_podcasts)

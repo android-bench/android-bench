@@ -1,0 +1,93 @@
+Subject: [PATCH] test: Add custom task to root gradle file and a unit test to check if deprecated kotlin js plugin is removed and if the new kotlin multiplatform plugin is applied.
+---
+Index: build.gradle
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/build.gradle b/build.gradle
+--- a/build.gradle	(revision 630aadebfea7fde12c122788cd686d828b14969f)
++++ b/build.gradle	(revision 5824cc4c7fd16b8238448c4a7d5efe51c3369253)
+@@ -13,3 +13,42 @@
+         mavenCentral()
+     }
+ }
++
++subprojects {
++    tasks.withType(Test).configureEach { t ->
++        // Limit to the Android unit test task for Debug; adjust the regex if needed
++        if (t.name ==~ /(?i)^testDebugUnitTest$/) {
++            // Ensure the offenders file is computed before tests run
++            dependsOn(rootProject.tasks.named('computePluginErrors'))
++
++            // Set the system property right before the JVM forks (execution time)
++            doFirst {
++                def errorsPath = rootProject.layout.buildDirectory
++                        .file('pluginErrorFile/errors.txt')
++                        .get().asFile.absolutePath
++
++                systemProperty 'pluginGuard.errorsFile', errorsPath
++                println "[guard] ${t.path} errorsFile = ${errorsPath}"
++            }
++        }
++    }
++}
++
++def pluginErrorFile = layout.buildDirectory.file('pluginErrorFile/errors.txt')
++tasks.register('computePluginErrors') {
++    doLast {
++        def jsProject = project.subprojects.find {
++            it.name == "sample-js-browser-app"
++        }
++        def errors = []
++        if (jsProject.project.pluginManager.hasPlugin("org.jetbrains.kotlin.js")) {
++            errors.add("Project includes deprecated kotlin js plugin")
++        }
++        if (!jsProject.project.pluginManager.hasPlugin("kotlin-multiplatform")) {
++            errors.add("Project does not include kotlin multiplatform plugin")
++        }
++        def out = pluginErrorFile.get().asFile
++        out.parentFile.mkdirs()
++        out.text = errors.join("\n")
++    }
++}
+Index: reaktive/src/androidUnitTest/kotlin/com/badoo/reaktive/KotlinMultiplatformPluginTest.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/reaktive/src/androidUnitTest/kotlin/com/badoo/reaktive/KotlinMultiplatformPluginTest.kt b/reaktive/src/androidUnitTest/kotlin/com/badoo/reaktive/KotlinMultiplatformPluginTest.kt
+new file mode 100644
+--- /dev/null	(revision 5824cc4c7fd16b8238448c4a7d5efe51c3369253)
++++ b/reaktive/src/androidUnitTest/kotlin/com/badoo/reaktive/KotlinMultiplatformPluginTest.kt	(revision 5824cc4c7fd16b8238448c4a7d5efe51c3369253)
+@@ -0,0 +1,30 @@
++package com.badoo.reaktive
++
++import org.junit.Test
++import java.io.File
++import kotlin.test.assertTrue
++
++class KotlinMultiplatformPluginTest {
++
++    @Test
++    fun kotlinMultiplatformPluginShouldBeApplied() {
++        val path = System.getProperty("pluginGuard.errorsFile")
++        val errors = path
++            ?.let(::File)
++            ?.takeIf { it.exists() }
++            ?.readLines()
++            ?.map { it.trim() }
++            ?.filter { it.isNotEmpty() }
++            ?: emptyList()
++
++        assertTrue(
++            errors.isEmpty(),
++            buildString {
++                appendLine("There was some errors in :sample-js-browser-app module:")
++                errors.forEach { appendLine(" - $it") }
++                appendLine()
++            }
++        )
++    }
++
++}

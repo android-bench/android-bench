@@ -1,0 +1,198 @@
+Subject: [PATCH] komikku-app__komikku-pr_992
+---
+Index: app/build.gradle.kts
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/build.gradle.kts b/app/build.gradle.kts
+--- a/app/build.gradle.kts	(revision 3ec6aeaba2d95a942bc32968bd847e3b6906fcb5)
++++ b/app/build.gradle.kts	(date 1768464041313)
+@@ -331,6 +331,10 @@
+ 
+     // ZXing Android Embedded
+     implementation(sylibs.zxing.android.embedded)
++
++    androidTestImplementation("androidx.compose.ui:ui-test-junit4:1.8.3")
++    androidTestImplementation("androidx.test:runner:1.1.0")
++    debugImplementation("androidx.compose.ui:ui-test-manifest:1.8.3")
+ }
+ 
+ androidComponents {
+Index: app/src/androidTest/kotlin/eu/kanade/tachiyomi/HistoryScreenTests.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/androidTest/kotlin/eu/kanade/tachiyomi/HistoryScreenTests.kt b/app/src/androidTest/kotlin/eu/kanade/tachiyomi/HistoryScreenTests.kt
+new file mode 100644
+--- /dev/null	(date 1768464322500)
++++ b/app/src/androidTest/kotlin/eu/kanade/tachiyomi/HistoryScreenTests.kt	(date 1768464322500)
+@@ -0,0 +1,167 @@
++package eu.kanade.tachiyomi
++
++import android.app.Application
++import androidx.compose.ui.test.assertIsDisplayed
++import androidx.compose.ui.test.assertIsNotDisplayed
++import androidx.compose.ui.test.junit4.createComposeRule
++import androidx.compose.ui.test.onNodeWithContentDescription
++import androidx.compose.ui.test.onNodeWithText
++import androidx.test.core.app.ApplicationProvider
++import androidx.test.ext.junit.runners.AndroidJUnit4
++import cafe.adriel.voyager.navigator.Navigator
++import eu.kanade.tachiyomi.source.model.UpdateStrategy
++import eu.kanade.tachiyomi.ui.history.HistoryTab
++import kotlinx.coroutines.runBlocking
++import kotlinx.coroutines.test.runTest
++import org.junit.After
++import org.junit.Rule
++import org.junit.Test
++import org.junit.runner.RunWith
++import tachiyomi.domain.chapter.model.Chapter
++import tachiyomi.domain.chapter.repository.ChapterRepository
++import tachiyomi.domain.history.model.HistoryUpdate
++import tachiyomi.domain.history.repository.HistoryRepository
++import tachiyomi.domain.manga.model.Manga
++import tachiyomi.domain.manga.repository.MangaRepository
++import tachiyomi.i18n.MR
++import uy.kohesive.injekt.Injekt
++import uy.kohesive.injekt.api.get
++import java.util.Date
++
++@RunWith(AndroidJUnit4::class)
++class HistoryScreenTests {
++
++    @get:Rule
++    val composeTestRule = createComposeRule()
++
++    private val mangaRepository by lazy { Injekt.get<MangaRepository>() }
++    private val chapterRepository by lazy { Injekt.get<ChapterRepository>() }
++    private val historyRepository by lazy { Injekt.get<HistoryRepository>() }
++
++    private var mangaId: Long? = null
++    private var chapterIds: List<Long> = emptyList()
++
++    @After
++    fun clearData() {
++        runBlocking {
++            historyRepository.deleteAllHistory()
++            chapterRepository.removeChaptersWithIds(chapterIds)
++            mangaRepository.deleteManga(mangaId ?: return@runBlocking)
++        }
++    }
++
++    @Test
++    fun testUnreadAndChapterProgress() = runTest {
++        addDataToDB(chapterRead = false, lastPageRead = 1)
++
++        val context = ApplicationProvider.getApplicationContext<Application>()
++        composeTestRule.setContent {
++            Navigator(screen = HistoryTab)
++        }
++
++        composeTestRule.waitForIdle()
++
++        composeTestRule.onNodeWithContentDescription(MR.strings.unread.getString(context))
++            .assertIsDisplayed()
++
++        composeTestRule.onNodeWithText(context.getString(MR.strings.chapter_progress.resourceId, 2))
++            .assertIsDisplayed()
++    }
++
++    @Test
++    fun testUnreadAndNoChapterProgress() = runTest {
++        addDataToDB(chapterRead = false, lastPageRead = 0)
++
++        val context = ApplicationProvider.getApplicationContext<Application>()
++        composeTestRule.setContent {
++            Navigator(screen = HistoryTab)
++        }
++
++        composeTestRule.waitForIdle()
++
++        composeTestRule.onNodeWithContentDescription(MR.strings.unread.getString(context))
++            .assertIsDisplayed()
++
++        composeTestRule.onNodeWithText(
++            text = MR.strings.chapter_progress.getString(context).replace("%1\$d", ""),
++            substring = true,
++        ).assertIsNotDisplayed()
++    }
++
++    // this is a pass-to-pass test
++    @Test
++    fun testAllReadAndNoChapterProgress() = runTest {
++        addDataToDB(chapterRead = true, lastPageRead = 0)
++
++        val context = ApplicationProvider.getApplicationContext<Application>()
++        composeTestRule.setContent {
++            Navigator(screen = HistoryTab)
++        }
++
++        composeTestRule.waitForIdle()
++
++        composeTestRule.onNodeWithContentDescription(MR.strings.unread.getString(context))
++            .assertIsNotDisplayed()
++
++        composeTestRule.onNodeWithText(
++            text = MR.strings.chapter_progress.getString(context).replace("%1\$d", ""),
++            substring = true,
++        ).assertIsNotDisplayed()
++    }
++
++    private suspend fun addDataToDB(chapterRead: Boolean, lastPageRead: Long) {
++        val manga = Manga(
++            id = 0L,
++            source = 10L,
++            favorite = false,
++            lastUpdate = 0L,
++            nextUpdate = 0L,
++            fetchInterval = 5,
++            dateAdded = 0L,
++            viewerFlags = 0L,
++            chapterFlags = 0L,
++            coverLastModified = 0L,
++            url = "https://example.com",
++            ogTitle = "Test title",
++            ogArtist = "Test artist",
++            ogAuthor = "Test author",
++            ogThumbnailUrl = null,
++            ogDescription = "Test description",
++            ogGenre = emptyList(),
++            ogStatus = 0L,
++            updateStrategy = UpdateStrategy.ONLY_FETCH_ONCE,
++            initialized = true,
++            lastModifiedAt = 0L,
++            favoriteModifiedAt = null,
++            version = 1L,
++            notes = "Test notes",
++        )
++
++        val mangaResult = mangaRepository.insertNetworkManga(listOf(manga))
++        val mangaId = mangaResult.first().id
++        this.mangaId = mangaId
++        val chapters = listOf(
++            Chapter(
++                id = 0L,
++                mangaId = mangaId,
++                url = "chapter1",
++                name = "Chapter 1",
++                scanlator = null,
++                read = chapterRead,
++                bookmark = false,
++                lastPageRead = lastPageRead,
++                chapterNumber = 1.0,
++                sourceOrder = 0,
++                dateFetch = 0,
++                dateUpload = 0,
++                lastModifiedAt = 0L,
++                version = 1L,
++            ),
++        )
++        val chapterResult = chapterRepository.addAll(chapters)
++        this.chapterIds = chapterResult.map { it.id }
++        chapterResult.forEach { chapter ->
++            historyRepository.upsertHistory(HistoryUpdate(chapter.id, Date(), 200L))
++        }
++    }
++}

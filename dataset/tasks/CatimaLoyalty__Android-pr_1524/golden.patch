@@ -1,0 +1,13 @@
+diff --git a/app/src/main/res/values/settings.xml b/app/src/main/res/values/settings.xml
+index e187197a..223ec20f 100644
+--- a/app/src/main/res/values/settings.xml
++++ b/app/src/main/res/values/settings.xml
+@@ -129,7 +129,6 @@
+         <item>#f16364</item>
+         <item>#f58559</item>
+         <item>#f9a43e</item>
+-        <item>#e4c62e</item>
+         <item>#67bf74</item>
+         <item>#59a2be</item>
+         <item>#2093cd</item>
+

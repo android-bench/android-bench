@@ -1,0 +1,603 @@
+diff --git a/app-ui-catalog/src/main/java/app/k9mail/ui/catalog/ui/molecule/items/StateItems.kt b/app-ui-catalog/src/main/java/app/k9mail/ui/catalog/ui/molecule/items/StateItems.kt
+index 1059d88e04..0c3baa87ab 100644
+--- a/app-ui-catalog/src/main/java/app/k9mail/ui/catalog/ui/molecule/items/StateItems.kt
++++ b/app-ui-catalog/src/main/java/app/k9mail/ui/catalog/ui/molecule/items/StateItems.kt
+@@ -130,7 +130,7 @@ private fun StatefulContentLoadingView() {
+ @Composable
+ private fun StatefulContentLoadingErrorView() {
+     val state = remember {
+-        mutableStateOf(ContentLoadingErrorState.Loading)
++        mutableStateOf<ContentLoadingErrorState>(ContentLoadingErrorState.Loading)
+     }
+ 
+     ContentLoadingErrorView(
+diff --git a/core/ui/compose/designsystem/src/debug/kotlin/app/k9mail/core/ui/compose/designsystem/molecule/ContentLoadingErrorViewPreview.kt b/core/ui/compose/designsystem/src/debug/kotlin/app/k9mail/core/ui/compose/designsystem/molecule/ContentLoadingErrorViewPreview.kt
+index 51ba44ee5b..5759aea47d 100644
+--- a/core/ui/compose/designsystem/src/debug/kotlin/app/k9mail/core/ui/compose/designsystem/molecule/ContentLoadingErrorViewPreview.kt
++++ b/core/ui/compose/designsystem/src/debug/kotlin/app/k9mail/core/ui/compose/designsystem/molecule/ContentLoadingErrorViewPreview.kt
+@@ -45,7 +45,7 @@ internal fun ContentLoadingErrorViewErrorPreview() {
+ internal fun ContentLoadingErrorViewInteractivePreview() {
+     PreviewWithThemes {
+         val state = remember {
+-            mutableStateOf(ContentLoadingErrorState.Loading)
++            mutableStateOf<ContentLoadingErrorState>(ContentLoadingErrorState.Loading)
+         }
+ 
+         DefaultContentLoadingErrorView(
+diff --git a/core/ui/compose/designsystem/src/main/kotlin/app/k9mail/core/ui/compose/designsystem/molecule/ContentLoadingErrorView.kt b/core/ui/compose/designsystem/src/main/kotlin/app/k9mail/core/ui/compose/designsystem/molecule/ContentLoadingErrorView.kt
+index 34e109d2d0..a3d14243eb 100644
+--- a/core/ui/compose/designsystem/src/main/kotlin/app/k9mail/core/ui/compose/designsystem/molecule/ContentLoadingErrorView.kt
++++ b/core/ui/compose/designsystem/src/main/kotlin/app/k9mail/core/ui/compose/designsystem/molecule/ContentLoadingErrorView.kt
+@@ -6,14 +6,34 @@ import androidx.compose.runtime.Composable
+ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+ 
++/**
++ * A container view that can animate between a loading view, an error view, and a content view.
++ *
++ * @param ERROR The type describing the error.
++ * @param STATE The type of the state being passed to this view.
++ *
++ * @param state The state relevant for displaying the content inside this view.
++ * @param loading When `state.isLoading` is `true`, this composable function is displayed.
++ * @param error When `state.isLoading` is `false` and `state.error` is not `null`, this composable function is displayed
++ *   with `state.error` being passed as the argument.
++ * @param content When `state.isLoading` is `false` and `state.error` is `null`, this composable function is displayed
++ *   with [state] being passed as the argument.
++ *
++ * **IMPORTANT**: This is a delicate API whose usage should be carefully reviewed. It is using [AnimatedContent] and
++ * inherits its caveats.
++ *
++ * The [loading], [error] and [content] composable functions should only use the state being passed to them (if any).
++ * If you disregard this advice, make sure to read the documentation of [AnimatedContent] to learn when the composable
++ * functions are invoked and what that means for the external state a function fetches.
++ */
+ @Composable
+-fun ContentLoadingErrorView(
+-    state: ContentLoadingErrorState,
++fun <ERROR, STATE : LoadingErrorState<ERROR>> ContentLoadingErrorView(
++    state: STATE,
+     loading: @Composable () -> Unit,
+-    error: @Composable () -> Unit,
++    error: @Composable (ERROR) -> Unit,
+     modifier: Modifier = Modifier,
+     contentAlignment: Alignment = Alignment.Center,
+-    content: @Composable () -> Unit,
++    content: @Composable (STATE) -> Unit,
+ ) {
+     Box(
+         modifier = modifier,
+@@ -22,18 +42,42 @@ fun ContentLoadingErrorView(
+         AnimatedContent(
+             targetState = state,
+             label = "ContentLoadingErrorView",
++            contentKey = { targetState ->
++                ContentKey(isLoading = targetState.isLoading, error = targetState.error)
++            },
+         ) { targetState ->
+-            when (targetState) {
+-                ContentLoadingErrorState.Loading -> loading()
+-                ContentLoadingErrorState.Content -> content()
+-                ContentLoadingErrorState.Error -> error()
++            val errorValue = targetState.error
++            when {
++                targetState.isLoading -> loading()
++                errorValue != null -> error(errorValue)
++                else -> content(targetState)
+             }
+         }
+     }
+ }
+ 
+-enum class ContentLoadingErrorState {
+-    Loading,
+-    Content,
+-    Error,
++/**
++ * Signals [ContentLoadingErrorView] which of its composable function parameters to execute/display.
++ */
++interface LoadingErrorState<ERROR> {
++    val isLoading: Boolean
++    val error: ERROR?
++}
++
++private data class ContentKey<ERROR>(
++    override val isLoading: Boolean,
++    override val error: ERROR?,
++) : LoadingErrorState<ERROR>
++
++/**
++ * Helper that can be use as `state` argument for [ContentLoadingErrorView] when none of the composable function
++ * parameters need access to any state.
++ */
++sealed class ContentLoadingErrorState private constructor(
++    override val isLoading: Boolean,
++    override val error: Unit?,
++) : LoadingErrorState<Unit> {
++    data object Loading : ContentLoadingErrorState(isLoading = true, error = null)
++    data object Content : ContentLoadingErrorState(isLoading = false, error = null)
++    data object Error : ContentLoadingErrorState(isLoading = false, error = Unit)
+ }
+diff --git a/feature/account/common/src/main/kotlin/app/k9mail/feature/account/common/ui/loadingerror/LoadingErrorState.kt b/feature/account/common/src/main/kotlin/app/k9mail/feature/account/common/ui/loadingerror/LoadingErrorState.kt
+deleted file mode 100644
+index 67f41cda99..0000000000
+--- a/feature/account/common/src/main/kotlin/app/k9mail/feature/account/common/ui/loadingerror/LoadingErrorState.kt
++++ /dev/null
+@@ -1,21 +0,0 @@
+-package app.k9mail.feature.account.common.ui.loadingerror
+-
+-import androidx.compose.runtime.Composable
+-import androidx.compose.runtime.remember
+-import app.k9mail.core.ui.compose.designsystem.molecule.ContentLoadingErrorState
+-
+-interface LoadingErrorState<ERROR> {
+-    val isLoading: Boolean
+-    val error: ERROR?
+-}
+-
+-@Composable
+-fun <ERROR> rememberContentLoadingErrorViewState(
+-    state: LoadingErrorState<ERROR>,
+-) = remember(key1 = state.isLoading, key2 = state.error) {
+-    when {
+-        state.isLoading -> ContentLoadingErrorState.Loading
+-        state.error != null -> ContentLoadingErrorState.Error
+-        else -> ContentLoadingErrorState.Content
+-    }
+-}
+diff --git a/feature/account/edit/src/main/kotlin/app/k9mail/feature/account/edit/ui/server/settings/save/SaveServerSettingsContent.kt b/feature/account/edit/src/main/kotlin/app/k9mail/feature/account/edit/ui/server/settings/save/SaveServerSettingsContent.kt
+index bbad782919..35e0d0a7d9 100644
+--- a/feature/account/edit/src/main/kotlin/app/k9mail/feature/account/edit/ui/server/settings/save/SaveServerSettingsContent.kt
++++ b/feature/account/edit/src/main/kotlin/app/k9mail/feature/account/edit/ui/server/settings/save/SaveServerSettingsContent.kt
+@@ -11,7 +11,6 @@ import app.k9mail.core.ui.compose.designsystem.molecule.ContentLoadingErrorView
+ import app.k9mail.core.ui.compose.designsystem.molecule.ErrorView
+ import app.k9mail.core.ui.compose.designsystem.molecule.LoadingView
+ import app.k9mail.core.ui.compose.designsystem.template.ResponsiveWidthContainer
+-import app.k9mail.feature.account.common.ui.loadingerror.rememberContentLoadingErrorViewState
+ import app.k9mail.feature.account.edit.R
+ 
+ @Composable
+@@ -27,7 +26,7 @@ fun SaveServerSettingsContent(
+             .then(modifier),
+     ) {
+         ContentLoadingErrorView(
+-            state = rememberContentLoadingErrorViewState(state),
++            state = state,
+             loading = {
+                 LoadingView(
+                     message = stringResource(id = R.string.account_edit_save_server_settings_loading_message),
+diff --git a/feature/account/edit/src/main/kotlin/app/k9mail/feature/account/edit/ui/server/settings/save/SaveServerSettingsContract.kt b/feature/account/edit/src/main/kotlin/app/k9mail/feature/account/edit/ui/server/settings/save/SaveServerSettingsContract.kt
+index 17bf575b9e..59ff0a0b6b 100644
+--- a/feature/account/edit/src/main/kotlin/app/k9mail/feature/account/edit/ui/server/settings/save/SaveServerSettingsContract.kt
++++ b/feature/account/edit/src/main/kotlin/app/k9mail/feature/account/edit/ui/server/settings/save/SaveServerSettingsContract.kt
+@@ -1,7 +1,7 @@
+ package app.k9mail.feature.account.edit.ui.server.settings.save
+ 
+ import app.k9mail.core.ui.compose.common.mvi.UnidirectionalViewModel
+-import app.k9mail.feature.account.common.ui.loadingerror.LoadingErrorState
++import app.k9mail.core.ui.compose.designsystem.molecule.LoadingErrorState
+ 
+ interface SaveServerSettingsContract {
+ 
+diff --git a/feature/account/server/settings/src/main/kotlin/app/k9mail/feature/account/server/settings/ui/incoming/IncomingServerSettingsContent.kt b/feature/account/server/settings/src/main/kotlin/app/k9mail/feature/account/server/settings/ui/incoming/IncomingServerSettingsContent.kt
+index bc2dc76337..61e6a4620e 100644
+--- a/feature/account/server/settings/src/main/kotlin/app/k9mail/feature/account/server/settings/ui/incoming/IncomingServerSettingsContent.kt
++++ b/feature/account/server/settings/src/main/kotlin/app/k9mail/feature/account/server/settings/ui/incoming/IncomingServerSettingsContent.kt
+@@ -12,11 +12,9 @@ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.platform.LocalContext
+ import androidx.compose.ui.platform.testTag
+-import app.k9mail.core.ui.compose.designsystem.molecule.ContentLoadingErrorView
+ import app.k9mail.core.ui.compose.designsystem.template.ResponsiveWidthContainer
+ import app.k9mail.core.ui.compose.theme2.MainTheme
+ import app.k9mail.feature.account.common.domain.entity.InteractionMode
+-import app.k9mail.feature.account.common.ui.loadingerror.rememberContentLoadingErrorViewState
+ import app.k9mail.feature.account.server.settings.ui.incoming.IncomingServerSettingsContract.Event
+ import app.k9mail.feature.account.server.settings.ui.incoming.IncomingServerSettingsContract.State
+ import app.k9mail.feature.account.server.settings.ui.incoming.content.incomingFormItems
+@@ -38,25 +36,19 @@ internal fun IncomingServerSettingsContent(
+             .fillMaxWidth()
+             .then(modifier),
+     ) {
+-        ContentLoadingErrorView(
+-            state = rememberContentLoadingErrorViewState(state = state),
+-            loading = { /* no-op */ },
+-            error = { /* no-op */ },
++        LazyColumn(
++            modifier = Modifier
++                .fillMaxSize()
++                .imePadding(),
++            horizontalAlignment = Alignment.Start,
++            verticalArrangement = Arrangement.spacedBy(MainTheme.spacings.default),
+         ) {
+-            LazyColumn(
+-                modifier = Modifier
+-                    .fillMaxSize()
+-                    .imePadding(),
+-                horizontalAlignment = Alignment.Start,
+-                verticalArrangement = Arrangement.spacedBy(MainTheme.spacings.default),
+-            ) {
+-                incomingFormItems(
+-                    mode = mode,
+-                    state = state,
+-                    onEvent = onEvent,
+-                    resources = resources,
+-                )
+-            }
++            incomingFormItems(
++                mode = mode,
++                state = state,
++                onEvent = onEvent,
++                resources = resources,
++            )
+         }
+     }
+ }
+diff --git a/feature/account/server/settings/src/main/kotlin/app/k9mail/feature/account/server/settings/ui/incoming/IncomingServerSettingsContract.kt b/feature/account/server/settings/src/main/kotlin/app/k9mail/feature/account/server/settings/ui/incoming/IncomingServerSettingsContract.kt
+index fef225ff39..5914762e45 100644
+--- a/feature/account/server/settings/src/main/kotlin/app/k9mail/feature/account/server/settings/ui/incoming/IncomingServerSettingsContract.kt
++++ b/feature/account/server/settings/src/main/kotlin/app/k9mail/feature/account/server/settings/ui/incoming/IncomingServerSettingsContract.kt
+@@ -9,7 +9,6 @@ import app.k9mail.feature.account.common.domain.entity.toDefaultPort
+ import app.k9mail.feature.account.common.domain.input.NumberInputField
+ import app.k9mail.feature.account.common.domain.input.StringInputField
+ import app.k9mail.feature.account.common.ui.WithInteractionMode
+-import app.k9mail.feature.account.common.ui.loadingerror.LoadingErrorState
+ 
+ interface IncomingServerSettingsContract {
+ 
+@@ -30,10 +29,7 @@ interface IncomingServerSettingsContract {
+         val imapPrefix: StringInputField = StringInputField(),
+         val imapUseCompression: Boolean = true,
+         val imapSendClientInfo: Boolean = true,
+-
+-        override val isLoading: Boolean = true,
+-        override val error: Error? = null,
+-    ) : LoadingErrorState<Error>
++    )
+ 
+     sealed interface Event {
+         data class ProtocolTypeChanged(val protocolType: IncomingProtocolType) : Event
+diff --git a/feature/account/server/settings/src/main/kotlin/app/k9mail/feature/account/server/settings/ui/incoming/IncomingServerSettingsStateMapper.kt b/feature/account/server/settings/src/main/kotlin/app/k9mail/feature/account/server/settings/ui/incoming/IncomingServerSettingsStateMapper.kt
+index a306136899..c5f1e8402f 100644
+--- a/feature/account/server/settings/src/main/kotlin/app/k9mail/feature/account/server/settings/ui/incoming/IncomingServerSettingsStateMapper.kt
++++ b/feature/account/server/settings/src/main/kotlin/app/k9mail/feature/account/server/settings/ui/incoming/IncomingServerSettingsStateMapper.kt
+@@ -19,7 +19,6 @@ import com.fsck.k9.mail.store.imap.ImapStoreSettings.pathPrefix
+ fun AccountState.toIncomingServerSettingsState() = incomingServerSettings?.toIncomingServerSettingsState()
+     ?: State(
+         username = StringInputField(value = emailAddress ?: ""),
+-        isLoading = false,
+     )
+ 
+ private fun ServerSettings.toIncomingServerSettingsState(): State {
+@@ -36,9 +35,6 @@ private fun ServerSettings.toIncomingServerSettingsState(): State {
+         imapPrefix = StringInputField(value = pathPrefix ?: ""),
+         imapUseCompression = isUseCompression,
+         imapSendClientInfo = isSendClientInfo,
+-
+-        isLoading = false,
+-        error = null,
+     )
+ }
+ 
+diff --git a/feature/account/server/settings/src/main/kotlin/app/k9mail/feature/account/server/settings/ui/outgoing/OutgoingServerSettingsContent.kt b/feature/account/server/settings/src/main/kotlin/app/k9mail/feature/account/server/settings/ui/outgoing/OutgoingServerSettingsContent.kt
+index 199d3e82bd..c571000657 100644
+--- a/feature/account/server/settings/src/main/kotlin/app/k9mail/feature/account/server/settings/ui/outgoing/OutgoingServerSettingsContent.kt
++++ b/feature/account/server/settings/src/main/kotlin/app/k9mail/feature/account/server/settings/ui/outgoing/OutgoingServerSettingsContent.kt
+@@ -12,11 +12,9 @@ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.platform.LocalContext
+ import androidx.compose.ui.platform.testTag
+-import app.k9mail.core.ui.compose.designsystem.molecule.ContentLoadingErrorView
+ import app.k9mail.core.ui.compose.designsystem.template.ResponsiveWidthContainer
+ import app.k9mail.core.ui.compose.theme2.MainTheme
+ import app.k9mail.feature.account.common.domain.entity.InteractionMode
+-import app.k9mail.feature.account.common.ui.loadingerror.rememberContentLoadingErrorViewState
+ import app.k9mail.feature.account.server.settings.ui.outgoing.OutgoingServerSettingsContract.Event
+ import app.k9mail.feature.account.server.settings.ui.outgoing.OutgoingServerSettingsContract.State
+ import app.k9mail.feature.account.server.settings.ui.outgoing.content.outgoingFormItems
+@@ -38,25 +36,19 @@ internal fun OutgoingServerSettingsContent(
+             .fillMaxWidth()
+             .then(modifier),
+     ) {
+-        ContentLoadingErrorView(
+-            state = rememberContentLoadingErrorViewState(state = state),
+-            loading = { /* no-op */ },
+-            error = { /* no-op */ },
++        LazyColumn(
++            modifier = Modifier
++                .fillMaxSize()
++                .imePadding(),
++            horizontalAlignment = Alignment.Start,
++            verticalArrangement = Arrangement.spacedBy(MainTheme.spacings.default),
+         ) {
+-            LazyColumn(
+-                modifier = Modifier
+-                    .fillMaxSize()
+-                    .imePadding(),
+-                horizontalAlignment = Alignment.Start,
+-                verticalArrangement = Arrangement.spacedBy(MainTheme.spacings.default),
+-            ) {
+-                outgoingFormItems(
+-                    mode = mode,
+-                    state = state,
+-                    onEvent = onEvent,
+-                    resources = resources,
+-                )
+-            }
++            outgoingFormItems(
++                mode = mode,
++                state = state,
++                onEvent = onEvent,
++                resources = resources,
++            )
+         }
+     }
+ }
+diff --git a/feature/account/server/settings/src/main/kotlin/app/k9mail/feature/account/server/settings/ui/outgoing/OutgoingServerSettingsContract.kt b/feature/account/server/settings/src/main/kotlin/app/k9mail/feature/account/server/settings/ui/outgoing/OutgoingServerSettingsContract.kt
+index 0ee5121055..af79bb3fb0 100644
+--- a/feature/account/server/settings/src/main/kotlin/app/k9mail/feature/account/server/settings/ui/outgoing/OutgoingServerSettingsContract.kt
++++ b/feature/account/server/settings/src/main/kotlin/app/k9mail/feature/account/server/settings/ui/outgoing/OutgoingServerSettingsContract.kt
+@@ -8,7 +8,6 @@ import app.k9mail.feature.account.common.domain.entity.toSmtpDefaultPort
+ import app.k9mail.feature.account.common.domain.input.NumberInputField
+ import app.k9mail.feature.account.common.domain.input.StringInputField
+ import app.k9mail.feature.account.common.ui.WithInteractionMode
+-import app.k9mail.feature.account.common.ui.loadingerror.LoadingErrorState
+ 
+ interface OutgoingServerSettingsContract {
+ 
+@@ -22,10 +21,7 @@ interface OutgoingServerSettingsContract {
+         val username: StringInputField = StringInputField(),
+         val password: StringInputField = StringInputField(),
+         val clientCertificateAlias: String? = null,
+-
+-        override val isLoading: Boolean = true,
+-        override val error: Error? = null,
+-    ) : LoadingErrorState<Error>
++    )
+ 
+     sealed interface Event {
+         data class ServerChanged(val server: String) : Event
+diff --git a/feature/account/server/settings/src/main/kotlin/app/k9mail/feature/account/server/settings/ui/outgoing/OutgoingServerSettingsStateMapper.kt b/feature/account/server/settings/src/main/kotlin/app/k9mail/feature/account/server/settings/ui/outgoing/OutgoingServerSettingsStateMapper.kt
+index e444ad2219..4d665c2f67 100644
+--- a/feature/account/server/settings/src/main/kotlin/app/k9mail/feature/account/server/settings/ui/outgoing/OutgoingServerSettingsStateMapper.kt
++++ b/feature/account/server/settings/src/main/kotlin/app/k9mail/feature/account/server/settings/ui/outgoing/OutgoingServerSettingsStateMapper.kt
+@@ -17,8 +17,6 @@ fun AccountState.toOutgoingServerSettingsState(): State {
+         ?: State(
+             username = StringInputField(value = emailAddress ?: ""),
+             password = StringInputField(value = password),
+-
+-            isLoading = false,
+         )
+ }
+ 
+@@ -38,9 +36,6 @@ private fun ServerSettings.toOutgoingServerSettingsState(password: String): Stat
+         authenticationType = authenticationType.toAuthenticationType(),
+         username = StringInputField(value = username),
+         password = StringInputField(value = password),
+-
+-        isLoading = false,
+-        error = null,
+     )
+ }
+ 
+diff --git a/feature/account/setup/src/main/kotlin/app/k9mail/feature/account/setup/ui/autodiscovery/AccountAutoDiscoveryContent.kt b/feature/account/setup/src/main/kotlin/app/k9mail/feature/account/setup/ui/autodiscovery/AccountAutoDiscoveryContent.kt
+index 5f09c95b97..35a901a5d9 100644
+--- a/feature/account/setup/src/main/kotlin/app/k9mail/feature/account/setup/ui/autodiscovery/AccountAutoDiscoveryContent.kt
++++ b/feature/account/setup/src/main/kotlin/app/k9mail/feature/account/setup/ui/autodiscovery/AccountAutoDiscoveryContent.kt
+@@ -25,7 +25,6 @@ import app.k9mail.core.ui.compose.theme2.MainTheme
+ import app.k9mail.feature.account.common.ui.AppTitleTopHeader
+ import app.k9mail.feature.account.common.ui.WizardNavigationBar
+ import app.k9mail.feature.account.common.ui.WizardNavigationBarState
+-import app.k9mail.feature.account.common.ui.loadingerror.rememberContentLoadingErrorViewState
+ import app.k9mail.feature.account.oauth.ui.AccountOAuthContract
+ import app.k9mail.feature.account.oauth.ui.AccountOAuthView
+ import app.k9mail.feature.account.setup.R
+@@ -90,24 +89,25 @@ internal fun AutoDiscoveryContent(
+     val resources = LocalContext.current.resources
+ 
+     ContentLoadingErrorView(
+-        state = rememberContentLoadingErrorViewState(state),
++        state = state,
+         loading = {
+             LoadingView(
+                 message = stringResource(id = R.string.account_setup_auto_discovery_loading_message),
+                 modifier = Modifier.fillMaxSize(),
+             )
+         },
+-        error = {
++        error = { error ->
+             ErrorView(
+                 title = stringResource(id = R.string.account_setup_auto_discovery_loading_error),
+-                message = state.error?.toAutoDiscoveryErrorString(resources),
++                message = error.toAutoDiscoveryErrorString(resources),
+                 onRetry = { onEvent(Event.OnRetryClicked) },
+                 modifier = Modifier.fillMaxSize(),
+             )
+         },
+-        content = {
++        content = { contentState ->
++            @Suppress("ViewModelForwarding")
+             ContentView(
+-                state = state,
++                state = contentState,
+                 onEvent = onEvent,
+                 oAuthViewModel = oAuthViewModel,
+                 resources = resources,
+diff --git a/feature/account/setup/src/main/kotlin/app/k9mail/feature/account/setup/ui/autodiscovery/AccountAutoDiscoveryContract.kt b/feature/account/setup/src/main/kotlin/app/k9mail/feature/account/setup/ui/autodiscovery/AccountAutoDiscoveryContract.kt
+index 01feeaa927..b9d5bba9c3 100644
+--- a/feature/account/setup/src/main/kotlin/app/k9mail/feature/account/setup/ui/autodiscovery/AccountAutoDiscoveryContract.kt
++++ b/feature/account/setup/src/main/kotlin/app/k9mail/feature/account/setup/ui/autodiscovery/AccountAutoDiscoveryContract.kt
+@@ -3,11 +3,11 @@ package app.k9mail.feature.account.setup.ui.autodiscovery
+ import app.k9mail.autodiscovery.api.AutoDiscoveryResult
+ import app.k9mail.core.common.domain.usecase.validation.ValidationResult
+ import app.k9mail.core.ui.compose.common.mvi.UnidirectionalViewModel
++import app.k9mail.core.ui.compose.designsystem.molecule.LoadingErrorState
+ import app.k9mail.feature.account.common.domain.entity.AuthorizationState
+ import app.k9mail.feature.account.common.domain.entity.IncomingProtocolType
+ import app.k9mail.feature.account.common.domain.input.BooleanInputField
+ import app.k9mail.feature.account.common.domain.input.StringInputField
+-import app.k9mail.feature.account.common.ui.loadingerror.LoadingErrorState
+ import app.k9mail.feature.account.oauth.domain.entity.OAuthResult
+ import app.k9mail.feature.account.oauth.ui.AccountOAuthContract
+ 
+diff --git a/feature/account/setup/src/main/kotlin/app/k9mail/feature/account/setup/ui/createaccount/CreateAccountContent.kt b/feature/account/setup/src/main/kotlin/app/k9mail/feature/account/setup/ui/createaccount/CreateAccountContent.kt
+index 075493035a..6f00f83503 100644
+--- a/feature/account/setup/src/main/kotlin/app/k9mail/feature/account/setup/ui/createaccount/CreateAccountContent.kt
++++ b/feature/account/setup/src/main/kotlin/app/k9mail/feature/account/setup/ui/createaccount/CreateAccountContent.kt
+@@ -11,7 +11,6 @@ import app.k9mail.core.ui.compose.designsystem.molecule.ContentLoadingErrorView
+ import app.k9mail.core.ui.compose.designsystem.molecule.ErrorView
+ import app.k9mail.core.ui.compose.designsystem.molecule.LoadingView
+ import app.k9mail.core.ui.compose.designsystem.template.ResponsiveWidthContainer
+-import app.k9mail.feature.account.common.ui.loadingerror.rememberContentLoadingErrorViewState
+ import app.k9mail.feature.account.setup.R
+ 
+ @Composable
+@@ -27,7 +26,7 @@ internal fun CreateAccountContent(
+             .then(modifier),
+     ) {
+         ContentLoadingErrorView(
+-            state = rememberContentLoadingErrorViewState(state),
++            state = state,
+             loading = {
+                 LoadingView(
+                     message = stringResource(R.string.account_setup_create_account_creating),
+diff --git a/feature/account/setup/src/main/kotlin/app/k9mail/feature/account/setup/ui/createaccount/CreateAccountContract.kt b/feature/account/setup/src/main/kotlin/app/k9mail/feature/account/setup/ui/createaccount/CreateAccountContract.kt
+index 74fd88e3bc..8200b4fb26 100644
+--- a/feature/account/setup/src/main/kotlin/app/k9mail/feature/account/setup/ui/createaccount/CreateAccountContract.kt
++++ b/feature/account/setup/src/main/kotlin/app/k9mail/feature/account/setup/ui/createaccount/CreateAccountContract.kt
+@@ -1,7 +1,7 @@
+ package app.k9mail.feature.account.setup.ui.createaccount
+ 
+ import app.k9mail.core.ui.compose.common.mvi.UnidirectionalViewModel
+-import app.k9mail.feature.account.common.ui.loadingerror.LoadingErrorState
++import app.k9mail.core.ui.compose.designsystem.molecule.LoadingErrorState
+ import app.k9mail.feature.account.setup.AccountSetupExternalContract.AccountCreator.AccountCreatorResult.Error
+ import app.k9mail.feature.account.setup.domain.entity.AccountUuid
+ 
+diff --git a/feature/account/setup/src/main/kotlin/app/k9mail/feature/account/setup/ui/specialfolders/SpecialFoldersContent.kt b/feature/account/setup/src/main/kotlin/app/k9mail/feature/account/setup/ui/specialfolders/SpecialFoldersContent.kt
+index 611806f6fc..7041ef5b54 100644
+--- a/feature/account/setup/src/main/kotlin/app/k9mail/feature/account/setup/ui/specialfolders/SpecialFoldersContent.kt
++++ b/feature/account/setup/src/main/kotlin/app/k9mail/feature/account/setup/ui/specialfolders/SpecialFoldersContent.kt
+@@ -15,7 +15,6 @@ import app.k9mail.core.ui.compose.designsystem.molecule.LoadingView
+ import app.k9mail.core.ui.compose.designsystem.template.ResponsiveWidthContainer
+ import app.k9mail.core.ui.compose.theme2.MainTheme
+ import app.k9mail.feature.account.common.ui.AppTitleTopHeader
+-import app.k9mail.feature.account.common.ui.loadingerror.rememberContentLoadingErrorViewState
+ import app.k9mail.feature.account.setup.R
+ import app.k9mail.feature.account.setup.ui.specialfolders.SpecialFoldersContract.Event
+ import app.k9mail.feature.account.setup.ui.specialfolders.SpecialFoldersContract.State
+@@ -41,21 +40,21 @@ fun SpecialFoldersContent(
+             )
+ 
+             ContentLoadingErrorView(
+-                state = rememberContentLoadingErrorViewState(state = state),
++                state = state,
+                 loading = {
+                     LoadingView(
+                         message = stringResource(id = R.string.account_setup_special_folders_loading_message),
+                         modifier = Modifier.fillMaxWidth(),
+                     )
+                 },
+-                error = {
++                error = { error ->
+                     SpecialFoldersErrorView(
+-                        failure = state.error!!,
++                        failure = error,
+                         onRetry = { onEvent(Event.OnRetryClicked) },
+                     )
+                 },
+                 modifier = Modifier.fillMaxSize(),
+-            ) {
++            ) { state ->
+                 if (state.isSuccess) {
+                     LoadingView(
+                         message = stringResource(id = R.string.account_setup_special_folders_success_message),
+diff --git a/feature/account/setup/src/main/kotlin/app/k9mail/feature/account/setup/ui/specialfolders/SpecialFoldersContract.kt b/feature/account/setup/src/main/kotlin/app/k9mail/feature/account/setup/ui/specialfolders/SpecialFoldersContract.kt
+index 2126f44592..9fb437d674 100644
+--- a/feature/account/setup/src/main/kotlin/app/k9mail/feature/account/setup/ui/specialfolders/SpecialFoldersContract.kt
++++ b/feature/account/setup/src/main/kotlin/app/k9mail/feature/account/setup/ui/specialfolders/SpecialFoldersContract.kt
+@@ -1,8 +1,8 @@
+ package app.k9mail.feature.account.setup.ui.specialfolders
+ 
+ import app.k9mail.core.ui.compose.common.mvi.UnidirectionalViewModel
++import app.k9mail.core.ui.compose.designsystem.molecule.LoadingErrorState
+ import app.k9mail.feature.account.common.domain.entity.SpecialFolderOption
+-import app.k9mail.feature.account.common.ui.loadingerror.LoadingErrorState
+ 
+ interface SpecialFoldersContract {
+ 
+diff --git a/feature/funding/googleplay/src/main/kotlin/app/k9mail/feature/funding/googleplay/ui/contribution/ContributionContract.kt b/feature/funding/googleplay/src/main/kotlin/app/k9mail/feature/funding/googleplay/ui/contribution/ContributionContract.kt
+index dd2d5fa9aa..ff440b803d 100644
+--- a/feature/funding/googleplay/src/main/kotlin/app/k9mail/feature/funding/googleplay/ui/contribution/ContributionContract.kt
++++ b/feature/funding/googleplay/src/main/kotlin/app/k9mail/feature/funding/googleplay/ui/contribution/ContributionContract.kt
+@@ -3,6 +3,7 @@ package app.k9mail.feature.funding.googleplay.ui.contribution
+ import android.app.Activity
+ import androidx.compose.runtime.Stable
+ import app.k9mail.core.ui.compose.common.mvi.UnidirectionalViewModel
++import app.k9mail.core.ui.compose.designsystem.molecule.LoadingErrorState
+ import app.k9mail.feature.funding.googleplay.domain.DomainContract.BillingError
+ import app.k9mail.feature.funding.googleplay.domain.entity.Contribution
+ import app.k9mail.feature.funding.googleplay.domain.entity.OneTimeContribution
+@@ -32,9 +33,9 @@ internal class ContributionContract {
+         val selectedContribution: Contribution? = null,
+         val isRecurringContributionSelected: Boolean = true,
+ 
+-        val error: BillingError? = null,
+-        val isLoading: Boolean = true,
+-    )
++        override val error: BillingError? = null,
++        override val isLoading: Boolean = true,
++    ) : LoadingErrorState<BillingError>
+ 
+     sealed interface Event {
+         data object OnOneTimeContributionSelected : Event
+diff --git a/feature/funding/googleplay/src/main/kotlin/app/k9mail/feature/funding/googleplay/ui/contribution/ContributionList.kt b/feature/funding/googleplay/src/main/kotlin/app/k9mail/feature/funding/googleplay/ui/contribution/ContributionList.kt
+index fa0226c96d..bf148b4778 100644
+--- a/feature/funding/googleplay/src/main/kotlin/app/k9mail/feature/funding/googleplay/ui/contribution/ContributionList.kt
++++ b/feature/funding/googleplay/src/main/kotlin/app/k9mail/feature/funding/googleplay/ui/contribution/ContributionList.kt
+@@ -23,7 +23,6 @@ import app.k9mail.core.ui.compose.designsystem.atom.text.TextBodyLarge
+ import app.k9mail.core.ui.compose.designsystem.atom.text.TextBodyMedium
+ import app.k9mail.core.ui.compose.designsystem.atom.text.TextBodySmall
+ import app.k9mail.core.ui.compose.designsystem.atom.text.TextLabelLarge
+-import app.k9mail.core.ui.compose.designsystem.molecule.ContentLoadingErrorState
+ import app.k9mail.core.ui.compose.designsystem.molecule.ContentLoadingErrorView
+ import app.k9mail.core.ui.compose.designsystem.molecule.LoadingView
+ import app.k9mail.core.ui.compose.theme2.MainTheme
+@@ -44,14 +43,6 @@ internal fun ContributionList(
+     onRetryClick: () -> Unit,
+     modifier: Modifier = Modifier,
+ ) {
+-    val contentState = remember(key1 = state.isLoading, key2 = state.error) {
+-        when {
+-            state.isLoading -> ContentLoadingErrorState.Loading
+-            state.error != null -> ContentLoadingErrorState.Error
+-            else -> ContentLoadingErrorState.Content
+-        }
+-    }
+-
+     Surface(
+         color = MainTheme.colors.surfaceContainerLowest,
+         shape = MainTheme.shapes.small,
+@@ -67,17 +58,17 @@ internal fun ContributionList(
+             )
+ 
+             ContentLoadingErrorView(
+-                state = contentState,
++                state = state,
+                 loading = {
+                     LoadingView()
+                 },
+-                error = {
++                error = { error ->
+                     ListErrorView(
+-                        error = state.error!!,
++                        error = error,
+                         onRetryClick = onRetryClick,
+                     )
+                 },
+-                content = {
++                content = { state ->
+                     if (state.oneTimeContributions.isEmpty() && state.recurringContributions.isEmpty()) {
+                         ListEmptyView()
+                     } else {
+

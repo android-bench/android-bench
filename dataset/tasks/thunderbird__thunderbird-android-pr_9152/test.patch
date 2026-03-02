@@ -1,0 +1,64 @@
+Subject: [PATCH] Add test for `PreferenceDialogTextView` focusing and text appending.
+---
+Index: core/ui/compose/preference/src/test/kotlin/net/thunderbird/core/ui/compose/preference/ui/components/dialog/PreferenceDialogTextViewTest.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/core/ui/compose/preference/src/test/kotlin/net/thunderbird/core/ui/compose/preference/ui/components/dialog/PreferenceDialogTextViewTest.kt b/core/ui/compose/preference/src/test/kotlin/net/thunderbird/core/ui/compose/preference/ui/components/dialog/PreferenceDialogTextViewTest.kt
+new file mode 100644
+--- /dev/null	(revision 96d77180661da585d615f7c6c164952d2dcc0b9d)
++++ b/core/ui/compose/preference/src/test/kotlin/net/thunderbird/core/ui/compose/preference/ui/components/dialog/PreferenceDialogTextViewTest.kt	(revision 96d77180661da585d615f7c6c164952d2dcc0b9d)
+@@ -0,0 +1,52 @@
++package net.thunderbird.core.ui.compose.preference.ui.components.dialog
++
++import androidx.compose.ui.input.key.Key
++import androidx.compose.ui.test.ExperimentalTestApi
++import androidx.compose.ui.test.hasTextExactly
++import androidx.compose.ui.test.isDialog
++import androidx.compose.ui.test.isDisplayed
++import androidx.compose.ui.test.isFocused
++import androidx.compose.ui.test.onNodeWithText
++import androidx.compose.ui.test.performKeyInput
++import androidx.compose.ui.test.pressKey
++import app.k9mail.core.ui.compose.testing.ComposeTest
++import app.k9mail.core.ui.compose.testing.setContentWithTheme
++import net.thunderbird.core.ui.compose.preference.api.PreferenceSetting
++import org.junit.Test
++
++class PreferenceDialogTextViewTest : ComposeTest() {
++
++    @OptIn(ExperimentalTestApi::class)
++    @Test
++    fun textField_isFocused_andTypingAppendsToEnd() = runComposeTest {
++        val initialText = "abc"
++        val preference = PreferenceSetting.Text(
++            id = "test_key",
++            title = { "Test Title" },
++            value = initialText,
++        )
++
++        setContentWithTheme {
++            PreferenceDialogTextView(
++                preference = preference,
++                onConfirmClick = {},
++                onDismissClick = {},
++                onDismissRequest = {},
++            )
++        }
++
++        composeTestRule.waitUntil {
++            onNode(hasTextExactly(initialText) and isFocused()).isDisplayed()
++        }
++
++        // just dispatch keys instead of text input because text input tries to focus the node
++        // this should also test that the field is focused
++        onNode(isDialog()).performKeyInput {
++            pressKey(Key.D)
++            pressKey(Key.E)
++            pressKey(Key.F)
++        }
++
++        onNodeWithText("${initialText}def").assertExists()
++    }
++}
