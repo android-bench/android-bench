@@ -1,0 +1,91 @@
+diff --git a/lottie/src/test/java/com/airbnb/lottie/model/content/GradientColorTest.java b/lottie/src/test/java/com/airbnb/lottie/model/content/GradientColorTest.java
+new file mode 100644
+index 00000000..719a5fca
+--- /dev/null
++++ b/lottie/src/test/java/com/airbnb/lottie/model/content/GradientColorTest.java
+@@ -0,0 +1,46 @@
++package com.airbnb.lottie.model.content;
++
++import junit.framework.TestCase;
++import org.junit.Test;
++
++import java.util.Arrays;
++
++public class GradientColorTest extends TestCase {
++
++  private final GradientColor start = new GradientColor(new float[]{0f, 1f}, new int[]{0xFF000000, 0xFF020202});
++
++  private final GradientColor end = new GradientColor(new float[]{0f, 1f}, new int[]{0xFF020202, 0xFF040404});
++
++  private final GradientColor gradient = new GradientColor(new float[2], new int[2]);
++
++  @Test
++  public void testLerpWithOutOfBoundsNegativeProgress() {
++    gradient.lerp(start, end, -42f);
++    assertEquals(start, gradient);
++  }
++
++  @Test
++  public void testLerpWithZeroProgress() {
++    gradient.lerp(start, end, 0f);
++    assertEquals(start, gradient);
++  }
++
++  @Test
++  public void testLerpWithHalfProgress() {
++    gradient.lerp(start, end, 0.5f);
++    GradientColor half = new GradientColor(new float[]{0f, 1f}, new int[]{0xFF010101, 0xFF030303});
++    assertEquals(half, gradient);
++  }
++
++  @Test
++  public void testLerpWithOneProgress() {
++    gradient.lerp(start, end, 1f);
++    assertEquals(end, gradient);
++  }
++
++  @Test
++  public void testLerpWithOutOfBoundsPositiveProgress() {
++    gradient.lerp(start, end, 42f);
++    assertEquals(end, gradient);
++  }
++}
+diff --git a/snapshot-tests/src/main/assets/Tests/GradientColorKeyframeAnimation.zip b/snapshot-tests/src/main/assets/Tests/GradientColorKeyframeAnimation.zip
+new file mode 100644
+index 0000000000000000000000000000000000000000..d8188d104e6fc8ae4af9a3729c280e17f8e0d6d2
+GIT binary patch
+literal 1514
+zcmb`H`#Tc~7{@omTw2O;*@!47$&QX<F3nsPc`QujI`=GhYwlWx61iV<+re^=a%l}a
+zNXV!;Wvh`b6o-|2I2EG9^K_nb{($rS{_uU@=Y5{<^ZxX~VnD(&0I^-Og|i$1KlJz%
+z0B{tb0yr1y<>QYJ2}cux2%#8!%#~2DV7zIFf3R1$KOsabAdC=Ve+dErZ|0Ej(YYl2
+zUPeSq0)WDwfdIg6F#xcr=$1v%Uoq+yA~q?qprF|a7v1r~iI3q%;~08<d!luFwiGa!
+zK<9lYBMwL}w1{WhYszX$4W%2MR(_cdDMP-5vvvZ$2aL&RCoY}=E>9hqs`K3$x=W{$
+z^<~VZyKOo8Z4+>~e9Z0q(ikv%6b0mCJR`(qFu?5_tSez}F&Ycn(|%?w!JmWW#Es|!
+zS>zAd(wj_R8+pPNxg2#vK(KRvI_B$ZQ^|<<F7W<D(#_%qa97e+ky@eq$=8m**SVHT
+zlh&d)%<_~k_C9levIMh35{nR?)jfPahMRBl$t|uxN_M&itu-sqd50jtalOfMPB>c5
+zNYU$_VAs`h6GO<{%y~L(-pOpA_TWmiQlG877%LPRsjlj$m~fH`wucGLNkiBolQ2`7
+za&yj_>b2-xAJ}X|&`7`W{HeU~hm~j+am_kBeXT&^mspH(>uB+K!G+^i#%<JNYHD1?
+z%nhc)@jFVg>kf!1|6>QXc+`NX9uK?C*Pie;9mv7TRIAz~({G@+Zt9>SGwv*X9Vb>C
+zH(Cr;7xFY^;P)@IT{m92zxC{E!uHDC%odNdv96Hw#I!MtGFTTAdze3Q^+?|=@vqgC
+z%g#BmDY87t>>Jgk&aYZfvfBq`6<Ky|H^<$vlbxiF=AF#KepMPO^^fOM$$I1@!+H?H
+zyDui4)A^uE&2g-54ss6*)7l~+hv(u0IiP#*;$`d4FGZHPqAW-JUgcMzXR47rjb&V1
+zjElc}?W1t<G8Imo>AF@IvQqCuT;w}Ob?8WzdE^`BC}TcWPD$@s?wKInIi_+4`4Viu
+zle<SC;oJ*Yeb4FPW(CPcubHQ$n|#3`c~dir>Q!<g^bT4&BfkW`5PvWXC_+Km)}l(Z
+zOp@-O>t+2c9`%iSQGfXru3f*6maVFg#6vMgs1;r^9|j~s2a8gMgkGMlY0L>KICLUm
+z{78o=W!2w6w2O{g(9Hg|7YNhmgvB0>f#M({hL(P%1PKegj~%&=C|2L?oKRZhcZn~P
+zVM3{3D;&;fWPt<K^$<{)Hn`F^9bvm;#XCm1$=1%&)szz!&9m(hd!zw<@TtdA+ycdR
+zi3`#Zea!ZN>V{xZ%E}qDMh0pYFZM~L#cM$M!4k~CTWOwEZz^xk>D6gKxd@S?!!@3d
+znBdBJ{XtS!p~d7khe2eRNkr#Y*g(mo1lk)lQ}XcXk5`m3P!Z^}ZymR&hUU|j99y}J
+zYTHeqshY~`fx8V~%GtFD8W%myehz`8ab}8@%B|`QD$M#SY|6xSGJJ)c+H<L$xP7vz
+zLnd88hp=GL4cdy&Fia`Yjp5gGb!;M5Nomr;%WPv_4s@~YcMF$@ZJP-5hgf7YysC=}
+zdE9xg-f-|1<#JVvjX$?^Csyu3ZnTHfa-Pm2i5_PxUm0?p?%{I+&FE~k_!3cLU_J!?
+zNoZ2dGRq}zX|)U(D9)U>94Hj52c-1(oTo`T<j>nLHBRR=v^8O!71hU!-?!SM$DLJ@
+z1C5icn>s8ty740)C*<nyuQ|#st_`4DF;nmf{vw<Rq|bLWw4~`+XEI!qe3tKAP#`(?
+z2T0Zy2msZio}4_^5)~fB>0)<mb~ArdO&Z&X+G#>>9L|j26y87?Y%2t~L&1(=#ihcI
+z-+6D$$69yz%)SNuXJae|EEXfx>b)uq0PKMjivbGBfc}N-e{Xw`{YO;^d(;1bTr5UJ
+Qbgv4yYvOKR7TMeW2I2a(6951J
+
+literal 0
+HcmV?d00001
+
+

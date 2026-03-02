@@ -1,0 +1,327 @@
+diff --git a/gradle.properties b/gradle.properties
+index b3620839..fe3c444e 100644
+--- a/gradle.properties
++++ b/gradle.properties
+@@ -9,6 +9,7 @@ android.useAndroidX=true
+ android.enableJetifier=true
+ 
+ kotlin.mpp.androidSourceSetLayoutVersion=2
++kotlin.mpp.applyDefaultHierarchyTemplate=false
+ 
+ # For compatibility with Kotlin 1.9.0, see https://github.com/badoo/Reaktive/issues/697
+ android.experimental.lint.version=8.1.0
+diff --git a/gradle/libs.versions.toml b/gradle/libs.versions.toml
+index e6420dc4..a28b9414 100644
+--- a/gradle/libs.versions.toml
++++ b/gradle/libs.versions.toml
+@@ -1,5 +1,5 @@
+ [versions]
+-kotlin = "1.9.10"
++kotlin = "1.9.20"
+ kotlinx-coroutines = "1.7.3"
+ detekt = "1.22.0"
+ 
+diff --git a/includedBuild/gradleConfiguration/src/main/kotlin/com/badoo/reaktive/configuration/DarwinPlugin.kt b/includedBuild/gradleConfiguration/src/main/kotlin/com/badoo/reaktive/configuration/DarwinPlugin.kt
+index a5170ebf..319db994 100644
+--- a/includedBuild/gradleConfiguration/src/main/kotlin/com/badoo/reaktive/configuration/DarwinPlugin.kt
++++ b/includedBuild/gradleConfiguration/src/main/kotlin/com/badoo/reaktive/configuration/DarwinPlugin.kt
+@@ -18,7 +18,6 @@ class DarwinPlugin : Plugin<Project> {
+             iosSimulatorArm64().disableIfUndefined(Target.IOS)
+             watchosArm32().disableIfUndefined(Target.WATCHOS)
+             watchosArm64().disableIfUndefined(Target.WATCHOS)
+-            watchosX86().disableIfUndefined(Target.WATCHOS)
+             watchosX64().disableIfUndefined(Target.WATCHOS)
+             watchosSimulatorArm64().disableIfUndefined(Target.WATCHOS)
+             tvosArm64().disableIfUndefined(Target.TVOS)
+diff --git a/includedBuild/gradleConfiguration/src/main/kotlin/com/badoo/reaktive/configuration/MppConfigurationPlugin.kt b/includedBuild/gradleConfiguration/src/main/kotlin/com/badoo/reaktive/configuration/MppConfigurationPlugin.kt
+index ada22459..8b379825 100644
+--- a/includedBuild/gradleConfiguration/src/main/kotlin/com/badoo/reaktive/configuration/MppConfigurationPlugin.kt
++++ b/includedBuild/gradleConfiguration/src/main/kotlin/com/badoo/reaktive/configuration/MppConfigurationPlugin.kt
+@@ -33,6 +33,14 @@ class MppConfigurationPlugin : Plugin<Project> {
+                     implementation(target.getLibrary("kotlin-test-annotations"))
+                 }
+             }
++
++            targets.configureEach {
++                compilations.configureEach {
++                    compilerOptions.configure {
++                        freeCompilerArgs.add("-Xexpect-actual-classes")
++                    }
++                }
++            }
+         }
+     }
+ 
+@@ -96,9 +104,6 @@ class MppConfigurationPlugin : Plugin<Project> {
+                 maybeCreate("watchosArm64Main").dependsOn(getByName("darwinCommonMain"))
+                 maybeCreate("watchosArm64Test").dependsOn(getByName("darwinCommonTest"))
+ 
+-                maybeCreate("watchosX86Main").dependsOn(getByName("darwinCommonMain"))
+-                maybeCreate("watchosX86Test").dependsOn(getByName("darwinCommonTest"))
+-
+                 maybeCreate("watchosX64Main").dependsOn(getByName("darwinCommonMain"))
+                 maybeCreate("watchosX64Test").dependsOn(getByName("darwinCommonTest"))
+ 
+diff --git a/includedBuild/gradleConfiguration/src/main/kotlin/com/badoo/reaktive/publish/PublishConfigurationPlugin.kt b/includedBuild/gradleConfiguration/src/main/kotlin/com/badoo/reaktive/publish/PublishConfigurationPlugin.kt
+index f004a70a..042dcd3a 100644
+--- a/includedBuild/gradleConfiguration/src/main/kotlin/com/badoo/reaktive/publish/PublishConfigurationPlugin.kt
++++ b/includedBuild/gradleConfiguration/src/main/kotlin/com/badoo/reaktive/publish/PublishConfigurationPlugin.kt
+@@ -136,7 +136,6 @@ class PublishConfigurationPlugin : Plugin<Project> {
+             "iosSimulatorArm64" to Target.shouldPublishTarget(project, Target.IOS),
+             "watchosArm32" to Target.shouldPublishTarget(project, Target.WATCHOS),
+             "watchosArm64" to Target.shouldPublishTarget(project, Target.WATCHOS),
+-            "watchosX86" to Target.shouldPublishTarget(project, Target.WATCHOS),
+             "watchosX64" to Target.shouldPublishTarget(project, Target.WATCHOS),
+             "watchosSimulatorArm64" to Target.shouldPublishTarget(project, Target.WATCHOS),
+             "tvosArm64" to Target.shouldPublishTarget(project, Target.TVOS),
+diff --git a/reaktive/src/commonMain/kotlin/com/badoo/reaktive/completable/Various.kt b/reaktive/src/commonMain/kotlin/com/badoo/reaktive/completable/Various.kt
+index 675e3797..ef36a097 100644
+--- a/reaktive/src/commonMain/kotlin/com/badoo/reaktive/completable/Various.kt
++++ b/reaktive/src/commonMain/kotlin/com/badoo/reaktive/completable/Various.kt
+@@ -2,7 +2,6 @@ package com.badoo.reaktive.completable
+ 
+ import com.badoo.reaktive.disposable.Disposable
+ import com.badoo.reaktive.plugin.onAssembleCompletable
+-import kotlin.native.concurrent.SharedImmutable
+ 
+ /**
+  * ⚠️ Advanced use only: creates an instance of [Completable] without any safeguards by calling `onSubscribe` with a [CompletableObserver].
+@@ -38,7 +37,6 @@ fun completableOfError(error: Throwable): Completable =
+  */
+ fun Throwable.toCompletableOfError(): Completable = completableOfError(this)
+ 
+-@SharedImmutable
+ private val completableOfEmpty by lazy {
+     completableUnsafe { observer ->
+         val disposable = Disposable()
+@@ -57,7 +55,6 @@ private val completableOfEmpty by lazy {
+  */
+ fun completableOfEmpty(): Completable = completableOfEmpty
+ 
+-@SharedImmutable
+ private val completableOfNever by lazy {
+     completableUnsafe { observer ->
+         observer.onSubscribe(Disposable())
+diff --git a/reaktive/src/commonMain/kotlin/com/badoo/reaktive/maybe/Various.kt b/reaktive/src/commonMain/kotlin/com/badoo/reaktive/maybe/Various.kt
+index a9bf2544..c88670c0 100644
+--- a/reaktive/src/commonMain/kotlin/com/badoo/reaktive/maybe/Various.kt
++++ b/reaktive/src/commonMain/kotlin/com/badoo/reaktive/maybe/Various.kt
+@@ -2,7 +2,6 @@ package com.badoo.reaktive.maybe
+ 
+ import com.badoo.reaktive.disposable.Disposable
+ import com.badoo.reaktive.plugin.onAssembleMaybe
+-import kotlin.native.concurrent.SharedImmutable
+ 
+ /**
+  * ⚠️ Advanced use only: creates an instance of [Maybe] without any safeguards by calling `onSubscribe` with a [MaybeObserver].
+@@ -80,7 +79,6 @@ fun <T> maybeOfError(error: Throwable): Maybe<T> =
+  */
+ fun <T> Throwable.toMaybeOfError(): Maybe<T> = maybeOfError(this)
+ 
+-@SharedImmutable
+ private val maybeOfEmpty by lazy {
+     maybeUnsafe<Nothing> { observer ->
+         val disposable = Disposable()
+@@ -99,7 +97,6 @@ private val maybeOfEmpty by lazy {
+  */
+ fun <T> maybeOfEmpty(): Maybe<T> = maybeOfEmpty
+ 
+-@SharedImmutable
+ private val maybeOfNever by lazy {
+     maybeUnsafe<Nothing> { observer ->
+         observer.onSubscribe(Disposable())
+diff --git a/reaktive/src/commonMain/kotlin/com/badoo/reaktive/observable/Various.kt b/reaktive/src/commonMain/kotlin/com/badoo/reaktive/observable/Various.kt
+index fa40fd6a..0351b4e6 100644
+--- a/reaktive/src/commonMain/kotlin/com/badoo/reaktive/observable/Various.kt
++++ b/reaktive/src/commonMain/kotlin/com/badoo/reaktive/observable/Various.kt
+@@ -2,7 +2,6 @@ package com.badoo.reaktive.observable
+ 
+ import com.badoo.reaktive.disposable.Disposable
+ import com.badoo.reaktive.plugin.onAssembleObservable
+-import kotlin.native.concurrent.SharedImmutable
+ 
+ /**
+  * ⚠️ Advanced use only: creates an instance of [Observable] without any safeguards by calling `onSubscribe` with an [ObservableObserver].
+@@ -105,7 +104,6 @@ fun <T> observableOfError(error: Throwable): Observable<T> =
+  */
+ fun <T> Throwable.toObservableOfError(): Observable<T> = observableOfError(this)
+ 
+-@SharedImmutable
+ private val observableOfEmpty by lazy {
+     observableUnsafe<Nothing> { observer ->
+         val disposable = Disposable()
+@@ -124,7 +122,6 @@ private val observableOfEmpty by lazy {
+  */
+ fun <T> observableOfEmpty(): Observable<T> = observableOfEmpty
+ 
+-@SharedImmutable
+ private val observableOfNever by lazy {
+     observableUnsafe<Nothing> { observer ->
+         observer.onSubscribe(Disposable())
+diff --git a/reaktive/src/commonMain/kotlin/com/badoo/reaktive/scheduler/Schedulers.kt b/reaktive/src/commonMain/kotlin/com/badoo/reaktive/scheduler/Schedulers.kt
+index fdfc0611..3d8c1d0d 100644
+--- a/reaktive/src/commonMain/kotlin/com/badoo/reaktive/scheduler/Schedulers.kt
++++ b/reaktive/src/commonMain/kotlin/com/badoo/reaktive/scheduler/Schedulers.kt
+@@ -1,7 +1,6 @@
+ package com.badoo.reaktive.scheduler
+ 
+ import com.badoo.reaktive.utils.atomic.AtomicReference
+-import kotlin.native.concurrent.SharedImmutable
+ 
+ /**
+  * Provides the global instance of Main [Scheduler]
+@@ -33,27 +32,21 @@ val singleScheduler: Scheduler get() = singleSchedulerFactory.value.value
+  */
+ val newThreadScheduler: Scheduler get() = newThreadSchedulerFactory.value.value
+ 
+-@SharedImmutable
+ private val mainSchedulerFactory: AtomicReference<Lazy<Scheduler>> =
+     AtomicReference(lazy(::createMainScheduler))
+ 
+-@SharedImmutable
+ private val computationSchedulerFactory: AtomicReference<Lazy<Scheduler>> =
+     AtomicReference(lazy(::createComputationScheduler))
+ 
+-@SharedImmutable
+ private val ioSchedulerFactory: AtomicReference<Lazy<Scheduler>> =
+     AtomicReference(lazy(::createIoScheduler))
+ 
+-@SharedImmutable
+ private val trampolineSchedulerFactory: AtomicReference<Lazy<Scheduler>> =
+     AtomicReference(lazy(::createTrampolineScheduler))
+ 
+-@SharedImmutable
+ private val singleSchedulerFactory: AtomicReference<Lazy<Scheduler>> =
+     AtomicReference(lazy(::createSingleScheduler))
+ 
+-@SharedImmutable
+ private val newThreadSchedulerFactory: AtomicReference<Lazy<Scheduler>> =
+     AtomicReference(lazy(::createNewThreadScheduler))
+ 
+diff --git a/reaktive/src/commonMain/kotlin/com/badoo/reaktive/single/Various.kt b/reaktive/src/commonMain/kotlin/com/badoo/reaktive/single/Various.kt
+index ac3543be..77fc8260 100644
+--- a/reaktive/src/commonMain/kotlin/com/badoo/reaktive/single/Various.kt
++++ b/reaktive/src/commonMain/kotlin/com/badoo/reaktive/single/Various.kt
+@@ -2,7 +2,6 @@ package com.badoo.reaktive.single
+ 
+ import com.badoo.reaktive.disposable.Disposable
+ import com.badoo.reaktive.plugin.onAssembleSingle
+-import kotlin.native.concurrent.SharedImmutable
+ 
+ /**
+  * ⚠️ Advanced use only: creates an instance of [Single] without any safeguards by calling `onSubscribe` with a [SingleObserver].
+@@ -38,7 +37,6 @@ fun <T> singleOf(value: T): Single<T> =
+  */
+ fun <T> T.toSingle(): Single<T> = singleOf(this)
+ 
+-@SharedImmutable
+ private val singleOfNever by lazy {
+     singleUnsafe<Nothing> { observer ->
+         observer.onSubscribe(Disposable())
+diff --git a/reaktive/src/commonMain/kotlin/com/badoo/reaktive/utils/UncaughtErrorHandler.kt b/reaktive/src/commonMain/kotlin/com/badoo/reaktive/utils/UncaughtErrorHandler.kt
+index ec8a7a98..ad287c10 100644
+--- a/reaktive/src/commonMain/kotlin/com/badoo/reaktive/utils/UncaughtErrorHandler.kt
++++ b/reaktive/src/commonMain/kotlin/com/badoo/reaktive/utils/UncaughtErrorHandler.kt
+@@ -1,9 +1,7 @@
+ package com.badoo.reaktive.utils
+ 
+ import com.badoo.reaktive.utils.atomic.AtomicReference
+-import kotlin.native.concurrent.SharedImmutable
+ 
+-@SharedImmutable
+ @Suppress("ObjectPropertyName")
+ private val _reaktiveUncaughtErrorHandler: AtomicReference<(Throwable) -> Unit> =
+     AtomicReference(createDefaultUncaughtErrorHandler())
+diff --git a/utils-internal/src/darwinCommonMain/kotlin/com/badoo/reaktive/utils/lock/ConditionLock.kt b/utils-internal/src/darwinCommonMain/kotlin/com/badoo/reaktive/utils/lock/ConditionLock.kt
+index 336bf4ba..7489dc8f 100644
+--- a/utils-internal/src/darwinCommonMain/kotlin/com/badoo/reaktive/utils/lock/ConditionLock.kt
++++ b/utils-internal/src/darwinCommonMain/kotlin/com/badoo/reaktive/utils/lock/ConditionLock.kt
+@@ -4,10 +4,9 @@ import com.badoo.reaktive.utils.InternalReaktiveApi
+ import platform.Foundation.NSCondition
+ import platform.Foundation.NSDate
+ import platform.Foundation.dateWithTimeIntervalSinceNow
+-import kotlin.system.getTimeNanos
+ import kotlin.time.Duration
+-import kotlin.time.Duration.Companion.nanoseconds
+ import kotlin.time.DurationUnit
++import kotlin.time.TimeSource
+ 
+ @InternalReaktiveApi
+ actual open class ConditionLock {
+@@ -31,10 +30,10 @@ actual open class ConditionLock {
+         }
+ 
+     private fun awaitTimed(timeout: Duration): Duration {
+-        val startTime = getTimeNanos().nanoseconds
++        val startTime = TimeSource.Monotonic.markNow()
+         condition.waitUntilDate(NSDate.dateWithTimeIntervalSinceNow(timeout.toDouble(DurationUnit.SECONDS)))
+ 
+-        return startTime + timeout - getTimeNanos().nanoseconds
++        return startTime + timeout - TimeSource.Monotonic.markNow()
+     }
+ 
+     actual fun signal() {
+diff --git a/utils-internal/src/jvmCommonMain/kotlin/com/badoo/reaktive/utils/atomic/AtomicInt.kt b/utils-internal/src/jvmCommonMain/kotlin/com/badoo/reaktive/utils/atomic/AtomicInt.kt
+index 2c9097f3..e5a895b6 100644
+--- a/utils-internal/src/jvmCommonMain/kotlin/com/badoo/reaktive/utils/atomic/AtomicInt.kt
++++ b/utils-internal/src/jvmCommonMain/kotlin/com/badoo/reaktive/utils/atomic/AtomicInt.kt
+@@ -13,6 +13,5 @@ actual class AtomicInt actual constructor(initialValue: Int) : java.util.concurr
+ 
+     // See KT-16087
+     override fun toByte(): Byte = value.toByte()
+-    override fun toChar(): Char = value.toChar()
+     override fun toShort(): Short = value.toShort()
+ }
+diff --git a/utils-internal/src/jvmCommonMain/kotlin/com/badoo/reaktive/utils/atomic/AtomicLong.kt b/utils-internal/src/jvmCommonMain/kotlin/com/badoo/reaktive/utils/atomic/AtomicLong.kt
+index 95bac516..cafaf4bb 100644
+--- a/utils-internal/src/jvmCommonMain/kotlin/com/badoo/reaktive/utils/atomic/AtomicLong.kt
++++ b/utils-internal/src/jvmCommonMain/kotlin/com/badoo/reaktive/utils/atomic/AtomicLong.kt
+@@ -13,6 +13,5 @@ actual class AtomicLong actual constructor(initialValue: Long) : java.util.concu
+ 
+     // See KT-16087
+     override fun toByte(): Byte = value.toByte()
+-    override fun toChar(): Char = value.toInt().toChar()
+     override fun toShort(): Short = value.toShort()
+ }
+diff --git a/utils-internal/src/linuxCommonMain/kotlin/com/badoo/reaktive/utils/lock/ConditionLock.kt b/utils-internal/src/linuxCommonMain/kotlin/com/badoo/reaktive/utils/lock/ConditionLock.kt
+index 500de429..b2cd79f4 100644
+--- a/utils-internal/src/linuxCommonMain/kotlin/com/badoo/reaktive/utils/lock/ConditionLock.kt
++++ b/utils-internal/src/linuxCommonMain/kotlin/com/badoo/reaktive/utils/lock/ConditionLock.kt
+@@ -30,11 +30,12 @@ import platform.posix.pthread_mutexattr_init
+ import platform.posix.pthread_mutexattr_settype
+ import platform.posix.pthread_mutexattr_t
+ import platform.posix.timespec
+-import kotlin.native.internal.createCleaner
+-import kotlin.system.getTimeNanos
++import kotlin.experimental.ExperimentalNativeApi
++import kotlin.native.ref.createCleaner
+ import kotlin.time.Duration
+ import kotlin.time.Duration.Companion.nanoseconds
+ import kotlin.time.Duration.Companion.seconds
++import kotlin.time.TimeSource
+ 
+ @OptIn(ExperimentalForeignApi::class)
+ @InternalReaktiveApi
+@@ -47,7 +48,7 @@ actual open class ConditionLock {
+     private val cond = arena.alloc<pthread_cond_t>()
+ 
+     @Suppress("unused") // Must be stored in a property
+-    @OptIn(ExperimentalStdlibApi::class)
++    @OptIn(ExperimentalNativeApi::class)
+     private val cleaner = createCleaner(Resources(arena, mutexAttr, mutex, condAttr, cond), Resources::destroy)
+ 
+     init {
+@@ -88,10 +89,10 @@ actual open class ConditionLock {
+         memScoped {
+             val ts = alloc<timespec> { clock_gettime(CLOCK_MONOTONIC, ptr) }
+             ts += timeout
+-            val startNanos = getTimeNanos().nanoseconds
++            val startNanos = TimeSource.Monotonic.markNow()
+ 
+             when (val result = pthread_cond_timedwait(cond.ptr, mutex.ptr, ts.ptr)) {
+-                0 -> startNanos + timeout - getTimeNanos().nanoseconds
++                0 -> startNanos + timeout - TimeSource.Monotonic.markNow()
+                 ETIMEDOUT -> Duration.ZERO
+                 else -> error("Error waiting for condition: $result")
+             }
+

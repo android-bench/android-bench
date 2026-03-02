@@ -1,0 +1,31 @@
+diff --git a/feature/topic/src/main/kotlin/com/google/samples/apps/nowinandroid/feature/topic/TopicScreen.kt b/feature/topic/src/main/kotlin/com/google/samples/apps/nowinandroid/feature/topic/TopicScreen.kt
+index 8ef0d786..6b9c8c16 100644
+--- a/feature/topic/src/main/kotlin/com/google/samples/apps/nowinandroid/feature/topic/TopicScreen.kt
++++ b/feature/topic/src/main/kotlin/com/google/samples/apps/nowinandroid/feature/topic/TopicScreen.kt
+@@ -17,7 +17,9 @@
+ package com.google.samples.apps.nowinandroid.feature.topic
+ 
+ import androidx.annotation.VisibleForTesting
++import androidx.compose.foundation.gestures.FlingBehavior
+ import androidx.compose.foundation.gestures.Orientation
++import androidx.compose.foundation.gestures.ScrollScope
+ import androidx.compose.foundation.layout.Arrangement
+ import androidx.compose.foundation.layout.Box
+ import androidx.compose.foundation.layout.Column
+@@ -113,9 +115,15 @@ internal fun TopicScreen(
+     Box(
+         modifier = modifier,
+     ) {
++        val noMovementFlingBehavior = object : FlingBehavior {
++            override suspend fun ScrollScope.performFling(
++                initialVelocity: Float,
++            ): Float = 0f
++        }
+         LazyColumn(
+             state = state,
+             horizontalAlignment = Alignment.CenterHorizontally,
++            flingBehavior = noMovementFlingBehavior
+         ) {
+             item {
+                 Spacer(Modifier.windowInsetsTopHeight(WindowInsets.safeDrawing))
+

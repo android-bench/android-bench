@@ -1,0 +1,66 @@
+diff --git a/core/data/src/main/java/com/google/samples/apps/nowinandroid/core/data/repository/OfflineFirstNewsRepository.kt b/core/data/src/main/java/com/google/samples/apps/nowinandroid/core/data/repository/OfflineFirstNewsRepository.kt
+index bd6ed11b..b18bb904 100644
+--- a/core/data/src/main/java/com/google/samples/apps/nowinandroid/core/data/repository/OfflineFirstNewsRepository.kt
++++ b/core/data/src/main/java/com/google/samples/apps/nowinandroid/core/data/repository/OfflineFirstNewsRepository.kt
+@@ -63,10 +63,12 @@ class OfflineFirstNewsRepository @Inject constructor(
+     )
+         .map { it.map(PopulatedNewsResource::asExternalModel) }
+ 
+-    override suspend fun syncWith(synchronizer: Synchronizer) =
+-        synchronizer.changeListSync(
++    override suspend fun syncWith(synchronizer: Synchronizer): Boolean {
++        var isFirstSync = false
++        return synchronizer.changeListSync(
+             versionReader = ChangeListVersions::newsResourceVersion,
+             changeListFetcher = { currentVersion ->
++                isFirstSync = currentVersion <= 0
+                 network.getNewsResourceChangeList(after = currentVersion)
+             },
+             versionUpdater = { latestVersion ->
+@@ -94,6 +96,12 @@ class OfflineFirstNewsRepository @Inject constructor(
+                     else -> emptySet()
+                 }
+ 
++                if (isFirstSync) {
++                    // When we first retrieve news, mark everything viewed, so that we aren't
++                    // overwhelmed with all historical news.
++                    niaPreferencesDataSource.setNewsResourcesViewed(changedIds, true)
++                }
++
+                 // Obtain the news resources which have changed from the network and upsert them locally
+                 changedIds.chunked(SYNC_BATCH_SIZE).forEach { chunkedIds ->
+                     val networkNewsResources = network.getNewsResources(ids = chunkedIds)
+@@ -137,4 +145,5 @@ class OfflineFirstNewsRepository @Inject constructor(
+                 }
+             },
+         )
++    }
+ }
+diff --git a/core/datastore/src/main/java/com/google/samples/apps/nowinandroid/core/datastore/NiaPreferencesDataSource.kt b/core/datastore/src/main/java/com/google/samples/apps/nowinandroid/core/datastore/NiaPreferencesDataSource.kt
+index 33c04b70..6d585ebd 100644
+--- a/core/datastore/src/main/java/com/google/samples/apps/nowinandroid/core/datastore/NiaPreferencesDataSource.kt
++++ b/core/datastore/src/main/java/com/google/samples/apps/nowinandroid/core/datastore/NiaPreferencesDataSource.kt
+@@ -139,12 +139,18 @@ class NiaPreferencesDataSource @Inject constructor(
+     }
+ 
+     suspend fun setNewsResourceViewed(newsResourceId: String, viewed: Boolean) {
++        setNewsResourcesViewed(listOf(newsResourceId), viewed)
++    }
++
++    suspend fun setNewsResourcesViewed(newsResourceIds: List<String>, viewed: Boolean) {
+         userPreferences.updateData {
+             it.copy {
+-                if (viewed) {
+-                    viewedNewsResourceIds.put(newsResourceId, true)
+-                } else {
+-                    viewedNewsResourceIds.remove(newsResourceId)
++                newsResourceIds.forEach {
++                    if (viewed) {
++                        viewedNewsResourceIds.put(it, true)
++                    } else {
++                        viewedNewsResourceIds.remove(it)
++                    }
+                 }
+             }
+         }
+

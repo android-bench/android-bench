@@ -1,0 +1,49 @@
+Subject: [PATCH] you-apps__ClockYou-pr_292
+---
+Index: app/src/androidTest/java/com/bnyro/clock/ClockModelTests.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/androidTest/java/com/bnyro/clock/ClockModelTests.kt b/app/src/androidTest/java/com/bnyro/clock/ClockModelTests.kt
+new file mode 100644
+--- /dev/null	(date 1764849909663)
++++ b/app/src/androidTest/java/com/bnyro/clock/ClockModelTests.kt	(date 1764849909663)
+@@ -0,0 +1,37 @@
++package com.bnyro.clock
++
++import android.app.Application
++import androidx.test.core.app.ApplicationProvider
++import androidx.test.ext.junit.runners.AndroidJUnit4
++import com.bnyro.clock.db.DatabaseHolder
++import com.bnyro.clock.ui.model.ClockModel
++import com.bnyro.clock.util.Preferences
++import junit.framework.Assert.assertEquals
++import kotlinx.coroutines.ExperimentalCoroutinesApi
++import kotlinx.coroutines.flow.filter
++import kotlinx.coroutines.flow.first
++import kotlinx.coroutines.test.runTest
++import org.junit.Test
++import org.junit.runner.RunWith
++
++@RunWith(AndroidJUnit4::class)
++class ClockModelTests {
++
++    @OptIn(ExperimentalCoroutinesApi::class)
++    @Test
++    fun testAddingTwoClocksWithSameTimeZone() = runTest {
++        val app = ApplicationProvider.getApplicationContext<Application>()
++        Preferences.init(app.applicationContext)
++        DatabaseHolder.init(app.applicationContext)
++        val vm = ClockModel(app)
++
++        val expected = vm.timeZones.filter { it.toString().contains("Abidjan") }.take(2)
++        vm.setTimeZones(expected)
++
++        val actual = vm.selectedTimeZones.filter { it.isNotEmpty() }.first()
++
++        assertEquals(2, actual.size)
++        assert(actual.contains(expected[0]))
++        assert(actual.contains(expected[1]))
++    }
++}

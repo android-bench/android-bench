@@ -1,0 +1,13 @@
+{
+  "docker_config": {
+    "harness_docker_timeout": 3600,
+    "docker_client_timeout": 300,
+    "container_start_retries": 3
+  },
+  "emulator_config": {
+    "emulator_boot_timeout": 300,
+    "test_execution_timeout": 10000,
+    "gradle_workers": 4,
+    "test_retry_attempts": 3
+  }
+}

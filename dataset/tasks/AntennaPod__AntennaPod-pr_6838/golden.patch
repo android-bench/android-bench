@@ -1,0 +1,130 @@
+diff --git a/app/src/main/res/layout/nextcloud_auth_dialog.xml b/app/src/main/res/layout/nextcloud_auth_dialog.xml
+index c08c5b969..0f25a271f 100644
+--- a/app/src/main/res/layout/nextcloud_auth_dialog.xml
++++ b/app/src/main/res/layout/nextcloud_auth_dialog.xml
+@@ -1,69 +1,75 @@
+ <?xml version="1.0" encoding="utf-8"?>
+-<LinearLayout
++<ScrollView
+     xmlns:android="http://schemas.android.com/apk/res/android"
+     android:layout_width="match_parent"
+-    android:layout_height="wrap_content"
+-    android:padding="16dp"
+-    android:orientation="vertical"
+-    android:clipToPadding="false">
++    android:layout_height="wrap_content">
+ 
+-    <TextView
+-        android:layout_width="wrap_content"
+-        android:layout_height="wrap_content"
+-        android:layout_marginBottom="16dp"
+-        android:text="@string/synchronization_host_explanation" />
+-
+-    <com.google.android.material.textfield.TextInputLayout
+-        android:id="@+id/serverUrlTextInput"
++    <LinearLayout
+         android:layout_width="match_parent"
+         android:layout_height="wrap_content"
+-        android:layout_marginBottom="16dp"
+-        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
++        android:padding="16dp"
++        android:orientation="vertical"
++        android:clipToPadding="false">
++
++        <TextView
++            android:layout_width="wrap_content"
++            android:layout_height="wrap_content"
++            android:layout_marginBottom="16dp"
++            android:text="@string/synchronization_host_explanation" />
+ 
+-        <com.google.android.material.textfield.TextInputEditText
+-            android:id="@+id/serverUrlText"
++        <com.google.android.material.textfield.TextInputLayout
++            android:id="@+id/serverUrlTextInput"
+             android:layout_width="match_parent"
+             android:layout_height="wrap_content"
+-            android:hint="@string/synchronization_host_label"
+-            android:inputType="textNoSuggestions"
+-            android:lines="1"
+-            android:imeOptions="actionNext|flagNoFullscreen" />
++            android:layout_marginBottom="16dp"
++            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+ 
+-    </com.google.android.material.textfield.TextInputLayout>
++            <com.google.android.material.textfield.TextInputEditText
++                android:id="@+id/serverUrlText"
++                android:layout_width="match_parent"
++                android:layout_height="wrap_content"
++                android:hint="@string/synchronization_host_label"
++                android:inputType="textNoSuggestions"
++                android:lines="1"
++                android:imeOptions="actionNext|flagNoFullscreen" />
+ 
+-    <LinearLayout
+-        android:id="@+id/loginProgressContainer"
+-        android:layout_width="match_parent"
+-        android:layout_height="wrap_content"
+-        android:visibility="gone"
+-        android:orientation="horizontal"
+-        android:layout_gravity="center_vertical">
++        </com.google.android.material.textfield.TextInputLayout>
+ 
+-        <ProgressBar
+-            android:layout_width="wrap_content"
++        <LinearLayout
++            android:id="@+id/loginProgressContainer"
++            android:layout_width="match_parent"
+             android:layout_height="wrap_content"
+-            android:layout_marginEnd="8dp"
+-            android:layout_marginRight="8dp" />
++            android:visibility="gone"
++            android:orientation="horizontal"
++            android:layout_gravity="center_vertical">
++
++            <ProgressBar
++                android:layout_width="wrap_content"
++                android:layout_height="wrap_content"
++                android:layout_marginEnd="8dp"
++                android:layout_marginRight="8dp" />
++
++            <TextView
++                android:layout_width="wrap_content"
++                android:layout_height="wrap_content"
++                android:text="@string/synchronization_nextcloud_authenticate_browser" />
++
++        </LinearLayout>
+ 
+         <TextView
++            android:id="@+id/errorText"
+             android:layout_width="wrap_content"
+             android:layout_height="wrap_content"
+-            android:text="@string/synchronization_nextcloud_authenticate_browser" />
++            android:visibility="gone"
++            android:textColor="?attr/icon_red"
++            android:layout_marginBottom="16dp" />
+ 
+-    </LinearLayout>
+-
+-    <TextView
+-        android:id="@+id/errorText"
+-        android:layout_width="wrap_content"
+-        android:layout_height="wrap_content"
+-        android:visibility="gone"
+-        android:textColor="?attr/icon_red"
+-        android:layout_marginBottom="16dp" />
++        <Button
++            android:id="@+id/chooseHostButton"
++            android:layout_width="match_parent"
++            android:layout_height="wrap_content"
++            android:text="@string/proceed_to_login_butLabel" />
+ 
+-    <Button
+-        android:id="@+id/chooseHostButton"
+-        android:layout_width="match_parent"
+-        android:layout_height="wrap_content"
+-        android:text="@string/proceed_to_login_butLabel" />
++    </LinearLayout>
+ 
+-</LinearLayout>
++</ScrollView>
+

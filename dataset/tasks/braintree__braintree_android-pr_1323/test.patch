@@ -1,0 +1,14 @@
+diff --git a/ThreeDSecure/src/test/java/com/braintreepayments/api/threedsecure/ThreeDSecureClientUnitTest.kt b/ThreeDSecure/src/test/java/com/braintreepayments/api/threedsecure/ThreeDSecureClientUnitTest.kt
+index 181a9f478..63693b846 100644
+--- a/ThreeDSecure/src/test/java/com/braintreepayments/api/threedsecure/ThreeDSecureClientUnitTest.kt
++++ b/ThreeDSecure/src/test/java/com/braintreepayments/api/threedsecure/ThreeDSecureClientUnitTest.kt
+@@ -754,7 +754,7 @@ class ThreeDSecureClientUnitTest {
+         sut.tokenize(paymentAuthResult, threeDSecureTokenizeCallback)
+ 
+         val captorList = mutableListOf<ThreeDSecureResult>()
+-        verify { threeDSecureTokenizeCallback.onThreeDSecureResult(capture(captorList)) }
++        verify(exactly = 1) { threeDSecureTokenizeCallback.onThreeDSecureResult(capture(captorList)) }
+         val result = captorList.first()
+         assertTrue(result is ThreeDSecureResult.Failure)
+         assertEquals(result.nonce, paymentAuthResult.threeDSecureParams?.threeDSecureNonce)
+

@@ -1,0 +1,761 @@
+diff --git a/reaktive/src/commonTest/kotlin/com/badoo/reaktive/test/TestErrorCallback.kt b/reaktive/src/commonTest/kotlin/com/badoo/reaktive/test/TestErrorCallback.kt
+new file mode 100644
+index 00000000..570a5f2f
+--- /dev/null
++++ b/reaktive/src/commonTest/kotlin/com/badoo/reaktive/test/TestErrorCallback.kt
+@@ -0,0 +1,15 @@
++package com.badoo.reaktive.test
++
++import com.badoo.reaktive.base.ErrorCallback
++
++class TestErrorCallback(
++    private val onError: (Throwable) -> Unit = {},
++) : ErrorCallback {
++
++    var error: Throwable? = null
++
++    override fun onError(error: Throwable) {
++        onError.invoke(error)
++        this.error = error
++    }
++}
+diff --git a/reaktive/src/commonTest/kotlin/com/badoo/reaktive/utils/TryCatchAndHandleTest.kt b/reaktive/src/commonTest/kotlin/com/badoo/reaktive/utils/TryCatchAndHandleTest.kt
+new file mode 100644
+index 00000000..364baeab
+--- /dev/null
++++ b/reaktive/src/commonTest/kotlin/com/badoo/reaktive/utils/TryCatchAndHandleTest.kt
+@@ -0,0 +1,50 @@
++package com.badoo.reaktive.utils
++
++import com.badoo.reaktive.base.exceptions.CompositeException
++import com.badoo.reaktive.base.tryCatchAndHandle
++import com.badoo.reaktive.test.mockUncaughtExceptionHandler
++import kotlin.test.AfterTest
++import kotlin.test.Test
++import kotlin.test.assertIs
++import kotlin.test.assertSame
++
++class TryCatchAndHandleTest {
++
++    @AfterTest
++    fun after() {
++        resetReaktiveUncaughtErrorHandler()
++    }
++
++    @Test
++    fun calls_reaktiveUncaughtErrorHandler_WHEN_block_thrown_exception() {
++        val caughtException = mockUncaughtExceptionHandler()
++        val error = Exception()
++
++        tryCatchAndHandle { throw error }
++
++        assertSame(error, caughtException.value)
++    }
++
++    @Test
++    fun calls_reaktiveUncaughtErrorHandler_WHEN_errorTransformer_thrown_exception() {
++        val caughtException = mockUncaughtExceptionHandler()
++        val error1 = Exception()
++        val error2 = Exception()
++
++        tryCatchAndHandle(
++            errorTransformer = { throw error2 },
++            block = { throw error1 },
++        )
++
++        val error = caughtException.value
++        assertIs<CompositeException>(error)
++        assertSame(error1, error.cause1)
++        assertSame(error2, error.cause2)
++    }
++
++    @Test
++    fun swallows_WHEN_reaktiveUncaughtErrorHandler_thrown_exception() {
++        reaktiveUncaughtErrorHandler = { throw Exception() }
++        tryCatchAndHandle { throw Exception() }
++    }
++}
+diff --git a/reaktive/src/commonTest/kotlin/com/badoo/reaktive/utils/TryCatchTest.kt b/reaktive/src/commonTest/kotlin/com/badoo/reaktive/utils/TryCatchTest.kt
+new file mode 100644
+index 00000000..39795917
+--- /dev/null
++++ b/reaktive/src/commonTest/kotlin/com/badoo/reaktive/utils/TryCatchTest.kt
+@@ -0,0 +1,67 @@
++package com.badoo.reaktive.utils
++
++import com.badoo.reaktive.base.exceptions.CompositeException
++import com.badoo.reaktive.base.tryCatch
++import com.badoo.reaktive.test.TestErrorCallback
++import com.badoo.reaktive.test.mockUncaughtExceptionHandler
++import kotlin.test.AfterTest
++import kotlin.test.Test
++import kotlin.test.assertIs
++import kotlin.test.assertSame
++
++class TryCatchTest {
++
++    @AfterTest
++    fun after() {
++        resetReaktiveUncaughtErrorHandler()
++    }
++
++    @Test
++    fun calls_ErrorCallback_WHEN_block_thrown_exception() {
++        val errorCallback = TestErrorCallback()
++        val error = Exception()
++
++        errorCallback.tryCatch { throw error }
++
++        assertSame(error, errorCallback.error)
++    }
++
++    @Test
++    fun calls_ErrorCallback_WHEN_errorTransformer_thrown_exception() {
++        val errorCallback = TestErrorCallback()
++        val error1 = Exception()
++        val error2 = Exception()
++
++        errorCallback.tryCatch(
++            errorTransformer = { throw error2 },
++            block = { throw error1 },
++        )
++
++        val error = errorCallback.error
++        assertIs<CompositeException>(error)
++        assertSame(error1, error.cause1)
++        assertSame(error2, error.cause2)
++    }
++
++    @Test
++    fun calls_reaktiveUncaughtErrorHandler_WHEN_ErrorCallback_thrown_exception() {
++        val caughtException = mockUncaughtExceptionHandler()
++        val error1 = Exception()
++        val error2 = Exception()
++
++        val errorCallback = TestErrorCallback { throw error2 }
++        errorCallback.tryCatch { throw error1 }
++
++        val error = caughtException.value
++        assertIs<CompositeException>(error)
++        assertSame(error1, error.cause1)
++        assertSame(error2, error.cause2)
++    }
++
++    @Test
++    fun swallows_WHEN_reaktiveUncaughtErrorHandler_thrown_exception() {
++        reaktiveUncaughtErrorHandler = { throw Exception() }
++        val errorCallback = TestErrorCallback { throw Exception() }
++        errorCallback.tryCatch { throw Exception() }
++    }
++}
+diff --git a/reaktive/src/commonTest/kotlin/com/badoo/reaktive/utils/TryCatchWithOnSuccessTest.kt b/reaktive/src/commonTest/kotlin/com/badoo/reaktive/utils/TryCatchWithOnSuccessTest.kt
+new file mode 100644
+index 00000000..e8cea29d
+--- /dev/null
++++ b/reaktive/src/commonTest/kotlin/com/badoo/reaktive/utils/TryCatchWithOnSuccessTest.kt
+@@ -0,0 +1,79 @@
++package com.badoo.reaktive.utils
++
++import com.badoo.reaktive.base.exceptions.CompositeException
++import com.badoo.reaktive.base.tryCatch
++import com.badoo.reaktive.test.TestErrorCallback
++import com.badoo.reaktive.test.mockUncaughtExceptionHandler
++import kotlin.test.AfterTest
++import kotlin.test.Test
++import kotlin.test.assertEquals
++import kotlin.test.assertIs
++import kotlin.test.assertSame
++
++class TryCatchWithOnSuccessTest {
++
++    @AfterTest
++    fun after() {
++        resetReaktiveUncaughtErrorHandler()
++    }
++
++    @Test
++    fun calls_onSuccess_WHEN_block_not_thrown() {
++        val errorCallback = TestErrorCallback()
++        var result: Int? = null
++
++        errorCallback.tryCatch(block = { 0 }, onSuccess = { result = 0 })
++
++        assertEquals(0, result)
++    }
++
++    @Test
++    fun calls_ErrorCallback_WHEN_block_thrown_exception() {
++        val errorCallback = TestErrorCallback()
++        val error = Exception()
++
++        errorCallback.tryCatch(block = { throw error }, onSuccess = {})
++
++        assertSame(error, errorCallback.error)
++    }
++
++    @Test
++    fun calls_ErrorCallback_WHEN_errorTransformer_thrown_exception() {
++        val errorCallback = TestErrorCallback()
++        val error1 = Exception()
++        val error2 = Exception()
++
++        errorCallback.tryCatch(
++            block = { throw error1 },
++            errorTransformer = { throw error2 },
++            onSuccess = {},
++        )
++
++        val error = errorCallback.error
++        assertIs<CompositeException>(error)
++        assertSame(error1, error.cause1)
++        assertSame(error2, error.cause2)
++    }
++
++    @Test
++    fun calls_reaktiveUncaughtErrorHandler_WHEN_ErrorCallback_thrown_exception() {
++        val caughtException = mockUncaughtExceptionHandler()
++        val error1 = Exception()
++        val error2 = Exception()
++
++        val errorCallback = TestErrorCallback { throw error2 }
++        errorCallback.tryCatch(block = { throw error1 }, onSuccess = {})
++
++        val error = caughtException.value
++        assertIs<CompositeException>(error)
++        assertSame(error1, error.cause1)
++        assertSame(error2, error.cause2)
++    }
++
++    @Test
++    fun swallows_WHEN_reaktiveUncaughtErrorHandler_thrown_exception() {
++        reaktiveUncaughtErrorHandler = { throw Exception() }
++        val errorCallback = TestErrorCallback { throw Exception() }
++        errorCallback.tryCatch(block = { throw Exception() }, onSuccess = {})
++    }
++}
+diff --git a/reaktive/src/jvmTest/kotlin/com/badoo/reaktive/utils/HandleReaktiveErrorJvmTest.kt b/reaktive/src/jvmTest/kotlin/com/badoo/reaktive/utils/HandleReaktiveErrorJvmTest.kt
+new file mode 100644
+index 00000000..22629fb0
+--- /dev/null
++++ b/reaktive/src/jvmTest/kotlin/com/badoo/reaktive/utils/HandleReaktiveErrorJvmTest.kt
+@@ -0,0 +1,127 @@
++package com.badoo.reaktive.utils
++
++import com.badoo.reaktive.base.exceptions.CompositeException
++import com.badoo.reaktive.test.mockUncaughtExceptionHandler
++import kotlin.test.AfterTest
++import kotlin.test.Test
++import kotlin.test.assertEquals
++import kotlin.test.assertFailsWith
++import kotlin.test.assertIs
++
++class HandleReaktiveErrorJvmTest {
++
++    @AfterTest
++    fun after() {
++        resetReaktiveUncaughtErrorHandler()
++    }
++
++    @Test
++    fun rethrows_WHEN_VirtualMachineError() {
++        assertFailsWith<MyVirtualMachineError> {
++            handleReaktiveError(MyVirtualMachineError())
++        }
++    }
++
++    @Test
++    fun rethrows_WHEN_ThreadDeath() {
++        assertFailsWith<ThreadDeath> {
++            handleReaktiveError(ThreadDeath())
++        }
++    }
++
++    @Test
++    fun rethrows_WHEN_LinkageError() {
++        assertFailsWith<LinkageError> {
++            handleReaktiveError(LinkageError())
++        }
++    }
++
++    @Test
++    fun calls_reaktiveUncaughtErrorHandler_WHEN_exception_and_onError_not_supplied() {
++        val caughtException = mockUncaughtExceptionHandler()
++        val error = Exception()
++
++        handleReaktiveError(error)
++
++        assertEquals(error, caughtException.value)
++    }
++
++    @Test
++    fun calls_onError_WHEN_exception_and_onError_supplied() {
++        val error = Exception()
++        var receivedError: Throwable? = null
++
++        handleReaktiveError(error = error, onError = { receivedError = it })
++
++        assertEquals(error, receivedError)
++    }
++
++    @Test
++    fun rethrows_WHEN_onError_thrown_VirtualMachineError() {
++        assertFailsWith<MyVirtualMachineError> {
++            handleReaktiveError(error = Exception(), onError = { throw MyVirtualMachineError() })
++        }
++    }
++
++    @Test
++    fun rethrows_WHEN_onError_thrown_ThreadDeath() {
++        assertFailsWith<ThreadDeath> {
++            handleReaktiveError(error = Exception(), onError = { throw ThreadDeath() })
++        }
++    }
++
++    @Test
++    fun rethrows_WHEN_onError_thrown_LinkageError() {
++        assertFailsWith<LinkageError> {
++            handleReaktiveError(error = Exception(), onError = { throw LinkageError() })
++        }
++    }
++
++    @Test
++    fun calls_reaktiveUncaughtErrorHandler_WHEN_onError_thrown_exception() {
++        val caughtException = mockUncaughtExceptionHandler()
++        val error1 = Exception()
++        val error2 = Exception()
++
++        handleReaktiveError(error = error1, onError = { throw error2 })
++
++        val error = caughtException.value
++        assertIs<CompositeException>(error)
++        assertEquals(error1, error.cause1)
++        assertEquals(error2, error.cause2)
++    }
++
++    @Test
++    fun rethrows_WHEN_reaktiveUncaughtErrorHandler_thrown_VirtualMachineError() {
++        reaktiveUncaughtErrorHandler = { throw MyVirtualMachineError() }
++
++        assertFailsWith<MyVirtualMachineError> {
++            handleReaktiveError(error = Exception())
++        }
++    }
++
++    @Test
++    fun rethrows_WHEN_reaktiveUncaughtErrorHandler_thrown_ThreadDeath() {
++        reaktiveUncaughtErrorHandler = { throw ThreadDeath() }
++
++        assertFailsWith<ThreadDeath> {
++            handleReaktiveError(error = Exception())
++        }
++    }
++
++    @Test
++    fun rethrows_WHEN_reaktiveUncaughtErrorHandler_thrown_LinkageError() {
++        reaktiveUncaughtErrorHandler = { throw LinkageError() }
++
++        assertFailsWith<LinkageError> {
++            handleReaktiveError(error = Exception())
++        }
++    }
++
++    @Test
++    fun swallows_WHEN_reaktiveUncaughtErrorHandler_thrown_exception() {
++        reaktiveUncaughtErrorHandler = { throw Exception() }
++
++        handleReaktiveError(error = Exception())
++    }
++}
+diff --git a/reaktive/src/jvmTest/kotlin/com/badoo/reaktive/utils/MyVirtualMachineError.kt b/reaktive/src/jvmTest/kotlin/com/badoo/reaktive/utils/MyVirtualMachineError.kt
+new file mode 100644
+index 00000000..08a00d48
+--- /dev/null
++++ b/reaktive/src/jvmTest/kotlin/com/badoo/reaktive/utils/MyVirtualMachineError.kt
+@@ -0,0 +1,3 @@
++package com.badoo.reaktive.utils
++
++class MyVirtualMachineError : VirtualMachineError()
+diff --git a/reaktive/src/jvmTest/kotlin/com/badoo/reaktive/utils/TryCatchAndHandleJvmTest.kt b/reaktive/src/jvmTest/kotlin/com/badoo/reaktive/utils/TryCatchAndHandleJvmTest.kt
+new file mode 100644
+index 00000000..ee3b719c
+--- /dev/null
++++ b/reaktive/src/jvmTest/kotlin/com/badoo/reaktive/utils/TryCatchAndHandleJvmTest.kt
+@@ -0,0 +1,92 @@
++package com.badoo.reaktive.utils
++
++import com.badoo.reaktive.base.tryCatchAndHandle
++import kotlin.test.AfterTest
++import kotlin.test.Test
++import kotlin.test.assertFailsWith
++
++class TryCatchAndHandleJvmTest {
++
++    @AfterTest
++    fun after() {
++        resetReaktiveUncaughtErrorHandler()
++    }
++
++    @Test
++    fun rethrows_WHEN_block_thrown_VirtualMachineError() {
++        assertFailsWith<MyVirtualMachineError> {
++            tryCatchAndHandle { throw MyVirtualMachineError() }
++        }
++    }
++
++    @Test
++    fun rethrows_WHEN_block_thrown_ThreadDeath() {
++        assertFailsWith<ThreadDeath> {
++            tryCatchAndHandle { throw ThreadDeath() }
++        }
++    }
++
++    @Test
++    fun rethrows_WHEN_block_thrown_LinkageError() {
++        assertFailsWith<LinkageError> {
++            tryCatchAndHandle { throw LinkageError() }
++        }
++    }
++
++    @Test
++    fun rethrows_WHEN_errorTransformer_thrown_VirtualMachineError() {
++        assertFailsWith<MyVirtualMachineError> {
++            tryCatchAndHandle(
++                errorTransformer = { throw MyVirtualMachineError() },
++                block = { throw Exception() },
++            )
++        }
++    }
++
++    @Test
++    fun rethrows_WHEN_errorTransformer_thrown_ThreadDeath() {
++        assertFailsWith<ThreadDeath> {
++            tryCatchAndHandle(
++                errorTransformer = { throw ThreadDeath() },
++                block = { throw Exception() },
++            )
++        }
++    }
++
++    @Test
++    fun rethrows_WHEN_errorTransformer_thrown_LinkageError() {
++        assertFailsWith<LinkageError> {
++            tryCatchAndHandle(
++                errorTransformer = { throw LinkageError() },
++                block = { throw Exception() },
++            )
++        }
++    }
++
++    @Test
++    fun rethrows_WHEN_reaktiveUncaughtErrorHandler_thrown_VirtualMachineError() {
++        reaktiveUncaughtErrorHandler = { throw MyVirtualMachineError() }
++
++        assertFailsWith<MyVirtualMachineError> {
++            tryCatchAndHandle { throw Exception() }
++        }
++    }
++
++    @Test
++    fun rethrows_WHEN_reaktiveUncaughtErrorHandler_thrown_ThreadDeath() {
++        reaktiveUncaughtErrorHandler = { throw ThreadDeath() }
++
++        assertFailsWith<ThreadDeath> {
++            tryCatchAndHandle { throw Exception() }
++        }
++    }
++
++    @Test
++    fun rethrows_WHEN_reaktiveUncaughtErrorHandler_thrown_LinkageError() {
++        reaktiveUncaughtErrorHandler = { throw LinkageError() }
++
++        assertFailsWith<LinkageError> {
++            tryCatchAndHandle { throw Exception() }
++        }
++    }
++}
+diff --git a/reaktive/src/jvmTest/kotlin/com/badoo/reaktive/utils/TryCatchJvmTest.kt b/reaktive/src/jvmTest/kotlin/com/badoo/reaktive/utils/TryCatchJvmTest.kt
+new file mode 100644
+index 00000000..81adb8a9
+--- /dev/null
++++ b/reaktive/src/jvmTest/kotlin/com/badoo/reaktive/utils/TryCatchJvmTest.kt
+@@ -0,0 +1,135 @@
++package com.badoo.reaktive.utils
++
++import com.badoo.reaktive.base.tryCatch
++import com.badoo.reaktive.test.TestErrorCallback
++import kotlin.test.AfterTest
++import kotlin.test.Test
++import kotlin.test.assertFailsWith
++
++class TryCatchJvmTest {
++
++    @AfterTest
++    fun after() {
++        resetReaktiveUncaughtErrorHandler()
++    }
++
++    @Test
++    fun rethrows_WHEN_block_thrown_VirtualMachineError() {
++        val errorCallback = TestErrorCallback()
++
++        assertFailsWith<MyVirtualMachineError> {
++            errorCallback.tryCatch { throw MyVirtualMachineError() }
++        }
++    }
++
++    @Test
++    fun rethrows_WHEN_block_thrown_ThreadDeath() {
++        val errorCallback = TestErrorCallback()
++
++        assertFailsWith<ThreadDeath> {
++            errorCallback.tryCatch { throw ThreadDeath() }
++        }
++    }
++
++    @Test
++    fun rethrows_WHEN_block_thrown_LinkageError() {
++        val errorCallback = TestErrorCallback()
++
++        assertFailsWith<LinkageError> {
++            errorCallback.tryCatch { throw LinkageError() }
++        }
++    }
++
++    @Test
++    fun rethrows_WHEN_errorTransformer_thrown_VirtualMachineError() {
++        val errorCallback = TestErrorCallback()
++
++        assertFailsWith<MyVirtualMachineError> {
++            errorCallback.tryCatch(
++                errorTransformer = { throw MyVirtualMachineError() },
++                block = { throw Exception() },
++            )
++        }
++    }
++
++    @Test
++    fun rethrows_WHEN_errorTransformer_thrown_ThreadDeath() {
++        val errorCallback = TestErrorCallback()
++
++        assertFailsWith<ThreadDeath> {
++            errorCallback.tryCatch(
++                errorTransformer = { throw ThreadDeath() },
++                block = { throw Exception() },
++            )
++        }
++    }
++
++    @Test
++    fun rethrows_WHEN_errorTransformer_thrown_LinkageError() {
++        val errorCallback = TestErrorCallback()
++
++        assertFailsWith<LinkageError> {
++            errorCallback.tryCatch(
++                errorTransformer = { throw LinkageError() },
++                block = { throw Exception() },
++            )
++        }
++    }
++
++    @Test
++    fun rethrows_WHEN_ErrorCallback_thrown_VirtualMachineError() {
++        val errorCallback = TestErrorCallback { throw MyVirtualMachineError() }
++
++        assertFailsWith<MyVirtualMachineError> {
++            errorCallback.tryCatch { throw Exception() }
++        }
++    }
++
++    @Test
++    fun rethrows_WHEN_ErrorCallback_thrown_ThreadDeath() {
++        val errorCallback = TestErrorCallback { throw ThreadDeath() }
++
++        assertFailsWith<ThreadDeath> {
++            errorCallback.tryCatch { throw Exception() }
++        }
++    }
++
++    @Test
++    fun rethrows_WHEN_ErrorCallback_thrown_LinkageError() {
++        val errorCallback = TestErrorCallback { throw LinkageError() }
++
++        assertFailsWith<LinkageError> {
++            errorCallback.tryCatch { throw Exception() }
++        }
++    }
++
++    @Test
++    fun rethrows_WHEN_reaktiveUncaughtErrorHandler_thrown_VirtualMachineError() {
++        reaktiveUncaughtErrorHandler = { throw MyVirtualMachineError() }
++        val errorCallback = TestErrorCallback { throw Exception() }
++
++        assertFailsWith<MyVirtualMachineError> {
++            errorCallback.tryCatch { throw Exception() }
++        }
++    }
++
++    @Test
++    fun rethrows_WHEN_reaktiveUncaughtErrorHandler_thrown_ThreadDeath() {
++        reaktiveUncaughtErrorHandler = { throw ThreadDeath() }
++        val errorCallback = TestErrorCallback { throw Exception() }
++
++        assertFailsWith<ThreadDeath> {
++            errorCallback.tryCatch { throw Exception() }
++        }
++    }
++
++    @Test
++    fun rethrows_WHEN_reaktiveUncaughtErrorHandler_thrown_LinkageError() {
++        reaktiveUncaughtErrorHandler = { throw LinkageError() }
++        val errorCallback = TestErrorCallback { throw Exception() }
++
++        assertFailsWith<LinkageError> {
++            errorCallback.tryCatch { throw Exception() }
++        }
++    }
++}
+diff --git a/reaktive/src/jvmTest/kotlin/com/badoo/reaktive/utils/TryCatchWithOnSuccessJvmTest.kt b/reaktive/src/jvmTest/kotlin/com/badoo/reaktive/utils/TryCatchWithOnSuccessJvmTest.kt
+new file mode 100644
+index 00000000..fe78c5ff
+--- /dev/null
++++ b/reaktive/src/jvmTest/kotlin/com/badoo/reaktive/utils/TryCatchWithOnSuccessJvmTest.kt
+@@ -0,0 +1,138 @@
++package com.badoo.reaktive.utils
++
++import com.badoo.reaktive.base.tryCatch
++import com.badoo.reaktive.test.TestErrorCallback
++import kotlin.test.AfterTest
++import kotlin.test.Test
++import kotlin.test.assertFailsWith
++
++class TryCatchWithOnSuccessJvmTest {
++
++    @AfterTest
++    fun after() {
++        resetReaktiveUncaughtErrorHandler()
++    }
++
++    @Test
++    fun rethrows_WHEN_block_thrown_VirtualMachineError() {
++        val errorCallback = TestErrorCallback()
++
++        assertFailsWith<MyVirtualMachineError> {
++            errorCallback.tryCatch(block = { throw MyVirtualMachineError() }, onSuccess = {})
++        }
++    }
++
++    @Test
++    fun rethrows_WHEN_block_thrown_ThreadDeath() {
++        val errorCallback = TestErrorCallback()
++
++        assertFailsWith<ThreadDeath> {
++            errorCallback.tryCatch(block = { throw ThreadDeath() }, onSuccess = {})
++        }
++    }
++
++    @Test
++    fun rethrows_WHEN_block_thrown_LinkageError() {
++        val errorCallback = TestErrorCallback()
++
++        assertFailsWith<LinkageError> {
++            errorCallback.tryCatch(block = { throw LinkageError() }, onSuccess = {})
++        }
++    }
++
++    @Test
++    fun rethrows_WHEN_errorTransformer_thrown_VirtualMachineError() {
++        val errorCallback = TestErrorCallback()
++
++        assertFailsWith<MyVirtualMachineError> {
++            errorCallback.tryCatch(
++                block = { throw Exception() },
++                errorTransformer = { throw MyVirtualMachineError() },
++                onSuccess = {},
++            )
++        }
++    }
++
++    @Test
++    fun rethrows_WHEN_errorTransformer_thrown_ThreadDeath() {
++        val errorCallback = TestErrorCallback()
++
++        assertFailsWith<ThreadDeath> {
++            errorCallback.tryCatch(
++                block = { throw Exception() },
++                errorTransformer = { throw ThreadDeath() },
++                onSuccess = {},
++            )
++        }
++    }
++
++    @Test
++    fun rethrows_WHEN_errorTransformer_thrown_LinkageError() {
++        val errorCallback = TestErrorCallback()
++
++        assertFailsWith<LinkageError> {
++            errorCallback.tryCatch(
++                block = { throw Exception() },
++                errorTransformer = { throw LinkageError() },
++                onSuccess = {},
++            )
++        }
++    }
++
++    @Test
++    fun rethrows_WHEN_ErrorCallback_thrown_VirtualMachineError() {
++        val errorCallback = TestErrorCallback { throw MyVirtualMachineError() }
++
++        assertFailsWith<MyVirtualMachineError> {
++            errorCallback.tryCatch(block = { throw Exception() }, onSuccess = {})
++        }
++    }
++
++    @Test
++    fun rethrows_WHEN_ErrorCallback_thrown_ThreadDeath() {
++        val errorCallback = TestErrorCallback { throw ThreadDeath() }
++
++        assertFailsWith<ThreadDeath> {
++            errorCallback.tryCatch(block = { throw Exception() }, onSuccess = {})
++        }
++    }
++
++    @Test
++    fun rethrows_WHEN_ErrorCallback_thrown_LinkageError() {
++        val errorCallback = TestErrorCallback { throw LinkageError() }
++
++        assertFailsWith<LinkageError> {
++            errorCallback.tryCatch(block = { throw Exception() }, onSuccess = {})
++        }
++    }
++
++    @Test
++    fun rethrows_WHEN_reaktiveUncaughtErrorHandler_thrown_VirtualMachineError() {
++        reaktiveUncaughtErrorHandler = { throw MyVirtualMachineError() }
++        val errorCallback = TestErrorCallback { throw Exception() }
++
++        assertFailsWith<MyVirtualMachineError> {
++            errorCallback.tryCatch(block = { throw Exception() }, onSuccess = {})
++        }
++    }
++
++    @Test
++    fun rethrows_WHEN_reaktiveUncaughtErrorHandler_thrown_ThreadDeath() {
++        reaktiveUncaughtErrorHandler = { throw ThreadDeath() }
++        val errorCallback = TestErrorCallback { throw Exception() }
++
++        assertFailsWith<ThreadDeath> {
++            errorCallback.tryCatch(block = { throw Exception() }, onSuccess = {})
++        }
++    }
++
++    @Test
++    fun rethrows_WHEN_reaktiveUncaughtErrorHandler_thrown_LinkageError() {
++        reaktiveUncaughtErrorHandler = { throw LinkageError() }
++        val errorCallback = TestErrorCallback { throw Exception() }
++
++        assertFailsWith<LinkageError> {
++            errorCallback.tryCatch(block = { throw Exception() }, onSuccess = {})
++        }
++    }
++}
+

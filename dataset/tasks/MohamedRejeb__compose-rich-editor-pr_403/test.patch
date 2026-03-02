@@ -1,0 +1,100 @@
+diff --git a/richeditor-compose/src/commonTest/kotlin/com.mohamedrejeb.richeditor/model/RichTextStateTest.kt b/richeditor-compose/src/commonTest/kotlin/com.mohamedrejeb.richeditor/model/RichTextStateTest.kt
+index d9b5fd0..95e1da0 100644
+--- a/richeditor-compose/src/commonTest/kotlin/com.mohamedrejeb.richeditor/model/RichTextStateTest.kt
++++ b/richeditor-compose/src/commonTest/kotlin/com.mohamedrejeb.richeditor/model/RichTextStateTest.kt
+@@ -943,6 +943,51 @@ class RichTextStateTest {
+         assertEquals(TextRange(0), richTextState.selection)
+     }
+ 
++    @Test
++    fun testRemoveTextRange2() {
++        val richTextState = RichTextState(
++            initialRichParagraphList = listOf(
++                RichParagraph(
++                    key = 1,
++                ).also {
++                    it.children.add(
++                        RichSpan(
++                            text = "Hello World!",
++                            paragraph = it,
++                        ),
++                    )
++                },
++                RichParagraph(
++                    key = 2,
++                ).also {
++                    it.children.add(
++                        RichSpan(
++                            text = "Rich Editor",
++                            paragraph = it,
++                        ),
++                    )
++                }
++            )
++        )
++
++        richTextState.selection = TextRange(richTextState.textFieldValue.text.length)
++
++        richTextState.richParagraphList.forEachIndexed { index, paragraph ->
++            println("Paragraph $index: $paragraph")
++        }
++
++        // Remove the text range
++        richTextState.removeTextRange(TextRange(0, 5))
++        println("---- AFTER ----")
++
++        richTextState.richParagraphList.forEachIndexed { index, paragraph ->
++            println("Paragraph $index: $paragraph")
++        }
++
++        assertEquals(" World!\nRich Editor", richTextState.toText())
++        assertEquals(TextRange(0), richTextState.selection)
++    }
++
+     @Test
+     fun testRemoveSelectedText() {
+         val richTextState = RichTextState(
+@@ -1045,6 +1090,42 @@ class RichTextStateTest {
+         assertEquals(TextRange(2), richTextState.selection)
+     }
+ 
++    @Test
++    fun testReplaceTextRange2() {
++        val richTextState = RichTextState(
++            initialRichParagraphList = listOf(
++                RichParagraph(
++                    key = 1,
++                ).also {
++                    it.children.add(
++                        RichSpan(
++                            text = "Hello World!",
++                            paragraph = it,
++                        ),
++                    )
++                },
++                RichParagraph(
++                    key = 2,
++                ).also {
++                    it.children.add(
++                        RichSpan(
++                            text = "Rich Editor",
++                            paragraph = it,
++                        ),
++                    )
++                }
++            )
++        )
++
++        richTextState.selection = TextRange(richTextState.textFieldValue.text.length)
++
++        // Replace the text range
++        richTextState.replaceTextRange(TextRange(0, 5), "Hi")
++
++        assertEquals("Hi World!\nRich Editor", richTextState.toText())
++        assertEquals(TextRange(2), richTextState.selection)
++    }
++
+     @Test
+     fun testReplaceSelectedText() {
+         val richTextState = RichTextState(
+

@@ -1,0 +1,56 @@
+diff --git a/app/src/main/java/com/keylesspalace/tusky/util/LinkHelper.kt b/app/src/main/java/com/keylesspalace/tusky/util/LinkHelper.kt
+index ed790de3d..7d83857c3 100644
+--- a/app/src/main/java/com/keylesspalace/tusky/util/LinkHelper.kt
++++ b/app/src/main/java/com/keylesspalace/tusky/util/LinkHelper.kt
+@@ -115,29 +115,28 @@ fun markupHiddenUrls(view: TextView, content: CharSequence): SpannableStringBuil
+     for (span in obscuredLinkSpans) {
+         val start = spannableContent.getSpanStart(span)
+         val end = spannableContent.getSpanEnd(span)
+-        val originalText = spannableContent.subSequence(start, end)
+-        val replacementText = view.context.getString(
++        val additionalText = " " + view.context.getString(
+             R.string.url_domain_notifier,
+-            originalText,
+             getDomain(span.url)
+         )
+-        spannableContent.replace(
+-            start,
++        spannableContent.insert(
+             end,
+-            replacementText
+-        ) // this also updates the span locations
++            additionalText
++        )
++        // reinsert the span so it covers the original and the additional text
++        spannableContent.setSpan(span, start, end + additionalText.length, 0)
+ 
+         val linkDrawable = AppCompatResources.getDrawable(view.context, R.drawable.ic_link)!!
+         // ImageSpan does not always align the icon correctly in the line, let's use our custom emoji span for this
+         val linkDrawableSpan = EmojiSpan(view)
+         linkDrawableSpan.imageDrawable = linkDrawable
+ 
+-        val placeholderIndex = originalText.length + 2
++        val placeholderIndex = end + 2
+ 
+         spannableContent.setSpan(
+             linkDrawableSpan,
+-            start + placeholderIndex,
+-            start + placeholderIndex + "🔗".length,
++            placeholderIndex,
++            placeholderIndex + "🔗".length,
+             0
+         )
+     }
+diff --git a/app/src/main/res/values/donottranslate.xml b/app/src/main/res/values/donottranslate.xml
+index 3484db0ca..17dc3c9d7 100644
+--- a/app/src/main/res/values/donottranslate.xml
++++ b/app/src/main/res/values/donottranslate.xml
+@@ -265,6 +265,6 @@
+         <item>NEWEST_FIRST</item>
+     </string-array>
+ 
+-    <string name="url_domain_notifier" translatable="false">%1$s (🔗 %2$s)</string>
++    <string name="url_domain_notifier" translatable="false">(🔗 %1$s)</string>
+ 
+ </resources>
+

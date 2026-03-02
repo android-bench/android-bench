@@ -1,0 +1,25 @@
+diff --git a/legacy/ui/legacy/src/test/java/com/fsck/k9/view/UserInputEmailAddressParserTest.kt b/legacy/ui/legacy/src/test/java/com/fsck/k9/view/UserInputEmailAddressParserTest.kt
+index f1ecb2d605..7fb5e394dd 100644
+--- a/legacy/ui/legacy/src/test/java/com/fsck/k9/view/UserInputEmailAddressParserTest.kt
++++ b/legacy/ui/legacy/src/test/java/com/fsck/k9/view/UserInputEmailAddressParserTest.kt
+@@ -150,4 +150,19 @@ class UserInputEmailAddressParserTest {
+ 
+         assertThat(addresses).containsExactly(Address("user@domain.example", "Firstname \"Nickname\" LastName"))
+     }
++
++    // for invalid email addresses
++    @Test
++    fun `address with invalid ending character`() {
++        val addresses = parser.parse("user@domain.example/")
++
++        assertThat(addresses).isEmpty()
++    }
++
++    @Test
++    fun `address with invalid character in domain part`() {
++        val addresses = parser.parse("user@domain/example")
++
++        assertThat(addresses).isEmpty()
++    }
+ }
+

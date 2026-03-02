@@ -1,0 +1,42 @@
+diff --git a/libraries/interop-ribs/src/androidTest/kotlin/com/bumble/appyx/interop/ribs/InteropNodeImplTest.kt b/libraries/interop-ribs/src/androidTest/kotlin/com/bumble/appyx/interop/ribs/InteropNodeImplTest.kt
+index ae855bc8e..fa794c802 100644
+--- a/libraries/interop-ribs/src/androidTest/kotlin/com/bumble/appyx/interop/ribs/InteropNodeImplTest.kt
++++ b/libraries/interop-ribs/src/androidTest/kotlin/com/bumble/appyx/interop/ribs/InteropNodeImplTest.kt
+@@ -32,4 +32,17 @@ class InteropNodeImplTest {
+         rule.onNodeWithTag(oldChild).assertExists()
+     }
+ 
++    @Test
++    fun appyx_up_navigation_is_propagated_to_ribs() {
++        var oldChild = ""
++        rule.activityRule.scenario.onActivity {
++            oldChild = it.ribsNode.current()
++            it.ribsNode.push()
++            it.ribsNode.navigateUpFromActiveAppyxChild()
++        }
++
++        // up navigation propagated to RIBs and it pops backstack
++        rule.onNodeWithTag(oldChild).assertExists()
++    }
++
+ }
+diff --git a/libraries/interop-ribs/src/androidTest/kotlin/com/bumble/appyx/interop/ribs/RibsNode.kt b/libraries/interop-ribs/src/androidTest/kotlin/com/bumble/appyx/interop/ribs/RibsNode.kt
+index b16a61fd1..5f5c8ef0b 100644
+--- a/libraries/interop-ribs/src/androidTest/kotlin/com/bumble/appyx/interop/ribs/RibsNode.kt
++++ b/libraries/interop-ribs/src/androidTest/kotlin/com/bumble/appyx/interop/ribs/RibsNode.kt
+@@ -48,6 +48,14 @@ class RibsNode(
+         return id
+     }
+ 
++    fun navigateUpFromActiveAppyxChild() {
++        children
++            .find { it.isActive }
++            // use Appyx node here, not RIBs!
++            ?.let { (it as? InteropNode<AppyxNode>)?.appyxNode }
++            ?.navigateUp() ?: error("No active child")
++    }
++
+     class View(
+         androidView: ViewGroup,
+         lifecycle: Lifecycle,
+

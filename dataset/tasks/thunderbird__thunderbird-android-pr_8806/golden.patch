@@ -1,0 +1,69 @@
+diff --git a/core/ui/compose/designsystem/src/main/kotlin/app/k9mail/core/ui/compose/designsystem/atom/text/TextLabelLarge.kt b/core/ui/compose/designsystem/src/main/kotlin/app/k9mail/core/ui/compose/designsystem/atom/text/TextLabelLarge.kt
+index 2409e9e0d1..6297717869 100644
+--- a/core/ui/compose/designsystem/src/main/kotlin/app/k9mail/core/ui/compose/designsystem/atom/text/TextLabelLarge.kt
++++ b/core/ui/compose/designsystem/src/main/kotlin/app/k9mail/core/ui/compose/designsystem/atom/text/TextLabelLarge.kt
+@@ -5,6 +5,7 @@ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.graphics.Color
+ import androidx.compose.ui.text.AnnotatedString
+ import androidx.compose.ui.text.style.TextAlign
++import androidx.compose.ui.text.style.TextOverflow
+ import app.k9mail.core.ui.compose.theme2.MainTheme
+ import androidx.compose.material3.Text as Material3Text
+ 
+@@ -14,12 +15,16 @@ fun TextLabelLarge(
+     modifier: Modifier = Modifier,
+     color: Color = Color.Unspecified,
+     textAlign: TextAlign? = null,
++    overflow: TextOverflow = TextOverflow.Ellipsis,
++    maxLines: Int = Int.MAX_VALUE,
+ ) {
+     Material3Text(
+         text = text,
+         modifier = modifier,
+         color = color,
+         textAlign = textAlign,
++        maxLines = maxLines,
++        overflow = overflow,
+         style = MainTheme.typography.labelLarge,
+     )
+ }
+@@ -30,12 +35,16 @@ fun TextLabelLarge(
+     modifier: Modifier = Modifier,
+     color: Color = Color.Unspecified,
+     textAlign: TextAlign? = null,
++    overflow: TextOverflow = TextOverflow.Ellipsis,
++    maxLines: Int = Int.MAX_VALUE,
+ ) {
+     Material3Text(
+         text = text,
+         modifier = modifier,
+         color = color,
+         textAlign = textAlign,
++        maxLines = maxLines,
++        overflow = overflow,
+         style = MainTheme.typography.labelLarge,
+     )
+ }
+diff --git a/core/ui/compose/designsystem/src/main/kotlin/app/k9mail/core/ui/compose/designsystem/organism/drawer/NavigationDrawerItem.kt b/core/ui/compose/designsystem/src/main/kotlin/app/k9mail/core/ui/compose/designsystem/organism/drawer/NavigationDrawerItem.kt
+index 6ae2260914..3d2b1788fc 100644
+--- a/core/ui/compose/designsystem/src/main/kotlin/app/k9mail/core/ui/compose/designsystem/organism/drawer/NavigationDrawerItem.kt
++++ b/core/ui/compose/designsystem/src/main/kotlin/app/k9mail/core/ui/compose/designsystem/organism/drawer/NavigationDrawerItem.kt
+@@ -18,7 +18,7 @@ fun NavigationDrawerItem(
+     badge: (@Composable () -> Unit)? = null,
+ ) {
+     Material3NavigationDrawerItem(
+-        label = { TextLabelLarge(text = label) },
++        label = { TextLabelLarge(text = label, maxLines = 2) },
+         selected = selected,
+         onClick = onClick,
+         modifier = Modifier
+@@ -39,7 +39,7 @@ fun NavigationDrawerItem(
+     badge: (@Composable () -> Unit)? = null,
+ ) {
+     Material3NavigationDrawerItem(
+-        label = { TextLabelLarge(text = label) },
++        label = { TextLabelLarge(text = label, maxLines = 2) },
+         selected = selected,
+         onClick = onClick,
+         modifier = Modifier
+

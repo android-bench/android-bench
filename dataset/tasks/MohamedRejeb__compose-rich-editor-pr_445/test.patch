@@ -1,0 +1,31 @@
+diff --git a/richeditor-compose/src/commonTest/kotlin/com.mohamedrejeb.richeditor/parser/markdown/RichTextStateMarkdownParserEncodeTest.kt b/richeditor-compose/src/commonTest/kotlin/com.mohamedrejeb.richeditor/parser/markdown/RichTextStateMarkdownParserEncodeTest.kt
+index e5d5024..cc6d7a4 100644
+--- a/richeditor-compose/src/commonTest/kotlin/com.mohamedrejeb.richeditor/parser/markdown/RichTextStateMarkdownParserEncodeTest.kt
++++ b/richeditor-compose/src/commonTest/kotlin/com.mohamedrejeb.richeditor/parser/markdown/RichTextStateMarkdownParserEncodeTest.kt
+@@ -427,4 +427,24 @@ class RichTextStateMarkdownParserEncodeTest {
+         assertEquals("Prompt\nEmphasis", state.toText())
+     }
+ 
++    @Test
++    fun testEncodeWithLeadingSpaces() {
++        val markdown = """First line
++            
++    indented line"""
++
++        val state = RichTextStateMarkdownParser.encode(markdown)
++
++        val parsedString = state.toText()
++
++        assertEquals(
++            expected = """
++                First line
++                
++                indented line
++            """.trimIndent(),
++            actual = parsedString
++        )
++    }
++
+ }
+\ No newline at end of file
+

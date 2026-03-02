@@ -1,0 +1,321 @@
+diff --git a/pager/src/androidTest/java/com/google/accompanist/pager/HorizontalPagerTest.kt b/pager/src/androidTest/java/com/google/accompanist/pager/HorizontalPagerTest.kt
+index a43c6fa4..d9d0469a 100644
+--- a/pager/src/androidTest/java/com/google/accompanist/pager/HorizontalPagerTest.kt
++++ b/pager/src/androidTest/java/com/google/accompanist/pager/HorizontalPagerTest.kt
+@@ -52,49 +52,52 @@ class HorizontalPagerTest(
+     override val offscreenLimit: Int,
+     private val layoutDirection: LayoutDirection,
+     private val reverseLayout: Boolean,
++    override val infiniteLoop: Boolean,
+ ) : PagerTest() {
+     companion object {
+         @JvmStatic
+         @Parameterized.Parameters
+-        fun data(): Collection<Array<Any>> = listOf(
++        fun data(): Collection<Array<Any>> = dataset(false) + dataset(true)
++
++        private fun dataset(looping: Boolean): Collection<Array<Any>> = listOf(
+             // itemWidthFraction, horizontalAlignment, itemSpacing,
+-            // offscreenLimit, layoutDirection, reverseLayout
++            // offscreenLimit, layoutDirection, reverseLayout, infiniteLoop
+
+             // Test typical full-width items
+-            arrayOf(1f, Alignment.Start, 0, 2, LayoutDirection.Ltr, false),
+-            arrayOf(1f, Alignment.CenterHorizontally, 0, 2, LayoutDirection.Ltr, false),
+-            arrayOf(1f, Alignment.End, 0, 2, LayoutDirection.Ltr, false),
+-            arrayOf(1f, Alignment.Start, 0, 2, LayoutDirection.Rtl, false),
+-            arrayOf(1f, Alignment.CenterHorizontally, 0, 2, LayoutDirection.Rtl, false),
+-            arrayOf(1f, Alignment.End, 0, 2, LayoutDirection.Rtl, false),
++            arrayOf(1f, Alignment.Start, 0, 2, LayoutDirection.Ltr, false, looping),
++            arrayOf(1f, Alignment.CenterHorizontally, 0, 2, LayoutDirection.Ltr, false, looping),
++            arrayOf(1f, Alignment.End, 0, 2, LayoutDirection.Ltr, false, looping),
++            arrayOf(1f, Alignment.Start, 0, 2, LayoutDirection.Rtl, false, looping),
++            arrayOf(1f, Alignment.CenterHorizontally, 0, 2, LayoutDirection.Rtl, false, looping),
++            arrayOf(1f, Alignment.End, 0, 2, LayoutDirection.Rtl, false, looping),
+
+             // Full-width items with item spacing
+-            arrayOf(1f, Alignment.Start, 4, 2, LayoutDirection.Ltr, false),
+-            arrayOf(1f, Alignment.CenterHorizontally, 4, 2, LayoutDirection.Ltr, false),
+-            arrayOf(1f, Alignment.End, 4, 2, LayoutDirection.Ltr, false),
+-            arrayOf(1f, Alignment.Start, 4, 2, LayoutDirection.Rtl, false),
+-            arrayOf(1f, Alignment.CenterHorizontally, 4, 2, LayoutDirection.Rtl, false),
+-            arrayOf(1f, Alignment.End, 4, 2, LayoutDirection.Rtl, false),
++            arrayOf(1f, Alignment.Start, 4, 2, LayoutDirection.Ltr, false, looping),
++            arrayOf(1f, Alignment.CenterHorizontally, 4, 2, LayoutDirection.Ltr, false, looping),
++            arrayOf(1f, Alignment.End, 4, 2, LayoutDirection.Ltr, false, looping),
++            arrayOf(1f, Alignment.Start, 4, 2, LayoutDirection.Rtl, false, looping),
++            arrayOf(1f, Alignment.CenterHorizontally, 4, 2, LayoutDirection.Rtl, false, looping),
++            arrayOf(1f, Alignment.End, 4, 2, LayoutDirection.Rtl, false, looping),
+
+             // Full-width items with reverseLayout = true
+-            arrayOf(1f, Alignment.Start, 0, 2, LayoutDirection.Ltr, true),
+-            arrayOf(1f, Alignment.CenterHorizontally, 0, 2, LayoutDirection.Ltr, true),
+-            arrayOf(1f, Alignment.End, 0, 2, LayoutDirection.Ltr, true),
+-            arrayOf(1f, Alignment.Start, 0, 2, LayoutDirection.Rtl, true),
+-            arrayOf(1f, Alignment.CenterHorizontally, 0, 2, LayoutDirection.Rtl, true),
+-            arrayOf(1f, Alignment.End, 0, 2, LayoutDirection.Rtl, true),
++            arrayOf(1f, Alignment.Start, 0, 2, LayoutDirection.Ltr, true, looping),
++            arrayOf(1f, Alignment.CenterHorizontally, 0, 2, LayoutDirection.Ltr, true, looping),
++            arrayOf(1f, Alignment.End, 0, 2, LayoutDirection.Ltr, true, looping),
++            arrayOf(1f, Alignment.Start, 0, 2, LayoutDirection.Rtl, true, looping),
++            arrayOf(1f, Alignment.CenterHorizontally, 0, 2, LayoutDirection.Rtl, true, looping),
++            arrayOf(1f, Alignment.End, 0, 2, LayoutDirection.Rtl, true, looping),
+
+             // Test an increased offscreenLimit
+-            arrayOf(1f, Alignment.CenterHorizontally, 0, 4, LayoutDirection.Ltr, false),
+-            arrayOf(1f, Alignment.CenterHorizontally, 0, 4, LayoutDirection.Rtl, false),
++            arrayOf(1f, Alignment.CenterHorizontally, 0, 4, LayoutDirection.Ltr, false, looping),
++            arrayOf(1f, Alignment.CenterHorizontally, 0, 4, LayoutDirection.Rtl, false, looping),
+
+             // Test items with 80% widths
+-            arrayOf(0.8f, Alignment.Start, 0, 2, LayoutDirection.Ltr, false),
+-            arrayOf(0.8f, Alignment.CenterHorizontally, 0, 2, LayoutDirection.Ltr, false),
+-            arrayOf(0.8f, Alignment.End, 0, 2, LayoutDirection.Ltr, false),
+-            arrayOf(0.8f, Alignment.Start, 0, 2, LayoutDirection.Rtl, false),
+-            arrayOf(0.8f, Alignment.CenterHorizontally, 0, 2, LayoutDirection.Rtl, false),
+-            arrayOf(0.8f, Alignment.End, 0, 2, LayoutDirection.Rtl, false),
++            arrayOf(0.8f, Alignment.Start, 0, 2, LayoutDirection.Ltr, false, looping),
++            arrayOf(0.8f, Alignment.CenterHorizontally, 0, 2, LayoutDirection.Ltr, false, looping),
++            arrayOf(0.8f, Alignment.End, 0, 2, LayoutDirection.Ltr, false, looping),
++            arrayOf(0.8f, Alignment.Start, 0, 2, LayoutDirection.Rtl, false, looping),
++            arrayOf(0.8f, Alignment.CenterHorizontally, 0, 2, LayoutDirection.Rtl, false, looping),
++            arrayOf(0.8f, Alignment.End, 0, 2, LayoutDirection.Rtl, false, looping),
+         )
+     }
+
+@@ -158,7 +161,8 @@ class HorizontalPagerTest(
+         val pagerState = PagerState(
+             pageCount = pageCount,
+             offscreenLimit = offscreenLimit,
+-        )
++            infiniteLoop = infiniteLoop,
++        ).apply { testing = true }
+         composeTestRule.setContent(layoutDirection) {
+             applierScope = rememberCoroutineScope()
+
+diff --git a/pager/src/androidTest/java/com/google/accompanist/pager/PagerTest.kt b/pager/src/androidTest/java/com/google/accompanist/pager/PagerTest.kt
+index 9816abfa..62fd079a 100644
+--- a/pager/src/androidTest/java/com/google/accompanist/pager/PagerTest.kt
++++ b/pager/src/androidTest/java/com/google/accompanist/pager/PagerTest.kt
+@@ -43,6 +43,7 @@ private const val SlowVelocity = 300f
+ @OptIn(ExperimentalPagerApi::class) // Pager is currently experimental
+ abstract class PagerTest {
+     protected abstract val offscreenLimit: Int
++    protected abstract val infiniteLoop: Boolean
+
+     @get:Rule
+     val composeTestRule = createComposeRule()
+@@ -63,23 +64,43 @@ abstract class PagerTest {
+     fun swipe() {
+         val pagerState = setPagerContent(pageCount = 10)
+
+-        // First test swiping towards end, from 0 to -1, which should no-op
+-        composeTestRule.onNodeWithTag("0")
+-            .swipeAcrossCenter(
+-                distancePercentage = LongSwipeDistance,
+-                velocity = MediumVelocity,
+-            )
+-        // ...and assert that nothing happened
+-        assertPagerLayout(0, pagerState.pageCount)
+-
+-        // Now swipe towards start, from page 0 to page 1
+-        composeTestRule.onNodeWithTag("0")
+-            .swipeAcrossCenter(
+-                distancePercentage = -LongSwipeDistance,
+-                velocity = MediumVelocity,
+-            )
+-        // ...and assert that we now laid out from page 1
+-        assertPagerLayout(1, pagerState.pageCount)
++        if (infiniteLoop) {
++            // First test swiping towards end, from 0 to -1
++            composeTestRule.onNodeWithTag("0")
++                .swipeAcrossCenter(
++                    distancePercentage = LongSwipeDistance,
++                    velocity = MediumVelocity,
++                )
++            // ...and assert that we now laid out from page 9
++            assertPagerLayout(9, pagerState.pageCount)
++
++            // Now swipe towards start, from page 9 to page 0
++            composeTestRule.onNodeWithTag("9")
++                .swipeAcrossCenter(
++                    distancePercentage = -LongSwipeDistance,
++                    velocity = MediumVelocity,
++                )
++            // ...and assert that we now laid out from page 0
++            assertPagerLayout(0, pagerState.pageCount)
++        } else {
++            // First test swiping towards end, from 0 to -1, which should no-op
++            composeTestRule.onNodeWithTag("0")
++                .swipeAcrossCenter(
++                    distancePercentage = LongSwipeDistance,
++                    velocity = MediumVelocity,
++                )
++            // ...and assert that nothing happened
++            assertPagerLayout(0, pagerState.pageCount)
++
++            // Now swipe towards start, from page 0 to page 1
++            composeTestRule.onNodeWithTag("0")
++                .swipeAcrossCenter(
++                    distancePercentage = -LongSwipeDistance,
++                    velocity = MediumVelocity,
++                )
++            // ...and assert that we now laid out from page 1
++            assertPagerLayout(1, pagerState.pageCount)
++        }
+     }
+
+     @Test
+@@ -104,11 +125,25 @@ abstract class PagerTest {
+         assertThat(pagerState.currentPage).isEqualTo(3)
+         assertPagerLayout(3, pagerState.pageCount)
+
+-        // Swipe past the last item. We shouldn't move
+-        composeTestRule.onNodeWithTag("3").swipeAcrossCenter(-LongSwipeDistance)
+-        composeTestRule.waitForIdle()
+-        assertThat(pagerState.currentPage).isEqualTo(3)
+-        assertPagerLayout(3, pagerState.pageCount)
++        if (infiniteLoop) {
++            // Swipe past the last item to first item.
++            composeTestRule.onNodeWithTag("3").swipeAcrossCenter(-LongSwipeDistance)
++            composeTestRule.waitForIdle()
++            assertThat(pagerState.currentPage).isEqualTo(0)
++            assertPagerLayout(0, pagerState.pageCount)
++
++            // Swipe back to last item.
++            composeTestRule.onNodeWithTag("0").swipeAcrossCenter(LongSwipeDistance)
++            composeTestRule.waitForIdle()
++            assertThat(pagerState.currentPage).isEqualTo(3)
++            assertPagerLayout(3, pagerState.pageCount)
++        } else {
++            // Swipe past the last item. We shouldn't move
++            composeTestRule.onNodeWithTag("3").swipeAcrossCenter(-LongSwipeDistance)
++            composeTestRule.waitForIdle()
++            assertThat(pagerState.currentPage).isEqualTo(3)
++            assertPagerLayout(3, pagerState.pageCount)
++        }
+
+         // Swipe back from 3 -> 2
+         composeTestRule.onNodeWithTag("3").swipeAcrossCenter(LongSwipeDistance)
+@@ -128,11 +163,25 @@ abstract class PagerTest {
+         assertThat(pagerState.currentPage).isEqualTo(0)
+         assertPagerLayout(0, pagerState.pageCount)
+
+-        // Swipe past the first item. We shouldn't move
+-        composeTestRule.onNodeWithTag("0").swipeAcrossCenter(LongSwipeDistance)
+-        composeTestRule.waitForIdle()
+-        assertThat(pagerState.currentPage).isEqualTo(0)
+-        assertPagerLayout(0, pagerState.pageCount)
++        if (infiniteLoop) {
++            // Swipe past the first item to last item.
++            composeTestRule.onNodeWithTag("0").swipeAcrossCenter(LongSwipeDistance)
++            composeTestRule.waitForIdle()
++            assertThat(pagerState.currentPage).isEqualTo(3)
++            assertPagerLayout(3, pagerState.pageCount)
++
++            // Swipe back to first item.
++            composeTestRule.onNodeWithTag("3").swipeAcrossCenter(-LongSwipeDistance)
++            composeTestRule.waitForIdle()
++            assertThat(pagerState.currentPage).isEqualTo(0)
++            assertPagerLayout(0, pagerState.pageCount)
++        } else {
++            // Swipe past the first item. We shouldn't move
++            composeTestRule.onNodeWithTag("0").swipeAcrossCenter(LongSwipeDistance)
++            composeTestRule.waitForIdle()
++            assertThat(pagerState.currentPage).isEqualTo(0)
++            assertPagerLayout(0, pagerState.pageCount)
++        }
+     }
+
+     @Test
+@@ -258,12 +307,17 @@ abstract class PagerTest {
+     private fun assertPagerLayout(currentPage: Int, pageCount: Int) {
+         // The pages which are expected to be laid out, using the given current page,
+         // offscreenLimit and page limit
+-        val expectedLaidOutPages = (currentPage - offscreenLimit)..(currentPage + offscreenLimit)
+-            .coerceIn(0, pageCount - 1)
++        val pageRange = (currentPage - offscreenLimit)..(currentPage + offscreenLimit)
++        val expectedLaidOutPages = if (infiniteLoop) {
++            pageRange.toList()
++        } else {
++            pageRange.filter { it in 0 until pageCount }.toList()
++        }
+
+         // Go through all of the pages, and assert the expected layout state
+-        (0 until pageCount).forEach { page ->
+-            if (page in expectedLaidOutPages) {
++        (0 until pageCount).forEach { _page ->
++            val page = expectedLaidOutPages.find { it == _page }
++            if (page != null) {
+                 // If this page is expected to be laid out, assert that it exists and is
+                 // laid out in the correct position
+                 composeTestRule.onNodeWithTag(page.toString())
+@@ -275,7 +329,7 @@ abstract class PagerTest {
+                     .assertWhen(page != currentPage) { assertIsNotSelected() }
+             } else {
+                 // If this page is not expected to be laid out, assert that it doesn't exist
+-                composeTestRule.onNodeWithTag(page.toString()).assertDoesNotExist()
++                composeTestRule.onNodeWithTag(_page.toString()).assertDoesNotExist()
+             }
+         }
+     }
+diff --git a/pager/src/androidTest/java/com/google/accompanist/pager/VerticalPagerTest.kt b/pager/src/androidTest/java/com/google/accompanist/pager/VerticalPagerTest.kt
+index 832346ff..777628cc 100644
+--- a/pager/src/androidTest/java/com/google/accompanist/pager/VerticalPagerTest.kt
++++ b/pager/src/androidTest/java/com/google/accompanist/pager/VerticalPagerTest.kt
+@@ -51,30 +51,33 @@ class VerticalPagerTest(
+     private val itemSpacingDp: Int,
+     override val offscreenLimit: Int,
+     private val reverseLayout: Boolean,
++    override val infiniteLoop: Boolean,
+ ) : PagerTest() {
+     companion object {
+         @JvmStatic
+         @Parameterized.Parameters
+-        fun data(): Collection<Array<Any>> = listOf(
+-            // verticalAlignment, itemSpacingDp, offscreenLimit, reverseLayout
++        fun data(): Collection<Array<Any>> = dataset(false) + dataset(true)
++
++        private fun dataset(looping: Boolean): Collection<Array<Any>> = listOf(
++            // verticalAlignment, itemSpacingDp, offscreenLimit, reverseLayout, infiniteLoop
+
+             // Test typical full-width items
+-            arrayOf(Alignment.CenterVertically, 0, 2, false),
+-            arrayOf(Alignment.Top, 0, 2, false),
+-            arrayOf(Alignment.Bottom, 0, 2, false),
++            arrayOf(Alignment.CenterVertically, 0, 2, false, looping),
++            arrayOf(Alignment.Top, 0, 2, false, looping),
++            arrayOf(Alignment.Bottom, 0, 2, false, looping),
+
+             // Full-width items with spacing
+-            arrayOf(Alignment.CenterVertically, 4, 2, false),
+-            arrayOf(Alignment.Top, 4, 2, false),
+-            arrayOf(Alignment.Bottom, 4, 2, false),
++            arrayOf(Alignment.CenterVertically, 4, 2, false, looping),
++            arrayOf(Alignment.Top, 4, 2, false, looping),
++            arrayOf(Alignment.Bottom, 4, 2, false, looping),
+
+             // Full-width items with reverseLayout = true
+-            arrayOf(Alignment.CenterVertically, 0, 2, true),
+-            arrayOf(Alignment.Top, 0, 2, true),
+-            arrayOf(Alignment.Bottom, 0, 2, true),
++            arrayOf(Alignment.CenterVertically, 0, 2, true, looping),
++            arrayOf(Alignment.Top, 0, 2, true, looping),
++            arrayOf(Alignment.Bottom, 0, 2, true, looping),
+
+             // Test an increased offscreenLimit
+-            arrayOf(Alignment.CenterVertically, 0, 4, false),
++            arrayOf(Alignment.CenterVertically, 0, 4, false, looping),
+         )
+     }
+
+@@ -128,7 +131,8 @@ class VerticalPagerTest(
+         val pagerState = PagerState(
+             pageCount = pageCount,
+             offscreenLimit = offscreenLimit,
+-        )
++            infiniteLoop = infiniteLoop,
++        ).apply { testing = true }
+         // Stick to LTR for vertical tests
+         composeTestRule.setContent(LayoutDirection.Ltr) {
+             applierScope = rememberCoroutineScope()

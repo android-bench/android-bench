@@ -1,0 +1,413 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index a0307d0e0..570cd9cc0 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -8,6 +8,7 @@
+ 
+ ### Fixes
+ 
++- Avoid StrictMode warnings ([#4724](https://github.com/getsentry/sentry-java/pull/4724))
+ - Use logger from options for JVM profiler ([#4771](https://github.com/getsentry/sentry-java/pull/4771))
+ - Session Replay: Avoid deadlock when pausing replay if no connection ([#4788](https://github.com/getsentry/sentry-java/pull/4788))
+ 
+diff --git a/sentry-android-core/src/main/java/io/sentry/android/core/AndroidOptionsInitializer.java b/sentry-android-core/src/main/java/io/sentry/android/core/AndroidOptionsInitializer.java
+index 70c76c728..02006d092 100644
+--- a/sentry-android-core/src/main/java/io/sentry/android/core/AndroidOptionsInitializer.java
++++ b/sentry-android-core/src/main/java/io/sentry/android/core/AndroidOptionsInitializer.java
+@@ -30,6 +30,7 @@ import io.sentry.android.core.internal.gestures.AndroidViewGestureTargetLocator;
+ import io.sentry.android.core.internal.modules.AssetsModulesLoader;
+ import io.sentry.android.core.internal.util.AndroidConnectionStatusProvider;
+ import io.sentry.android.core.internal.util.AndroidCurrentDateProvider;
++import io.sentry.android.core.internal.util.AndroidRuntimeManager;
+ import io.sentry.android.core.internal.util.AndroidThreadChecker;
+ import io.sentry.android.core.internal.util.SentryFrameMetricsCollector;
+ import io.sentry.android.core.performance.AppStartMetrics;
+@@ -108,7 +109,7 @@ final class AndroidOptionsInitializer {
+       final @NotNull BuildInfoProvider buildInfoProvider) {
+     Objects.requireNonNull(context, "The context is required.");
+ 
+-    context = ContextUtils.getApplicationContext(context);
++    @NotNull final Context finalContext = ContextUtils.getApplicationContext(context);
+ 
+     Objects.requireNonNull(options, "The options object is required.");
+     Objects.requireNonNull(logger, "The ILogger object is required.");
+@@ -120,17 +121,22 @@ final class AndroidOptionsInitializer {
+     options.setDefaultScopeType(ScopeType.CURRENT);
+     options.setOpenTelemetryMode(SentryOpenTelemetryMode.OFF);
+     options.setDateProvider(new SentryAndroidDateProvider());
++    options.setRuntimeManager(new AndroidRuntimeManager());
+ 
+     // set a lower flush timeout on Android to avoid ANRs
+     options.setFlushTimeoutMillis(DEFAULT_FLUSH_TIMEOUT_MS);
+ 
+     options.setFrameMetricsCollector(
+-        new SentryFrameMetricsCollector(context, logger, buildInfoProvider));
++        new SentryFrameMetricsCollector(finalContext, logger, buildInfoProvider));
+ 
+-    ManifestMetadataReader.applyMetadata(context, options, buildInfoProvider);
+-    options.setCacheDirPath(getCacheDir(context).getAbsolutePath());
++    ManifestMetadataReader.applyMetadata(finalContext, options, buildInfoProvider);
+ 
+-    readDefaultOptionValues(options, context, buildInfoProvider);
++    options.setCacheDirPath(
++        options
++            .getRuntimeManager()
++            .runWithRelaxedPolicy(() -> getCacheDir(finalContext).getAbsolutePath()));
++
++    readDefaultOptionValues(options, finalContext, buildInfoProvider);
+     AppState.getInstance().registerLifecycleObserver(options);
+   }
+ 
+diff --git a/sentry-android-core/src/main/java/io/sentry/android/core/SentryPerformanceProvider.java b/sentry-android-core/src/main/java/io/sentry/android/core/SentryPerformanceProvider.java
+index 3c162aab1..12ec55f8e 100644
+--- a/sentry-android-core/src/main/java/io/sentry/android/core/SentryPerformanceProvider.java
++++ b/sentry-android-core/src/main/java/io/sentry/android/core/SentryPerformanceProvider.java
+@@ -20,10 +20,12 @@ import io.sentry.SentryLevel;
+ import io.sentry.SentryOptions;
+ import io.sentry.TracesSampler;
+ import io.sentry.TracesSamplingDecision;
++import io.sentry.android.core.internal.util.AndroidRuntimeManager;
+ import io.sentry.android.core.internal.util.SentryFrameMetricsCollector;
+ import io.sentry.android.core.performance.AppStartMetrics;
+ import io.sentry.android.core.performance.TimeSpan;
+ import io.sentry.util.AutoClosableReentrantLock;
++import io.sentry.util.runtime.IRuntimeManager;
+ import java.io.BufferedReader;
+ import java.io.File;
+ import java.io.FileInputStream;
+@@ -108,7 +110,9 @@ public final class SentryPerformanceProvider extends EmptySecureContentProvider
+       return;
+     }
+ 
+-    final @NotNull File cacheDir = AndroidOptionsInitializer.getCacheDir(context);
++    final @NotNull IRuntimeManager runtimeManager = new AndroidRuntimeManager();
++    final @NotNull File cacheDir =
++        runtimeManager.runWithRelaxedPolicy(() -> AndroidOptionsInitializer.getCacheDir(context));
+     final @NotNull File configFile = new File(cacheDir, APP_START_PROFILING_CONFIG_FILE_NAME);
+ 
+     // No config exists: app start profiling is not enabled
+diff --git a/sentry-android-core/src/main/java/io/sentry/android/core/cache/AndroidEnvelopeCache.java b/sentry-android-core/src/main/java/io/sentry/android/core/cache/AndroidEnvelopeCache.java
+index 2829abc50..af57727a8 100644
+--- a/sentry-android-core/src/main/java/io/sentry/android/core/cache/AndroidEnvelopeCache.java
++++ b/sentry-android-core/src/main/java/io/sentry/android/core/cache/AndroidEnvelopeCache.java
+@@ -19,6 +19,7 @@ import io.sentry.util.FileUtils;
+ import io.sentry.util.HintUtils;
+ import io.sentry.util.Objects;
+ import java.io.File;
++import java.io.FileNotFoundException;
+ import java.io.FileOutputStream;
+ import java.io.OutputStream;
+ import org.jetbrains.annotations.ApiStatus;
+@@ -157,18 +158,18 @@ public final class AndroidEnvelopeCache extends EnvelopeCache {
+ 
+     final File lastAnrMarker = new File(cacheDirPath, LAST_ANR_REPORT);
+     try {
+-      if (lastAnrMarker.exists() && lastAnrMarker.canRead()) {
+-        final String content = FileUtils.readText(lastAnrMarker);
+-        // we wrapped into try-catch already
+-        //noinspection ConstantConditions
+-        return content.equals("null") ? null : Long.parseLong(content.trim());
+-      } else {
++      final String content = FileUtils.readText(lastAnrMarker);
++      // we wrapped into try-catch already
++      //noinspection ConstantConditions
++      return content.equals("null") ? null : Long.parseLong(content.trim());
++    } catch (Throwable e) {
++      if (e instanceof FileNotFoundException) {
+         options
+             .getLogger()
+             .log(DEBUG, "Last ANR marker does not exist. %s.", lastAnrMarker.getAbsolutePath());
++      } else {
++        options.getLogger().log(ERROR, "Error reading last ANR marker", e);
+       }
+-    } catch (Throwable e) {
+-      options.getLogger().log(ERROR, "Error reading last ANR marker", e);
+     }
+     return null;
+   }
+diff --git a/sentry-android-core/src/main/java/io/sentry/android/core/internal/util/AndroidRuntimeManager.java b/sentry-android-core/src/main/java/io/sentry/android/core/internal/util/AndroidRuntimeManager.java
+new file mode 100644
+index 000000000..b24ac70b5
+--- /dev/null
++++ b/sentry-android-core/src/main/java/io/sentry/android/core/internal/util/AndroidRuntimeManager.java
+@@ -0,0 +1,23 @@
++package io.sentry.android.core.internal.util;
++
++import android.os.StrictMode;
++import io.sentry.util.runtime.IRuntimeManager;
++import org.jetbrains.annotations.ApiStatus;
++import org.jetbrains.annotations.NotNull;
++
++@ApiStatus.Internal
++public final class AndroidRuntimeManager implements IRuntimeManager {
++  @Override
++  public <T> T runWithRelaxedPolicy(final @NotNull IRuntimeManagerCallback<T> toRun) {
++    final @NotNull StrictMode.ThreadPolicy oldPolicy = StrictMode.getThreadPolicy();
++    final @NotNull StrictMode.VmPolicy oldVmPolicy = StrictMode.getVmPolicy();
++    StrictMode.setThreadPolicy(StrictMode.ThreadPolicy.LAX);
++    StrictMode.setVmPolicy(StrictMode.VmPolicy.LAX);
++    try {
++      return toRun.run();
++    } finally {
++      StrictMode.setThreadPolicy(oldPolicy);
++      StrictMode.setVmPolicy(oldVmPolicy);
++    }
++  }
++}
+diff --git a/sentry-android-core/src/main/java/io/sentry/android/core/internal/util/CpuInfoUtils.java b/sentry-android-core/src/main/java/io/sentry/android/core/internal/util/CpuInfoUtils.java
+index 019db99fc..c289a9c06 100644
+--- a/sentry-android-core/src/main/java/io/sentry/android/core/internal/util/CpuInfoUtils.java
++++ b/sentry-android-core/src/main/java/io/sentry/android/core/internal/util/CpuInfoUtils.java
+@@ -51,8 +51,6 @@ public final class CpuInfoUtils {
+         if (!cpuDir.getName().matches("cpu[0-9]+")) continue;
+         File cpuMaxFreqFile = new File(cpuDir, CPUINFO_MAX_FREQ_PATH);
+ 
+-        if (!cpuMaxFreqFile.exists() || !cpuMaxFreqFile.canRead()) continue;
+-
+         long khz;
+         try {
+           String content = FileUtils.readText(cpuMaxFreqFile);
+diff --git a/sentry/api/sentry.api b/sentry/api/sentry.api
+index 23b75e9aa..3964619e0 100644
+--- a/sentry/api/sentry.api
++++ b/sentry/api/sentry.api
+@@ -3394,6 +3394,7 @@ public class io/sentry/SentryOptions {
+ 	public fun getReadTimeoutMillis ()I
+ 	public fun getRelease ()Ljava/lang/String;
+ 	public fun getReplayController ()Lio/sentry/ReplayController;
++	public fun getRuntimeManager ()Lio/sentry/util/runtime/IRuntimeManager;
+ 	public fun getSampleRate ()Ljava/lang/Double;
+ 	public fun getScopeObservers ()Ljava/util/List;
+ 	public fun getSdkVersion ()Lio/sentry/protocol/SdkVersion;
+@@ -3539,6 +3540,7 @@ public class io/sentry/SentryOptions {
+ 	public fun setReadTimeoutMillis (I)V
+ 	public fun setRelease (Ljava/lang/String;)V
+ 	public fun setReplayController (Lio/sentry/ReplayController;)V
++	public fun setRuntimeManager (Lio/sentry/util/runtime/IRuntimeManager;)V
+ 	public fun setSampleRate (Ljava/lang/Double;)V
+ 	public fun setSdkVersion (Lio/sentry/protocol/SdkVersion;)V
+ 	public fun setSendClientReports (Z)V
+@@ -7293,6 +7295,19 @@ public final class io/sentry/util/UrlUtils$UrlDetails {
+ 	public fun getUrlOrFallback ()Ljava/lang/String;
+ }
+ 
++public abstract interface class io/sentry/util/runtime/IRuntimeManager {
++	public abstract fun runWithRelaxedPolicy (Lio/sentry/util/runtime/IRuntimeManager$IRuntimeManagerCallback;)Ljava/lang/Object;
++}
++
++public abstract interface class io/sentry/util/runtime/IRuntimeManager$IRuntimeManagerCallback {
++	public abstract fun run ()Ljava/lang/Object;
++}
++
++public final class io/sentry/util/runtime/NeutralRuntimeManager : io/sentry/util/runtime/IRuntimeManager {
++	public fun <init> ()V
++	public fun runWithRelaxedPolicy (Lio/sentry/util/runtime/IRuntimeManager$IRuntimeManagerCallback;)Ljava/lang/Object;
++}
++
+ public abstract interface class io/sentry/util/thread/IThreadChecker {
+ 	public abstract fun currentThreadSystemId ()J
+ 	public abstract fun getCurrentThreadName ()Ljava/lang/String;
+diff --git a/sentry/src/main/java/io/sentry/DirectoryProcessor.java b/sentry/src/main/java/io/sentry/DirectoryProcessor.java
+index a6bb258f3..1bc277b18 100644
+--- a/sentry/src/main/java/io/sentry/DirectoryProcessor.java
++++ b/sentry/src/main/java/io/sentry/DirectoryProcessor.java
+@@ -40,34 +40,22 @@ abstract class DirectoryProcessor {
+     try {
+       logger.log(SentryLevel.DEBUG, "Processing dir. %s", directory.getAbsolutePath());
+ 
+-      if (!directory.exists()) {
++      final File[] filteredListFiles = directory.listFiles((d, name) -> isRelevantFileName(name));
++      if (filteredListFiles == null) {
+         logger.log(
+-            SentryLevel.WARNING,
+-            "Directory '%s' doesn't exist. No cached events to send.",
++            SentryLevel.ERROR,
++            "Cache dir %s is null or is not a directory.",
+             directory.getAbsolutePath());
+         return;
+       }
+-      if (!directory.isDirectory()) {
+-        logger.log(
+-            SentryLevel.ERROR, "Cache dir %s is not a directory.", directory.getAbsolutePath());
+-        return;
+-      }
+-
+-      final File[] listFiles = directory.listFiles();
+-      if (listFiles == null) {
+-        logger.log(SentryLevel.ERROR, "Cache dir %s is null.", directory.getAbsolutePath());
+-        return;
+-      }
+-
+-      final File[] filteredListFiles = directory.listFiles((d, name) -> isRelevantFileName(name));
+ 
+       logger.log(
+           SentryLevel.DEBUG,
+           "Processing %d items from cache dir %s",
+-          filteredListFiles != null ? filteredListFiles.length : 0,
++          filteredListFiles.length,
+           directory.getAbsolutePath());
+ 
+-      for (File file : listFiles) {
++      for (File file : filteredListFiles) {
+         // it ignores .sentry-native database folder and new ones that might come up
+         if (!file.isFile()) {
+           logger.log(SentryLevel.DEBUG, "File %s is not a File.", file.getAbsolutePath());
+diff --git a/sentry/src/main/java/io/sentry/Sentry.java b/sentry/src/main/java/io/sentry/Sentry.java
+index 4aee71715..a28ee936e 100644
+--- a/sentry/src/main/java/io/sentry/Sentry.java
++++ b/sentry/src/main/java/io/sentry/Sentry.java
+@@ -580,7 +580,8 @@ public final class Sentry {
+     return true;
+   }
+ 
+-  @SuppressWarnings("FutureReturnValueIgnored")
++  // older AGP versions do not support method references
++  @SuppressWarnings({"FutureReturnValueIgnored", "Convert2MethodRef"})
+   private static void initConfigurations(final @NotNull SentryOptions options) {
+     final @NotNull ILogger logger = options.getLogger();
+     logger.log(SentryLevel.INFO, "Initializing SDK with DSN: '%s'", options.getDsn());
+@@ -592,7 +593,7 @@ public final class Sentry {
+     final String outboxPath = options.getOutboxPath();
+     if (outboxPath != null) {
+       final File outboxDir = new File(outboxPath);
+-      outboxDir.mkdirs();
++      options.getRuntimeManager().runWithRelaxedPolicy(() -> outboxDir.mkdirs());
+     } else {
+       logger.log(SentryLevel.INFO, "No outbox dir path is defined in options.");
+     }
+@@ -600,7 +601,7 @@ public final class Sentry {
+     final String cacheDirPath = options.getCacheDirPath();
+     if (cacheDirPath != null) {
+       final File cacheDir = new File(cacheDirPath);
+-      cacheDir.mkdirs();
++      options.getRuntimeManager().runWithRelaxedPolicy(() -> cacheDir.mkdirs());
+       final IEnvelopeCache envelopeCache = options.getEnvelopeDiskCache();
+       // only overwrite the cache impl if it's not already set
+       if (envelopeCache instanceof NoOpEnvelopeCache) {
+@@ -613,7 +614,7 @@ public final class Sentry {
+         && profilingTracesDirPath != null) {
+ 
+       final File profilingTracesDir = new File(profilingTracesDirPath);
+-      profilingTracesDir.mkdirs();
++      options.getRuntimeManager().runWithRelaxedPolicy(() -> profilingTracesDir.mkdirs());
+ 
+       try {
+         options
+diff --git a/sentry/src/main/java/io/sentry/SentryOptions.java b/sentry/src/main/java/io/sentry/SentryOptions.java
+index f868ecaca..3a81b268b 100644
+--- a/sentry/src/main/java/io/sentry/SentryOptions.java
++++ b/sentry/src/main/java/io/sentry/SentryOptions.java
+@@ -27,6 +27,8 @@ import io.sentry.util.LoadClass;
+ import io.sentry.util.Platform;
+ import io.sentry.util.SampleRateUtils;
+ import io.sentry.util.StringUtils;
++import io.sentry.util.runtime.IRuntimeManager;
++import io.sentry.util.runtime.NeutralRuntimeManager;
+ import io.sentry.util.thread.IThreadChecker;
+ import io.sentry.util.thread.NoOpThreadChecker;
+ import java.io.File;
+@@ -597,6 +599,9 @@ public class SentryOptions {
+ 
+   private @NotNull ISocketTagger socketTagger = NoOpSocketTagger.getInstance();
+ 
++  /** Runtime manager to manage runtime policies, like StrictMode on Android. */
++  private @NotNull IRuntimeManager runtimeManager = new NeutralRuntimeManager();
++
+   private @Nullable String profilingTracesDirPath;
+ 
+   /**
+@@ -3004,6 +3009,26 @@ public class SentryOptions {
+     this.socketTagger = socketTagger != null ? socketTagger : NoOpSocketTagger.getInstance();
+   }
+ 
++  /**
++   * Returns the IRuntimeManager
++   *
++   * @return the runtime manager
++   */
++  @ApiStatus.Internal
++  public @NotNull IRuntimeManager getRuntimeManager() {
++    return runtimeManager;
++  }
++
++  /**
++   * Sets the IRuntimeManager
++   *
++   * @param runtimeManager the runtime manager
++   */
++  @ApiStatus.Internal
++  public void setRuntimeManager(final @NotNull IRuntimeManager runtimeManager) {
++    this.runtimeManager = runtimeManager;
++  }
++
+   /**
+    * Load the lazy fields. Useful to load in the background, so that results are already cached. DO
+    * NOT CALL THIS METHOD ON THE MAIN THREAD.
+diff --git a/sentry/src/main/java/io/sentry/cache/EnvelopeCache.java b/sentry/src/main/java/io/sentry/cache/EnvelopeCache.java
+index d2a32d44c..893bef4ab 100644
+--- a/sentry/src/main/java/io/sentry/cache/EnvelopeCache.java
++++ b/sentry/src/main/java/io/sentry/cache/EnvelopeCache.java
+@@ -336,18 +336,17 @@ public class EnvelopeCache extends CacheStrategy implements IEnvelopeCache {
+     Objects.requireNonNull(envelope, "Envelope is required.");
+ 
+     final File envelopeFile = getEnvelopeFile(envelope);
+-    if (envelopeFile.exists()) {
++    if (envelopeFile.delete()) {
+       options
+           .getLogger()
+           .log(DEBUG, "Discarding envelope from cache: %s", envelopeFile.getAbsolutePath());
+-
+-      if (!envelopeFile.delete()) {
+-        options
+-            .getLogger()
+-            .log(ERROR, "Failed to delete envelope: %s", envelopeFile.getAbsolutePath());
+-      }
+     } else {
+-      options.getLogger().log(DEBUG, "Envelope was not cached: %s", envelopeFile.getAbsolutePath());
++      options
++          .getLogger()
++          .log(
++              DEBUG,
++              "Envelope was not cached or could not be deleted: %s",
++              envelopeFile.getAbsolutePath());
+     }
+   }
+ 
+diff --git a/sentry/src/main/java/io/sentry/util/runtime/IRuntimeManager.java b/sentry/src/main/java/io/sentry/util/runtime/IRuntimeManager.java
+new file mode 100644
+index 000000000..f6e27cce8
+--- /dev/null
++++ b/sentry/src/main/java/io/sentry/util/runtime/IRuntimeManager.java
+@@ -0,0 +1,13 @@
++package io.sentry.util.runtime;
++
++import org.jetbrains.annotations.ApiStatus;
++import org.jetbrains.annotations.NotNull;
++
++@ApiStatus.Internal
++public interface IRuntimeManager {
++  <T> T runWithRelaxedPolicy(final @NotNull IRuntimeManagerCallback<T> toRun);
++
++  interface IRuntimeManagerCallback<T> {
++    T run();
++  }
++}
+diff --git a/sentry/src/main/java/io/sentry/util/runtime/NeutralRuntimeManager.java b/sentry/src/main/java/io/sentry/util/runtime/NeutralRuntimeManager.java
+new file mode 100644
+index 000000000..a6112ff60
+--- /dev/null
++++ b/sentry/src/main/java/io/sentry/util/runtime/NeutralRuntimeManager.java
+@@ -0,0 +1,12 @@
++package io.sentry.util.runtime;
++
++import org.jetbrains.annotations.ApiStatus;
++import org.jetbrains.annotations.NotNull;
++
++@ApiStatus.Internal
++public final class NeutralRuntimeManager implements IRuntimeManager {
++  @Override
++  public <T> T runWithRelaxedPolicy(final @NotNull IRuntimeManagerCallback<T> toRun) {
++    return toRun.run();
++  }
++}
+

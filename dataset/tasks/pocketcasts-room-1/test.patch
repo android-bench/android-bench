@@ -1,0 +1,188 @@
+diff --git a/modules/features/filters/src/test/kotlin/au/com/shiftyjelly/pocketcasts/playlists/create/FakePlaylistManager.kt b/modules/features/filters/src/test/kotlin/au/com/shiftyjelly/pocketcasts/playlists/create/FakePlaylistManager.kt
+index 882f4669b..14172dbca 100644
+--- a/modules/features/filters/src/test/kotlin/au/com/shiftyjelly/pocketcasts/playlists/create/FakePlaylistManager.kt
++++ b/modules/features/filters/src/test/kotlin/au/com/shiftyjelly/pocketcasts/playlists/create/FakePlaylistManager.kt
+@@ -36,7 +36,7 @@ class FakePlaylistManager : PlaylistManager {
+ 
+     override suspend fun updateSortType(uuid: String, type: PlaylistEpisodeSortType) = Unit
+ 
+-    override suspend fun updateAutoDownload(uuid: String, isEnabled: Boolean) = Unit
++    override suspend fun updateAutoDownload(uuids: Collection<String>, isEnabled: Boolean) = Unit
+ 
+     override suspend fun updateAutoDownloadLimit(uuid: String, limit: Int) = Unit
+ 
+diff --git a/modules/features/settings/src/androidTest/java/au/com/shiftyjelly/pocketcasts/settings/settings/AutoDownloadSettingsPageTest.kt b/modules/features/settings/src/androidTest/java/au/com/shiftyjelly/pocketcasts/settings/settings/AutoDownloadSettingsPageTest.kt
+index 4d95ca17e..7643b25a2 100644
+--- a/modules/features/settings/src/androidTest/java/au/com/shiftyjelly/pocketcasts/settings/settings/AutoDownloadSettingsPageTest.kt
++++ b/modules/features/settings/src/androidTest/java/au/com/shiftyjelly/pocketcasts/settings/settings/AutoDownloadSettingsPageTest.kt
+@@ -1,23 +1,43 @@
+ package au.com.shiftyjelly.pocketcasts.settings.settings
+ 
+ import android.content.Context
++import androidx.activity.ComponentActivity
++import androidx.compose.runtime.collectAsState
++import androidx.compose.ui.test.ExperimentalTestApi
++import androidx.compose.ui.test.hasText
++import androidx.compose.ui.test.junit4.createAndroidComposeRule
+ import androidx.compose.ui.test.junit4.createComposeRule
+ import androidx.compose.ui.test.onNodeWithText
+ import androidx.compose.ui.test.performClick
++import androidx.navigation.NavHostController
++import androidx.navigation.compose.rememberNavController
++import androidx.room.Room
++import androidx.test.core.app.ApplicationProvider
+ import au.com.shiftyjelly.pocketcasts.analytics.AnalyticsTracker
++import au.com.shiftyjelly.pocketcasts.models.db.AppDatabase
++import au.com.shiftyjelly.pocketcasts.models.di.ModelModule
++import au.com.shiftyjelly.pocketcasts.models.di.addTypeConverters
++import au.com.shiftyjelly.pocketcasts.models.to.PlaylistIcon
+ import au.com.shiftyjelly.pocketcasts.models.type.AutoDownloadLimitSetting
++import au.com.shiftyjelly.pocketcasts.models.type.PlaylistEpisodeSortType
+ import au.com.shiftyjelly.pocketcasts.preferences.Settings
+ import au.com.shiftyjelly.pocketcasts.preferences.UserSetting
+ import au.com.shiftyjelly.pocketcasts.repositories.download.DownloadManager
++import au.com.shiftyjelly.pocketcasts.repositories.playlist.Playlist
+ import au.com.shiftyjelly.pocketcasts.repositories.playlist.PlaylistManager
++import au.com.shiftyjelly.pocketcasts.repositories.playlist.PlaylistManagerImpl
++import au.com.shiftyjelly.pocketcasts.repositories.playlist.PlaylistPreview
+ import au.com.shiftyjelly.pocketcasts.repositories.podcast.PodcastManager
+ import au.com.shiftyjelly.pocketcasts.settings.AutoDownloadSettingsPage
+ import au.com.shiftyjelly.pocketcasts.settings.viewmodel.AutoDownloadSettingsViewModel
++import com.squareup.moshi.Moshi
++import java.util.UUID
+ import kotlinx.coroutines.GlobalScope
+ import kotlinx.coroutines.flow.MutableStateFlow
+ import kotlinx.coroutines.flow.emptyFlow
+ import kotlinx.coroutines.flow.flowOf
+ import kotlinx.coroutines.flow.stateIn
++import kotlinx.coroutines.runBlocking
+ import org.junit.Before
+ import org.junit.Rule
+ import org.junit.Test
+@@ -31,8 +51,7 @@ class AutoDownloadSettingsPageTest {
+     @get:Rule
+     val composeTestRule = createComposeRule()
+ 
+-    @Mock
+-    private var context: Context = mock()
++    private lateinit var db: AppDatabase
+ 
+     @Mock
+     private var settings: Settings = mock()
+@@ -47,20 +66,29 @@ class AutoDownloadSettingsPageTest {
+     private var downloadManager: DownloadManager = mock()
+ 
+     @Mock
+-    private var tracker: AnalyticsTracker = mock()
++    private var tracker: AnalyticsTracker = AnalyticsTracker(emptyList(), { false })
+ 
+     @Before
+     fun setup() {
++        val context = ApplicationProvider.getApplicationContext<Context>()
++        db = Room.inMemoryDatabaseBuilder(
++            context,
++            AppDatabase::class.java
++        ).addTypeConverters(ModelModule.provideRoomConverters(Moshi.Builder().build()))
++            .build()
++
+         whenever(settings.autoDownloadUpNext).thenReturn(UserSetting.BoolPref("autoDownloadUpNext", false, mock()))
+         whenever(settings.autoDownloadNewEpisodes).thenReturn(UserSetting.IntPref("autoDownloadNewEpisodes", 0, mock()))
+         whenever(settings.autoDownloadOnFollowPodcast).thenReturn(UserSetting.BoolPref("autoDownloadOnFollowPodcast", false, mock()))
+-        whenever(settings.autoDownloadLimit).thenReturn(UserSetting.PrefFromString(
+-            sharedPrefKey = "autoDownloadLimit",
+-            defaultValue = AutoDownloadLimitSetting.TWO_LATEST_EPISODE,
+-            sharedPrefs = mock(),
+-            fromString = { AutoDownloadLimitSetting.fromPreferenceString(it) ?: AutoDownloadLimitSetting.TWO_LATEST_EPISODE },
+-            toString = { it.id.toString() },
+-        ))
++        whenever(settings.autoDownloadLimit).thenReturn(
++            UserSetting.PrefFromString(
++                sharedPrefKey = "autoDownloadLimit",
++                defaultValue = AutoDownloadLimitSetting.TWO_LATEST_EPISODE,
++                sharedPrefs = mock(),
++                fromString = { AutoDownloadLimitSetting.fromPreferenceString(it) ?: AutoDownloadLimitSetting.TWO_LATEST_EPISODE },
++                toString = { it.id.toString() },
++            )
++        )
+         whenever(settings.autoDownloadUnmeteredOnly).thenReturn(UserSetting.BoolPref("autoDownloadUnmeteredOnly", false, mock()))
+         whenever(settings.autoDownloadOnlyWhenCharging).thenReturn(UserSetting.BoolPref("autoDownloadOnlyWhenCharging", false, mock()))
+         whenever(podcastManager.findSubscribedFlow()).thenReturn(flowOf(emptyList()))
+@@ -78,7 +106,7 @@ class AutoDownloadSettingsPageTest {
+         )
+ 
+         composeTestRule.setContent {
+-            val uiState = viewModel.uiState.value
++            val uiState = viewModel.uiState.collectAsState().value
+             AutoDownloadSettingsPage(
+                 uiState = uiState,
+                 onChangeUpNextDownload = { _ -> },
+@@ -93,10 +121,66 @@ class AutoDownloadSettingsPageTest {
+                 onChangeAllPodcasts = { _ -> },
+                 onChangePlaylist = { _, _ -> },
+                 onChangeAllPlaylists = { _ -> },
+-                onDismiss = {  },
++                onDismiss = { },
+             )
+         }
+ 
+         composeTestRule.onNodeWithText("Episodes added to Up Next").assertExists()
+     }
++
++    @OptIn(ExperimentalTestApi::class)
++    @Test
++    fun testChangeAutoDownloadPlaylists() {
++        val playlistManager: PlaylistManager = PlaylistManagerImpl(db, settings, mock())
++
++        runBlocking {
++            playlistManager.createManualPlaylist("New Releases")
++            playlistManager.createManualPlaylist("In Progress")
++        }
++
++        val viewModel = AutoDownloadSettingsViewModel(
++            podcastManager = podcastManager,
++            playlistManager = playlistManager,
++            downloadManager = downloadManager,
++            settings = settings,
++            tracker = tracker
++        )
++
++        var navController: NavHostController? = null
++        composeTestRule.setContent {
++            val uiState = viewModel.uiState.collectAsState().value
++            navController = rememberNavController()
++
++            AutoDownloadSettingsPage(
++                uiState = uiState,
++                onChangeUpNextDownload = viewModel::changeUpNextDownload,
++                onChangeNewEpisodesDownload = viewModel::changeNewEpisodesDownload,
++                onChangeOnFollowDownload = viewModel::changeOnFollowDownload,
++                onChangeAutoDownloadLimitSetting = {},
++                onChangeOnUnmeteredDownload = viewModel::changeOnUnmeteredDownload,
++                onChangeOnlyWhenChargingDownload = viewModel::changeOnlyWhenChargingDownload,
++                onChangePodcast = viewModel::changePodcastAutoDownload,
++                onChangeAllPodcasts = viewModel::changeAllPodcastsAutoDownload,
++                onChangePlaylist = viewModel::changePlaylistAutoDownload,
++                onChangeAllPlaylists = viewModel::changeAllPlaylistsAutoDownload,
++                onDismiss = { },
++                onStopAllDownloads = { },
++                onClearDownloadErrors = { },
++                navController = navController
++            )
++        }
++
++        composeTestRule.waitUntilAtLeastOneExists(hasText("Playlists"))
++        composeTestRule.onNodeWithText("Playlists").assertExists()
++        composeTestRule.onNodeWithText("0 playlists selected").performClick()
++        composeTestRule.onNodeWithText("New Releases").performClick()
++        composeTestRule.onNodeWithText("In Progress").performClick()
++
++        composeTestRule.waitForIdle()
++
++        runBlocking {
++            val playlists = db.playlistDao().getAllPlaylists()
++            assert(playlists.all { it.autoDownload }) { "All playlists should be set to autodownload" }
++        }
++    }
+ }
+\ No newline at end of file
+

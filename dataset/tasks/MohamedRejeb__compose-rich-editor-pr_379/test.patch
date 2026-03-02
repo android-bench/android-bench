@@ -1,0 +1,79 @@
+diff --git a/richeditor-compose/src/commonTest/kotlin/com.mohamedrejeb.richeditor/parser/markdown/RichTextStateMarkdownParserDecodeTest.kt b/richeditor-compose/src/commonTest/kotlin/com.mohamedrejeb.richeditor/parser/markdown/RichTextStateMarkdownParserDecodeTest.kt
+index 16f3d73..6898c7d 100644
+--- a/richeditor-compose/src/commonTest/kotlin/com.mohamedrejeb.richeditor/parser/markdown/RichTextStateMarkdownParserDecodeTest.kt
++++ b/richeditor-compose/src/commonTest/kotlin/com.mohamedrejeb.richeditor/parser/markdown/RichTextStateMarkdownParserDecodeTest.kt
+@@ -13,6 +13,7 @@ import com.mohamedrejeb.richeditor.paragraph.RichParagraph
+ import kotlin.test.Test
+ import kotlin.test.assertEquals
+ 
++@ExperimentalRichTextApi
+ class RichTextStateMarkdownParserDecodeTest {
+ 
+     /**
+@@ -174,4 +175,64 @@ class RichTextStateMarkdownParserDecodeTest {
+         )
+     }
+ 
++    @Test
++    fun testDecodeStyledTextWithSpacesInStyleEdges1() {
++        val state = RichTextState(
++            initialRichParagraphList = listOf(
++                RichParagraph().also {
++                    it.children.add(
++                        RichSpan(
++                            text = "  Hello  ",
++                            paragraph = it,
++                            spanStyle = SpanStyle(fontWeight = FontWeight.Bold)
++                        ),
++                    )
++
++                    it.children.add(
++                        RichSpan(
++                            text = "World!",
++                            paragraph = it,
++                        ),
++                    )
++                },
++            )
++        )
++
++        assertEquals(
++            expected = "  **Hello**  World!",
++            actual = state.toMarkdown()
++        )
++    }
++
++    @Test
++    fun testDecodeStyledTextWithSpacesInStyleEdges2() {
++        val state = RichTextState(
++            initialRichParagraphList = listOf(
++                RichParagraph().also {
++                    it.children.add(
++                        RichSpan(
++                            text = "  Hello  ",
++                            paragraph = it,
++                            spanStyle = SpanStyle(fontWeight = FontWeight.Bold)
++                        ).also {
++                            it.children.add(
++                                RichSpan(
++                                    text = "  World!  ",
++                                    paragraph = it.paragraph,
++                                    parent = it,
++                                    spanStyle = SpanStyle(fontStyle = FontStyle.Italic)
++                                ),
++                            )
++                        },
++                    )
++                },
++            )
++        )
++
++        assertEquals(
++            expected = "  **Hello    *World!***  ",
++            actual = state.toMarkdown()
++        )
++    }
++
+ }
+\ No newline at end of file
+

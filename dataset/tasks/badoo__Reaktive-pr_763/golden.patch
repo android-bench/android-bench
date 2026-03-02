@@ -1,0 +1,50 @@
+diff --git a/sample-js-browser-app/build.gradle b/sample-js-browser-app/build.gradle
+index 3bce5cea..ace9331e 100644
+--- a/sample-js-browser-app/build.gradle
++++ b/sample-js-browser-app/build.gradle
+@@ -1,11 +1,11 @@
+ /*
+  * Use the following Gradle tasks to run your application:
+- * :browserProductionRun - release mode
+- * :browserDevelopmentRun - debug mode
++ * :jsBrowserProductionRun - release mode
++ * :jsBrowserDevelopmentRun - debug mode
+  */
+ 
+ plugins {
+-    id 'org.jetbrains.kotlin.js'
++    id 'kotlin-multiplatform'
+ }
+ 
+ kotlin {
+@@ -13,9 +13,13 @@ kotlin {
+         browser()
+         binaries.executable()
+     }
+-}
+ 
+-dependencies {
+-    implementation project(':reaktive')
+-    implementation project(':sample-mpp-module')
++    sourceSets {
++        jsMain {
++            dependencies {
++                implementation project(':reaktive')
++                implementation project(':sample-mpp-module')
++            }
++        }
++    }
+ }
+diff --git a/sample-js-browser-app/src/main/kotlin/com/badoo/main.kt b/sample-js-browser-app/src/jsMain/kotlin/com/badoo/main.kt
+similarity index 100%
+rename from sample-js-browser-app/src/main/kotlin/com/badoo/main.kt
+rename to sample-js-browser-app/src/jsMain/kotlin/com/badoo/main.kt
+diff --git a/sample-js-browser-app/src/main/resources/favicon.ico b/sample-js-browser-app/src/jsMain/resources/favicon.ico
+similarity index 100%
+rename from sample-js-browser-app/src/main/resources/favicon.ico
+rename to sample-js-browser-app/src/jsMain/resources/favicon.ico
+diff --git a/sample-js-browser-app/src/main/resources/index.html b/sample-js-browser-app/src/jsMain/resources/index.html
+similarity index 100%
+rename from sample-js-browser-app/src/main/resources/index.html
+rename to sample-js-browser-app/src/jsMain/resources/index.html
+

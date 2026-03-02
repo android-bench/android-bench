@@ -1,0 +1,719 @@
+diff --git a/core/ui/compose/designsystem/src/main/kotlin/app/k9mail/core/ui/compose/designsystem/atom/icon/Icon.kt b/core/ui/compose/designsystem/src/main/kotlin/app/k9mail/core/ui/compose/designsystem/atom/icon/Icon.kt
+index 5eb8735cf7..e08bded09a 100644
+--- a/core/ui/compose/designsystem/src/main/kotlin/app/k9mail/core/ui/compose/designsystem/atom/icon/Icon.kt
++++ b/core/ui/compose/designsystem/src/main/kotlin/app/k9mail/core/ui/compose/designsystem/atom/icon/Icon.kt
+@@ -11,11 +11,12 @@ import androidx.compose.material3.LocalContentColor as Material3LocalContentColo
+ fun Icon(
+     imageVector: ImageVector,
+     modifier: Modifier = Modifier,
++    contentDescription: String? = null,
+     tint: Color? = null,
+ ) {
+     Material3Icon(
+         imageVector = imageVector,
+-        contentDescription = null,
++        contentDescription = contentDescription,
+         modifier = modifier,
+         tint = tint ?: Material3LocalContentColor.current,
+     )
+diff --git a/core/ui/compose/theme2/common/src/main/kotlin/app/k9mail/core/ui/compose/theme2/ThemeSizes.kt b/core/ui/compose/theme2/common/src/main/kotlin/app/k9mail/core/ui/compose/theme2/ThemeSizes.kt
+index 6d4f80c92a..f0031f46d6 100644
+--- a/core/ui/compose/theme2/common/src/main/kotlin/app/k9mail/core/ui/compose/theme2/ThemeSizes.kt
++++ b/core/ui/compose/theme2/common/src/main/kotlin/app/k9mail/core/ui/compose/theme2/ThemeSizes.kt
+@@ -17,6 +17,7 @@ data class ThemeSizes(
+     val iconSmall: Dp,
+     val icon: Dp,
+     val iconLarge: Dp,
++    val iconAvatar: Dp,
+ 
+     val topBarHeight: Dp,
+     val bottomBarHeight: Dp,
+diff --git a/core/ui/compose/theme2/common/src/main/kotlin/app/k9mail/core/ui/compose/theme2/default/DefaultThemeSizes.kt b/core/ui/compose/theme2/common/src/main/kotlin/app/k9mail/core/ui/compose/theme2/default/DefaultThemeSizes.kt
+index fb84c4cfd4..3e403806b7 100644
+--- a/core/ui/compose/theme2/common/src/main/kotlin/app/k9mail/core/ui/compose/theme2/default/DefaultThemeSizes.kt
++++ b/core/ui/compose/theme2/common/src/main/kotlin/app/k9mail/core/ui/compose/theme2/default/DefaultThemeSizes.kt
+@@ -15,6 +15,7 @@ val defaultThemeSizes = ThemeSizes(
+     iconSmall = 16.dp,
+     icon = 24.dp,
+     iconLarge = 32.dp,
++    iconAvatar = 48.dp,
+ 
+     topBarHeight = 64.dp,
+     bottomBarHeight = 80.dp,
+diff --git a/feature/navigation/drawer/src/debug/kotlin/app/k9mail/feature/navigation/drawer/ui/account/AccountAvatarPreview.kt b/feature/navigation/drawer/src/debug/kotlin/app/k9mail/feature/navigation/drawer/ui/account/AccountAvatarPreview.kt
+new file mode 100644
+index 0000000000..106a27621e
+--- /dev/null
++++ b/feature/navigation/drawer/src/debug/kotlin/app/k9mail/feature/navigation/drawer/ui/account/AccountAvatarPreview.kt
+@@ -0,0 +1,17 @@
++package app.k9mail.feature.navigation.drawer.ui.account
++
++import androidx.compose.runtime.Composable
++import androidx.compose.ui.tooling.preview.Preview
++import app.k9mail.core.ui.compose.designsystem.PreviewWithThemes
++import app.k9mail.feature.navigation.drawer.ui.FakeData.DISPLAY_ACCOUNT
++
++@Composable
++@Preview(showBackground = true)
++fun AccountAvatarPreview() {
++    PreviewWithThemes {
++        AccountAvatar(
++            account = DISPLAY_ACCOUNT,
++            onClick = {},
++        )
++    }
++}
+diff --git a/feature/navigation/drawer/src/debug/kotlin/app/k9mail/feature/navigation/drawer/ui/account/AccountListItemPreview.kt b/feature/navigation/drawer/src/debug/kotlin/app/k9mail/feature/navigation/drawer/ui/account/AccountListItemPreview.kt
+new file mode 100644
+index 0000000000..8c3588764e
+--- /dev/null
++++ b/feature/navigation/drawer/src/debug/kotlin/app/k9mail/feature/navigation/drawer/ui/account/AccountListItemPreview.kt
+@@ -0,0 +1,17 @@
++package app.k9mail.feature.navigation.drawer.ui.account
++
++import androidx.compose.runtime.Composable
++import androidx.compose.ui.tooling.preview.Preview
++import app.k9mail.core.ui.compose.designsystem.PreviewWithThemes
++import app.k9mail.feature.navigation.drawer.ui.FakeData.DISPLAY_ACCOUNT
++
++@Composable
++@Preview(showBackground = true)
++fun AccountListItemPreview() {
++    PreviewWithThemes {
++        AccountListItem(
++            account = DISPLAY_ACCOUNT,
++            onClick = { },
++        )
++    }
++}
+diff --git a/feature/navigation/drawer/src/debug/kotlin/app/k9mail/feature/navigation/drawer/ui/account/AccountListPreview.kt b/feature/navigation/drawer/src/debug/kotlin/app/k9mail/feature/navigation/drawer/ui/account/AccountListPreview.kt
+new file mode 100644
+index 0000000000..1a1aa916b9
+--- /dev/null
++++ b/feature/navigation/drawer/src/debug/kotlin/app/k9mail/feature/navigation/drawer/ui/account/AccountListPreview.kt
+@@ -0,0 +1,37 @@
++package app.k9mail.feature.navigation.drawer.ui.account
++
++import androidx.compose.runtime.Composable
++import androidx.compose.ui.tooling.preview.Preview
++import app.k9mail.core.ui.compose.designsystem.PreviewWithTheme
++import app.k9mail.feature.navigation.drawer.ui.FakeData.DISPLAY_ACCOUNT
++import kotlinx.collections.immutable.persistentListOf
++
++@Composable
++@Preview(showBackground = true)
++fun AccountListPreview() {
++    PreviewWithTheme {
++        AccountList(
++            accounts = persistentListOf(
++                DISPLAY_ACCOUNT,
++            ),
++            selectedAccount = null,
++            onAccountClick = { },
++            onSettingsClick = { },
++        )
++    }
++}
++
++@Composable
++@Preview(showBackground = true)
++fun AccountListWithSelectedPreview() {
++    PreviewWithTheme {
++        AccountList(
++            accounts = persistentListOf(
++                DISPLAY_ACCOUNT,
++            ),
++            selectedAccount = DISPLAY_ACCOUNT,
++            onAccountClick = { },
++            onSettingsClick = { },
++        )
++    }
++}
+diff --git a/feature/navigation/drawer/src/debug/kotlin/app/k9mail/feature/navigation/drawer/ui/account/AccountViewPreview.kt b/feature/navigation/drawer/src/debug/kotlin/app/k9mail/feature/navigation/drawer/ui/account/AccountViewPreview.kt
+index 6359564923..8c03a8f1a9 100644
+--- a/feature/navigation/drawer/src/debug/kotlin/app/k9mail/feature/navigation/drawer/ui/account/AccountViewPreview.kt
++++ b/feature/navigation/drawer/src/debug/kotlin/app/k9mail/feature/navigation/drawer/ui/account/AccountViewPreview.kt
+@@ -3,19 +3,16 @@ package app.k9mail.feature.navigation.drawer.ui.account
+ import androidx.compose.runtime.Composable
+ import androidx.compose.ui.tooling.preview.Preview
+ import app.k9mail.core.ui.compose.designsystem.PreviewWithThemes
+-import app.k9mail.feature.navigation.drawer.ui.FakeData.DISPLAY_NAME
+-import app.k9mail.feature.navigation.drawer.ui.FakeData.EMAIL_ADDRESS
+-import app.k9mail.feature.navigation.drawer.ui.FakeData.LONG_TEXT
++import app.k9mail.feature.navigation.drawer.ui.FakeData.DISPLAY_ACCOUNT
+ 
+ @Composable
+ @Preview(showBackground = true)
+ internal fun AccountViewPreview() {
+     PreviewWithThemes {
+         AccountView(
+-            displayName = DISPLAY_NAME,
+-            emailAddress = EMAIL_ADDRESS,
+-            accountColor = 0,
++            account = DISPLAY_ACCOUNT,
+             onClick = {},
++            showAvatar = false,
+         )
+     }
+ }
+@@ -25,10 +22,9 @@ internal fun AccountViewPreview() {
+ internal fun AccountViewWithColorPreview() {
+     PreviewWithThemes {
+         AccountView(
+-            displayName = DISPLAY_NAME,
+-            emailAddress = EMAIL_ADDRESS,
+-            accountColor = 0xFF0000,
++            account = DISPLAY_ACCOUNT,
+             onClick = {},
++            showAvatar = false,
+         )
+     }
+ }
+@@ -38,10 +34,9 @@ internal fun AccountViewWithColorPreview() {
+ internal fun AccountViewWithLongDisplayName() {
+     PreviewWithThemes {
+         AccountView(
+-            displayName = "$LONG_TEXT $DISPLAY_NAME",
+-            emailAddress = EMAIL_ADDRESS,
+-            accountColor = 0,
++            account = DISPLAY_ACCOUNT,
+             onClick = {},
++            showAvatar = false,
+         )
+     }
+ }
+@@ -51,10 +46,9 @@ internal fun AccountViewWithLongDisplayName() {
+ internal fun AccountViewWithLongEmailPreview() {
+     PreviewWithThemes {
+         AccountView(
+-            displayName = DISPLAY_NAME,
+-            emailAddress = "$LONG_TEXT@example.com",
+-            accountColor = 0,
++            account = DISPLAY_ACCOUNT,
+             onClick = {},
++            showAvatar = false,
+         )
+     }
+ }
+diff --git a/feature/navigation/drawer/src/debug/kotlin/app/k9mail/feature/navigation/drawer/ui/setting/SettingItemPreview.kt b/feature/navigation/drawer/src/debug/kotlin/app/k9mail/feature/navigation/drawer/ui/setting/SettingItemPreview.kt
+new file mode 100644
+index 0000000000..f3b3adc32e
+--- /dev/null
++++ b/feature/navigation/drawer/src/debug/kotlin/app/k9mail/feature/navigation/drawer/ui/setting/SettingItemPreview.kt
+@@ -0,0 +1,16 @@
++package app.k9mail.feature.navigation.drawer.ui.setting
++
++import androidx.compose.runtime.Composable
++import androidx.compose.ui.tooling.preview.Preview
++import app.k9mail.core.ui.compose.designsystem.PreviewWithThemes
++
++@Composable
++@Preview(showBackground = true)
++fun SettingItemPreview() {
++    PreviewWithThemes {
++        SettingItem(
++            label = "Setting",
++            onClick = {},
++        )
++    }
++}
+diff --git a/feature/navigation/drawer/src/main/kotlin/app/k9mail/feature/navigation/drawer/ui/DrawerContent.kt b/feature/navigation/drawer/src/main/kotlin/app/k9mail/feature/navigation/drawer/ui/DrawerContent.kt
+index 5fc026ecc7..98f4dbe38e 100644
+--- a/feature/navigation/drawer/src/main/kotlin/app/k9mail/feature/navigation/drawer/ui/DrawerContent.kt
++++ b/feature/navigation/drawer/src/main/kotlin/app/k9mail/feature/navigation/drawer/ui/DrawerContent.kt
+@@ -1,6 +1,8 @@
+ package app.k9mail.feature.navigation.drawer.ui
+ 
++import androidx.compose.animation.AnimatedVisibility
+ import androidx.compose.foundation.layout.Column
++import androidx.compose.foundation.layout.Row
+ import androidx.compose.foundation.layout.fillMaxSize
+ import androidx.compose.runtime.Composable
+ import androidx.compose.ui.Modifier
+@@ -9,6 +11,7 @@ import app.k9mail.core.ui.compose.designsystem.atom.DividerHorizontal
+ import app.k9mail.core.ui.compose.designsystem.atom.Surface
+ import app.k9mail.feature.navigation.drawer.ui.DrawerContract.Event
+ import app.k9mail.feature.navigation.drawer.ui.DrawerContract.State
++import app.k9mail.feature.navigation.drawer.ui.account.AccountList
+ import app.k9mail.feature.navigation.drawer.ui.account.AccountView
+ import app.k9mail.feature.navigation.drawer.ui.folder.FolderList
+ import app.k9mail.feature.navigation.drawer.ui.setting.SettingList
+@@ -24,36 +27,48 @@ fun DrawerContent(
+             .fillMaxSize()
+             .testTag("DrawerContent"),
+     ) {
+-        Column(
+-            modifier = Modifier
+-                .fillMaxSize(),
+-        ) {
++        Column {
+             state.selectedAccount?.let {
+                 AccountView(
+-                    displayName = it.account.displayName,
+-                    emailAddress = it.account.email,
+-                    accountColor = it.account.chipColor,
++                    account = it,
+                     onClick = { onEvent(Event.OnAccountViewClick(it)) },
++                    showAvatar = state.showAccountSelector,
+                 )
+ 
+                 DividerHorizontal()
+             }
+-            FolderList(
+-                folders = state.folders,
+-                selectedFolder = state.selectedFolder,
+-                onFolderClick = { folder ->
+-                    onEvent(Event.OnFolderClick(folder))
+-                },
+-                showStarredCount = state.config.showStarredCount,
+-                modifier = Modifier.weight(1f),
+-            )
+-            Column {
+-                DividerHorizontal()
+-                SettingList(
+-                    onAccountSelectorClick = { onEvent(Event.OnAccountSelectorClick) },
+-                    onManageFoldersClick = { onEvent(Event.OnManageFoldersClick) },
+-                    showAccountSelector = state.showAccountSelector,
+-                )
++            Row {
++                AnimatedVisibility(
++                    visible = state.showAccountSelector,
++                ) {
++                    AccountList(
++                        accounts = state.accounts,
++                        selectedAccount = state.selectedAccount,
++                        onAccountClick = { onEvent(Event.OnAccountClick(it)) },
++                        onSettingsClick = { onEvent(Event.OnSettingsClick) },
++                    )
++                }
++                Column(
++                    modifier = Modifier
++                        .weight(1f)
++                        .fillMaxSize(),
++                ) {
++                    FolderList(
++                        folders = state.folders,
++                        selectedFolder = state.selectedFolder,
++                        onFolderClick = { folder ->
++                            onEvent(Event.OnFolderClick(folder))
++                        },
++                        showStarredCount = state.config.showStarredCount,
++                        modifier = Modifier.weight(1f),
++                    )
++                    DividerHorizontal()
++                    SettingList(
++                        onAccountSelectorClick = { onEvent(Event.OnAccountSelectorClick) },
++                        onManageFoldersClick = { onEvent(Event.OnManageFoldersClick) },
++                        showAccountSelector = state.showAccountSelector,
++                    )
++                }
+             }
+         }
+     }
+diff --git a/feature/navigation/drawer/src/main/kotlin/app/k9mail/feature/navigation/drawer/ui/DrawerViewModel.kt b/feature/navigation/drawer/src/main/kotlin/app/k9mail/feature/navigation/drawer/ui/DrawerViewModel.kt
+index 413223c490..86294e8e04 100644
+--- a/feature/navigation/drawer/src/main/kotlin/app/k9mail/feature/navigation/drawer/ui/DrawerViewModel.kt
++++ b/feature/navigation/drawer/src/main/kotlin/app/k9mail/feature/navigation/drawer/ui/DrawerViewModel.kt
+@@ -80,8 +80,10 @@ class DrawerViewModel(
+     }
+ 
+     private fun updateFolders(displayFolders: List<DisplayAccountFolder>) {
+-        val selectedFolder = displayFolders.find { it == state.value.selectedFolder }
+-            ?: displayFolders.firstOrNull()
++        val selectedFolder = displayFolders.find {
++            it.accountUuid == state.value.selectedAccount?.account?.uuid &&
++                it.folder.id == state.value.selectedFolder?.folder?.id
++        } ?: displayFolders.firstOrNull()
+ 
+         updateState {
+             it.copy(
+diff --git a/feature/navigation/drawer/src/main/kotlin/app/k9mail/feature/navigation/drawer/ui/account/AccountAvatar.kt b/feature/navigation/drawer/src/main/kotlin/app/k9mail/feature/navigation/drawer/ui/account/AccountAvatar.kt
+new file mode 100644
+index 0000000000..4b6c048cc2
+--- /dev/null
++++ b/feature/navigation/drawer/src/main/kotlin/app/k9mail/feature/navigation/drawer/ui/account/AccountAvatar.kt
+@@ -0,0 +1,61 @@
++package app.k9mail.feature.navigation.drawer.ui.account
++
++import androidx.compose.foundation.border
++import androidx.compose.foundation.clickable
++import androidx.compose.foundation.layout.Box
++import androidx.compose.foundation.layout.padding
++import androidx.compose.foundation.layout.size
++import androidx.compose.foundation.shape.CircleShape
++import androidx.compose.runtime.Composable
++import androidx.compose.ui.Alignment
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.unit.dp
++import app.k9mail.core.ui.compose.designsystem.atom.Surface
++import app.k9mail.core.ui.compose.designsystem.atom.text.TextTitleMedium
++import app.k9mail.core.ui.compose.theme2.MainTheme
++import app.k9mail.feature.navigation.drawer.domain.entity.DisplayAccount
++
++@Composable
++fun AccountAvatar(
++    account: DisplayAccount,
++    onClick: (DisplayAccount) -> Unit,
++    modifier: Modifier = Modifier,
++) {
++    val accountColor = calculateAccountColor(account.account.chipColor)
++
++    Surface(
++        modifier = modifier
++            .size(MainTheme.sizes.iconAvatar)
++            .border(2.dp, accountColor, CircleShape)
++            .padding(2.dp),
++        color = accountColor.copy(alpha = 0.3f),
++        shape = CircleShape,
++    ) {
++        Box(
++            contentAlignment = Alignment.Center,
++            modifier = Modifier
++                .border(2.dp, MainTheme.colors.surfaceContainerLowest, CircleShape)
++                .clickable(onClick = { onClick(account) }),
++        ) {
++            Placeholder(
++                email = account.account.email,
++            )
++            // TODO: Add image loading
++        }
++    }
++}
++
++@Composable
++private fun Placeholder(
++    email: String,
++    modifier: Modifier = Modifier,
++) {
++    TextTitleMedium(
++        text = extractDomainInitials(email).uppercase(),
++        modifier = modifier,
++    )
++}
++
++private fun extractDomainInitials(email: String): String {
++    return email.split("@")[1].take(2)
++}
+diff --git a/feature/navigation/drawer/src/main/kotlin/app/k9mail/feature/navigation/drawer/ui/account/AccountIndicator.kt b/feature/navigation/drawer/src/main/kotlin/app/k9mail/feature/navigation/drawer/ui/account/AccountIndicator.kt
+index fadd773475..5ae49bb349 100644
+--- a/feature/navigation/drawer/src/main/kotlin/app/k9mail/feature/navigation/drawer/ui/account/AccountIndicator.kt
++++ b/feature/navigation/drawer/src/main/kotlin/app/k9mail/feature/navigation/drawer/ui/account/AccountIndicator.kt
+@@ -4,29 +4,21 @@ import androidx.compose.foundation.layout.defaultMinSize
+ import androidx.compose.foundation.layout.width
+ import androidx.compose.runtime.Composable
+ import androidx.compose.ui.Modifier
+-import androidx.compose.ui.graphics.Color
+ import app.k9mail.core.ui.compose.designsystem.atom.Surface
+ import app.k9mail.core.ui.compose.theme2.MainTheme
+-import app.k9mail.core.ui.compose.theme2.toHarmonizedColor
+ 
+ @Composable
+ fun AccountIndicator(
+     accountColor: Int,
+     modifier: Modifier = Modifier,
+ ) {
+-    val color = if (accountColor == 0) {
+-        MainTheme.colors.primary
+-    } else {
+-        Color(accountColor).toHarmonizedColor(MainTheme.colors.surface)
+-    }
+-
+     Surface(
+         modifier = modifier
+             .width(MainTheme.spacings.half)
+             .defaultMinSize(
+                 minHeight = MainTheme.spacings.default,
+             ),
+-        color = color,
++        color = calculateAccountColor(accountColor),
+         shape = MainTheme.shapes.medium,
+     ) {}
+ }
+diff --git a/feature/navigation/drawer/src/main/kotlin/app/k9mail/feature/navigation/drawer/ui/account/AccountList.kt b/feature/navigation/drawer/src/main/kotlin/app/k9mail/feature/navigation/drawer/ui/account/AccountList.kt
+new file mode 100644
+index 0000000000..bcdeb8b061
+--- /dev/null
++++ b/feature/navigation/drawer/src/main/kotlin/app/k9mail/feature/navigation/drawer/ui/account/AccountList.kt
+@@ -0,0 +1,59 @@
++package app.k9mail.feature.navigation.drawer.ui.account
++
++import androidx.compose.foundation.layout.Column
++import androidx.compose.foundation.layout.PaddingValues
++import androidx.compose.foundation.layout.fillMaxHeight
++import androidx.compose.foundation.layout.width
++import androidx.compose.foundation.lazy.LazyColumn
++import androidx.compose.foundation.lazy.items
++import androidx.compose.runtime.Composable
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.res.stringResource
++import app.k9mail.core.ui.compose.designsystem.atom.Surface
++import app.k9mail.core.ui.compose.theme2.MainTheme
++import app.k9mail.feature.navigation.drawer.R
++import app.k9mail.feature.navigation.drawer.domain.entity.DisplayAccount
++import app.k9mail.feature.navigation.drawer.ui.setting.SettingItem
++import kotlinx.collections.immutable.ImmutableList
++
++@Composable
++fun AccountList(
++    accounts: ImmutableList<DisplayAccount>,
++    selectedAccount: DisplayAccount?,
++    onAccountClick: (DisplayAccount) -> Unit,
++    onSettingsClick: () -> Unit,
++    modifier: Modifier = Modifier,
++) {
++    Surface(
++        modifier = modifier,
++        color = MainTheme.colors.surfaceContainer,
++    ) {
++        Column(
++            modifier = Modifier
++                .fillMaxHeight()
++                .width(MainTheme.sizes.large),
++        ) {
++            LazyColumn(
++                modifier = Modifier.weight(1f),
++                contentPadding = PaddingValues(vertical = MainTheme.spacings.default),
++            ) {
++                items(
++                    items = accounts,
++                    key = { account -> account.account.uuid },
++                ) { account ->
++                    if (selectedAccount != null && account == selectedAccount) {
++                        return@items
++                    }
++                    AccountListItem(
++                        account = account,
++                        onClick = { onAccountClick(account) },
++                    )
++                }
++            }
++            SettingItem(
++                label = stringResource(id = R.string.navigation_drawer_action_settings),
++                onClick = onSettingsClick,
++            )
++        }
++    }
++}
+diff --git a/feature/navigation/drawer/src/main/kotlin/app/k9mail/feature/navigation/drawer/ui/account/AccountListItem.kt b/feature/navigation/drawer/src/main/kotlin/app/k9mail/feature/navigation/drawer/ui/account/AccountListItem.kt
+new file mode 100644
+index 0000000000..b8c72fb97d
+--- /dev/null
++++ b/feature/navigation/drawer/src/main/kotlin/app/k9mail/feature/navigation/drawer/ui/account/AccountListItem.kt
+@@ -0,0 +1,28 @@
++package app.k9mail.feature.navigation.drawer.ui.account
++
++import androidx.compose.foundation.layout.Box
++import androidx.compose.foundation.layout.padding
++import androidx.compose.foundation.layout.width
++import androidx.compose.runtime.Composable
++import androidx.compose.ui.Alignment
++import androidx.compose.ui.Modifier
++import app.k9mail.core.ui.compose.theme2.MainTheme
++import app.k9mail.feature.navigation.drawer.domain.entity.DisplayAccount
++
++@Composable
++fun AccountListItem(
++    account: DisplayAccount,
++    onClick: (DisplayAccount) -> Unit,
++    modifier: Modifier = Modifier,
++) {
++    Box(
++        modifier = modifier.width(MainTheme.sizes.large)
++            .padding(vertical = MainTheme.spacings.half),
++        contentAlignment = Alignment.Center,
++    ) {
++        AccountAvatar(
++            account = account,
++            onClick = onClick,
++        )
++    }
++}
+diff --git a/feature/navigation/drawer/src/main/kotlin/app/k9mail/feature/navigation/drawer/ui/account/AccountView.kt b/feature/navigation/drawer/src/main/kotlin/app/k9mail/feature/navigation/drawer/ui/account/AccountView.kt
+index bd99a2718c..09c7d2fb08 100644
+--- a/feature/navigation/drawer/src/main/kotlin/app/k9mail/feature/navigation/drawer/ui/account/AccountView.kt
++++ b/feature/navigation/drawer/src/main/kotlin/app/k9mail/feature/navigation/drawer/ui/account/AccountView.kt
+@@ -1,61 +1,87 @@
+ package app.k9mail.feature.navigation.drawer.ui.account
+ 
++import androidx.compose.animation.AnimatedVisibility
+ import androidx.compose.foundation.clickable
+ import androidx.compose.foundation.layout.Arrangement
++import androidx.compose.foundation.layout.Box
+ import androidx.compose.foundation.layout.Column
+ import androidx.compose.foundation.layout.IntrinsicSize
+ import androidx.compose.foundation.layout.Row
++import androidx.compose.foundation.layout.defaultMinSize
+ import androidx.compose.foundation.layout.fillMaxHeight
+ import androidx.compose.foundation.layout.fillMaxWidth
+ import androidx.compose.foundation.layout.height
+ import androidx.compose.foundation.layout.padding
++import androidx.compose.foundation.layout.width
+ import androidx.compose.runtime.Composable
+ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
++import app.k9mail.core.ui.compose.designsystem.atom.Surface
+ import app.k9mail.core.ui.compose.designsystem.atom.text.TextBodyLarge
+ import app.k9mail.core.ui.compose.designsystem.atom.text.TextBodyMedium
+ import app.k9mail.core.ui.compose.theme2.MainTheme
++import app.k9mail.feature.navigation.drawer.domain.entity.DisplayAccount
+ 
+ @Composable
+ fun AccountView(
+-    displayName: String,
+-    emailAddress: String,
+-    accountColor: Int,
+-    modifier: Modifier = Modifier,
++    account: DisplayAccount,
+     onClick: () -> Unit,
++    showAvatar: Boolean,
++    modifier: Modifier = Modifier,
+ ) {
+     Row(
+-        modifier = modifier
+-            .fillMaxWidth()
+-            .height(intrinsicSize = IntrinsicSize.Max)
+-            .clickable(onClick = onClick)
+-            .padding(
+-                top = MainTheme.spacings.double,
+-                start = MainTheme.spacings.double,
+-                end = MainTheme.spacings.triple,
+-                bottom = MainTheme.spacings.double,
+-            ),
++        modifier = Modifier.fillMaxWidth()
++            .height(intrinsicSize = IntrinsicSize.Max),
+         verticalAlignment = Alignment.CenterVertically,
+     ) {
+-        AccountIndicator(
+-            accountColor = accountColor,
+-            modifier = Modifier
+-                .fillMaxHeight()
++        AnimatedVisibility(visible = showAvatar) {
++            Surface(
++                color = MainTheme.colors.surfaceContainer,
++                modifier = Modifier.fillMaxHeight(),
++            ) {
++                Box(
++                    modifier = Modifier.width(MainTheme.sizes.large),
++                    contentAlignment = Alignment.Center,
++                ) {
++                    AccountAvatar(
++                        account = account,
++                        onClick = { },
++                    )
++                }
++            }
++        }
++        Row(
++            modifier = modifier
++                .clickable(onClick = onClick)
++                .height(intrinsicSize = IntrinsicSize.Max)
++                .fillMaxWidth()
++                .defaultMinSize(minHeight = MainTheme.sizes.large)
+                 .padding(
+-                    end = MainTheme.spacings.oneHalf,
++                    top = MainTheme.spacings.double,
++                    start = MainTheme.spacings.double,
++                    end = MainTheme.spacings.triple,
++                    bottom = MainTheme.spacings.double,
+                 ),
+-        )
+-        Column(
+-            verticalArrangement = Arrangement.spacedBy(MainTheme.spacings.half),
++            verticalAlignment = Alignment.CenterVertically,
+         ) {
+-            TextBodyLarge(
+-                text = displayName,
+-                color = MainTheme.colors.onSurface,
+-            )
+-            TextBodyMedium(
+-                text = emailAddress,
+-                color = MainTheme.colors.onSurfaceVariant,
++            AccountIndicator(
++                accountColor = account.account.chipColor,
++                modifier = Modifier
++                    .fillMaxHeight()
++                    .padding(end = MainTheme.spacings.oneHalf),
+             )
++            Column(
++                verticalArrangement = Arrangement.spacedBy(MainTheme.spacings.half),
++            ) {
++                TextBodyLarge(
++                    text = account.account.displayName,
++                    color = MainTheme.colors.onSurface,
++                )
++                TextBodyMedium(
++                    text = account.account.email,
++                    color = MainTheme.colors.onSurfaceVariant,
++                )
++            }
+         }
+     }
+ }
+diff --git a/feature/navigation/drawer/src/main/kotlin/app/k9mail/feature/navigation/drawer/ui/account/CalculateAccountColor.kt b/feature/navigation/drawer/src/main/kotlin/app/k9mail/feature/navigation/drawer/ui/account/CalculateAccountColor.kt
+new file mode 100644
+index 0000000000..f273c82fc5
+--- /dev/null
++++ b/feature/navigation/drawer/src/main/kotlin/app/k9mail/feature/navigation/drawer/ui/account/CalculateAccountColor.kt
+@@ -0,0 +1,15 @@
++package app.k9mail.feature.navigation.drawer.ui.account
++
++import androidx.compose.runtime.Composable
++import androidx.compose.ui.graphics.Color
++import app.k9mail.core.ui.compose.theme2.MainTheme
++import app.k9mail.core.ui.compose.theme2.toHarmonizedColor
++
++@Composable
++internal fun calculateAccountColor(accountColor: Int): Color {
++    return if (accountColor == 0) {
++        MainTheme.colors.primary
++    } else {
++        Color(accountColor).toHarmonizedColor(MainTheme.colors.surface)
++    }
++}
+diff --git a/feature/navigation/drawer/src/main/kotlin/app/k9mail/feature/navigation/drawer/ui/setting/SettingItem.kt b/feature/navigation/drawer/src/main/kotlin/app/k9mail/feature/navigation/drawer/ui/setting/SettingItem.kt
+new file mode 100644
+index 0000000000..88f84a1a61
+--- /dev/null
++++ b/feature/navigation/drawer/src/main/kotlin/app/k9mail/feature/navigation/drawer/ui/setting/SettingItem.kt
+@@ -0,0 +1,40 @@
++package app.k9mail.feature.navigation.drawer.ui.setting
++
++import androidx.compose.foundation.clickable
++import androidx.compose.foundation.layout.Box
++import androidx.compose.foundation.layout.padding
++import androidx.compose.foundation.layout.width
++import androidx.compose.foundation.shape.CircleShape
++import androidx.compose.runtime.Composable
++import androidx.compose.ui.Alignment
++import androidx.compose.ui.Modifier
++import app.k9mail.core.ui.compose.designsystem.atom.Surface
++import app.k9mail.core.ui.compose.designsystem.atom.icon.Icon
++import app.k9mail.core.ui.compose.designsystem.atom.icon.Icons
++import app.k9mail.core.ui.compose.theme2.MainTheme
++
++@Composable
++internal fun SettingItem(
++    label: String,
++    onClick: () -> Unit,
++    modifier: Modifier = Modifier,
++) {
++    Box(
++        modifier = modifier.width(MainTheme.sizes.large),
++        contentAlignment = Alignment.Center,
++    ) {
++        Surface(
++            modifier = Modifier.padding(vertical = MainTheme.spacings.oneHalf),
++            color = MainTheme.colors.surfaceContainer,
++            shape = CircleShape,
++        ) {
++            Icon(
++                imageVector = Icons.Outlined.Settings,
++                contentDescription = label,
++                modifier = Modifier
++                    .clickable(onClick = onClick)
++                    .padding(MainTheme.spacings.oneHalf),
++            )
++        }
++    }
++}
+

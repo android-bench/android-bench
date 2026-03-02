@@ -1,0 +1,68 @@
+def logFilePath = gradle.startParameter.projectProperties['android.bench.targetSdk.path']
+def logFile = null
+if (logFilePath) {
+    logFile = new File(logFilePath)
+}
+final Object FILE_LOCK = new Object()
+
+def writeLog = { String projectName, String variantName, int apiLevel ->
+    if (logFile) {
+        synchronized (FILE_LOCK) {
+            logFile.append("Project: ${projectName}: Instrumentation test for '${variantName}' uses Target SDK: ${apiLevel}\n")
+        }
+    }
+}
+
+allprojects { project ->
+    def configureAndroidApplicationModule = {
+        def agp7plus = true
+        try {
+            project.buildscript.classLoader.loadClass("com.android.build.api.AndroidPluginVersion")
+        } catch (ClassNotFoundException e) {
+            agp7plus = false
+        }
+
+        if (!agp7plus) {
+            project.android.applicationVariants.all { variant ->
+                writeLog(project.name, variant.name, variant.mergedFlavor.targetSdkVersion.apiLevel)
+            }
+        } else {
+            project.androidComponents {
+                onVariants(selector().all()) { variant ->
+                    if (variant.androidTest != null) {
+                        writeLog(project.name, variant.name, variant.targetSdkVersion.getApiLevel())
+                    }
+                }
+            }
+        }
+    }
+
+    def configureAndroidLibraryModule = {
+        def agp7plus = true
+        try {
+            project.buildscript.classLoader.loadClass("com.android.build.api.AndroidPluginVersion")
+        } catch (ClassNotFoundException e) {
+            agp7plus = false
+        }
+
+        if (!agp7plus) {
+            project.android.libraryVariants.all { variant ->
+                writeLog(project.name, variant.name, variant.mergedFlavor.targetSdkVersion.apiLevel)
+            }
+        } else {
+            project.androidComponents {
+                onVariants(selector().all()) { variant ->
+                    if (variant.androidTest != null) {
+                        writeLog(project.name, variant.name, variant.targetSdkVersion.getApiLevel())
+                    }
+                }
+            }
+        }
+    }
+
+    // Wait for the Android application plugin to be applied, then run the logic
+    project.plugins.withId('com.android.application', configureAndroidApplicationModule)
+
+    // Wait for the Android library plugin to be applied, then run the logic
+    project.plugins.withId('com.android.library', configureAndroidLibraryModule)
+}

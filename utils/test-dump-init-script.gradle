@@ -1,0 +1,46 @@
+import groovy.io.FileType
+import javax.xml.parsers.DocumentBuilderFactory
+import org.w3c.dom.NodeList
+import org.w3c.dom.Node
+import org.w3c.dom.Element
+import java.nio.file.Files
+
+def logFilePath = gradle.startParameter.projectProperties['android.bench.test.log.file.path']
+def logFile = null
+if (logFilePath) {
+    logFile = new File(logFilePath)
+}
+final Object FILE_LOCK = new Object()
+
+allprojects { project ->
+
+    tasks.withType(Test) {
+        def taskName = name
+
+        testLogging {
+            // Controls which events are logged
+            events "passed", "skipped", "failed", "standardOut", "standardError"
+
+            // This is the magic line for diffs
+            showExceptions true
+            exceptionFormat "full"
+            showStackTraces true
+            showCauses true
+        }
+
+        afterTest { desc, result ->
+            if (logFile) {
+                synchronized (FILE_LOCK) {
+                    def controlCharsPattern = /[\x00-\x1F]/
+
+                    String escapedDesc = desc.toString().replaceAll('"', '\\\\"').replaceAll(controlCharsPattern) { charToEscape ->
+                        return "\\u" + String.format('%04x', (int) charToEscape.charAt(0))
+                    }
+                    String testString = "{\"test\": \"${taskName}#${escapedDesc}\", \"status\": \"${result}\"}\n"
+                    logFile.append(testString)
+                }
+            }
+        }
+    }
+
+}

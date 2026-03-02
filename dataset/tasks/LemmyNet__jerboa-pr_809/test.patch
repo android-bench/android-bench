@@ -1,0 +1,128 @@
+Subject: [PATCH] LemmyNet__jerboa-pr_809
+---
+Index: app/src/androidTest/java/com/jerboa/HomeTests.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/androidTest/java/com/jerboa/HomeTests.kt b/app/src/androidTest/java/com/jerboa/HomeTests.kt
+new file mode 100644
+--- /dev/null	(date 1768551778017)
++++ b/app/src/androidTest/java/com/jerboa/HomeTests.kt	(date 1768551778017)
+@@ -0,0 +1,85 @@
++package com.jerboa
++
++import androidx.compose.ui.semantics.ProgressBarRangeInfo
++import androidx.compose.ui.test.assertCountEquals
++import androidx.compose.ui.test.assertIsDisplayed
++import androidx.compose.ui.test.hasProgressBarRangeInfo
++import androidx.compose.ui.test.hasTestTag
++import androidx.compose.ui.test.junit4.createAndroidComposeRule
++import androidx.compose.ui.test.onNodeWithTag
++import androidx.compose.ui.test.performScrollToIndex
++import androidx.compose.ui.test.performTouchInput
++import androidx.compose.ui.test.swipeDown
++import com.jerboa.api.API
++import com.jerboa.datatypes.samplePostView
++import com.jerboa.datatypes.types.GetPostsResponse
++import io.mockk.coEvery
++import io.mockk.mockk
++import kotlinx.coroutines.delay
++import org.junit.Before
++import org.junit.Rule
++import org.junit.Test
++import retrofit2.Response
++
++class HomeTests {
++
++    @get:Rule
++    val composeTestRule = createAndroidComposeRule<MainActivity>()
++
++    private val mockApi = mockk<API>()
++
++    @Before
++    fun setup() {
++        val companion = API::class.java.getDeclaredField("Companion").get(null)
++        val instanceField = companion.javaClass.getDeclaredField("api")
++        instanceField.isAccessible = true
++        instanceField.set(companion, mockApi)
++
++        val posts = List(10) { samplePostView.copy(post = samplePostView.post.copy(id = it)) }
++        coEvery { mockApi.getPosts(any()) } coAnswers {
++            Response.success(GetPostsResponse(posts))
++        }
++    }
++
++    @Test
++    fun checkLoadingNextPageIndicators() {
++        composeTestRule.waitForIdle()
++
++        coEvery { mockApi.getPosts(any()) } coAnswers {
++            delay(1_000)
++            Response.success(GetPostsResponse(emptyList()))
++        }
++
++        composeTestRule.onNodeWithTag("jerboa:posts")
++            .performScrollToIndex(10)
++
++        // new page loading should be visible
++        composeTestRule.onNodeWithTag("jerboa:loading")
++            .assertIsDisplayed()
++
++        // only one loading indicator should exist
++        composeTestRule.onAllNodes(hasProgressBarRangeInfo(ProgressBarRangeInfo.Indeterminate))
++            .assertCountEquals(1)
++    }
++
++    // pass-to-pass test
++    @Test
++    fun checkRefreshPageIndicator() {
++        composeTestRule.waitForIdle()
++
++        coEvery { mockApi.getPosts(any()) } coAnswers {
++            delay(1_000)
++            Response.success(GetPostsResponse(emptyList()))
++        }
++
++        composeTestRule.onNodeWithTag("jerboa:posts")
++            .performTouchInput { swipeDown() }
++
++        // loading indicator, different from the horizontal progress indicator, should be visible
++        composeTestRule.onNode(
++            hasProgressBarRangeInfo(ProgressBarRangeInfo.Indeterminate).and(
++                hasTestTag("jerboa:loading").not()
++            )
++        ).assertIsDisplayed()
++    }
++}
+Index: app/build.gradle.kts
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/build.gradle.kts b/app/build.gradle.kts
+--- a/app/build.gradle.kts	(revision 8c956b130485e08e0b61a35fb81a4cea590a088e)
++++ b/app/build.gradle.kts	(date 1768551778017)
+@@ -86,6 +86,14 @@
+     composeOptions {
+         kotlinCompilerExtensionVersion = "1.4.7"
+     }
++    packaging {
++        resources {
++            resources.excludes.add("META-INF/*")
++            jniLibs {
++                useLegacyPackaging = true
++            }
++        }
++    }
+ }
+ 
+ dependencies {
+@@ -155,6 +163,7 @@
+     androidTestImplementation("androidx.test.ext:junit:1.1.5")
+     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
+     androidTestImplementation("androidx.compose.ui:ui-test-junit4:$composeVersion")
++    androidTestImplementation("io.mockk:mockk-android:1.13.10")
+     debugImplementation("androidx.compose.ui:ui-tooling:$composeVersion")
+     debugImplementation("androidx.compose.ui:ui-test-manifest:$composeVersion")
+     implementation("net.engawapg.lib:zoomable:1.4.3")

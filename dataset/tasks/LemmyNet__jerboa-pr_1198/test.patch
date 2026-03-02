@@ -1,0 +1,162 @@
+Subject: [PATCH] tests
+---
+Index: app/src/androidTest/java/com/jerboa/AddSpoilerTemplateButton.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/androidTest/java/com/jerboa/AddSpoilerTemplateButton.kt b/app/src/androidTest/java/com/jerboa/AddSpoilerTemplateButton.kt
+new file mode 100644
+--- /dev/null	(revision ae5a54de28c0308a697c43e32d59fdb505d15647)
++++ b/app/src/androidTest/java/com/jerboa/AddSpoilerTemplateButton.kt	(revision ae5a54de28c0308a697c43e32d59fdb505d15647)
+@@ -0,0 +1,150 @@
++package com.jerboa
++
++import androidx.compose.runtime.Composable
++import androidx.compose.ui.semantics.SemanticsProperties
++import androidx.compose.ui.test.ExperimentalTestApi
++import androidx.compose.ui.test.isFocused
++import androidx.compose.ui.test.junit4.ComposeContentTestRule
++import androidx.compose.ui.test.junit4.createComposeRule
++import androidx.compose.ui.test.onNodeWithContentDescription
++import androidx.compose.ui.test.performClick
++import androidx.compose.ui.test.performTextInput
++import androidx.compose.ui.test.performTextInputSelection
++import androidx.compose.ui.text.TextRange
++import androidx.lifecycle.LiveData
++import androidx.lifecycle.MutableLiveData
++import com.jerboa.datatypes.sampleComment
++import com.jerboa.datatypes.sampleCommentReplyView
++import com.jerboa.datatypes.sampleCommentView
++import com.jerboa.datatypes.samplePrivateMessageView
++import com.jerboa.db.dao.AccountDao
++import com.jerboa.db.entity.Account
++import com.jerboa.db.repository.AccountRepository
++import com.jerboa.model.AccountViewModel
++import com.jerboa.model.ReplyItem
++import com.jerboa.model.SiteViewModel
++import com.jerboa.ui.components.comment.edit.CommentEditActivity
++import com.jerboa.ui.components.comment.reply.CommentReplyActivity
++import com.jerboa.ui.components.privatemessage.CreatePrivateMessageActivity
++import com.jerboa.ui.components.privatemessage.PrivateMessageReplyActivity
++import org.junit.Assert.assertEquals
++import org.junit.Rule
++import org.junit.Test
++
++class AddSpoilerTemplateButton {
++
++    @get:Rule
++    val composeRule = createComposeRule()
++
++    private val accountRepository = AccountRepository(FakeAccountDao)
++
++    @OptIn(ExperimentalTestApi::class)
++    @Test
++    fun shouldShowAddSpoilerTemplateButtonInCommentReplyActivity() {
++        composeRule.assertSpoilerButtonIsImplemented {
++            CommentReplyActivity(
++                replyItem = ReplyItem.CommentReplyItem(
++                    item = sampleCommentReplyView
++                ),
++                accountViewModel = AccountViewModel(accountRepository),
++                siteViewModel = SiteViewModel(accountRepository),
++                appState = rememberJerboaAppState(),
++                isModerator = false
++            )
++        }
++    }
++
++    @Test
++    fun shouldShowAddSpoilerTemplateButtonInCommentEditActivity() {
++        composeRule.assertSpoilerButtonIsImplemented {
++            CommentEditActivity(
++                commentView = sampleCommentView.copy(comment = sampleComment.copy(content = "")),
++                appState = rememberJerboaAppState(),
++                accountViewModel = AccountViewModel(accountRepository)
++            )
++        }
++    }
++    @Test
++    fun shouldShowAddSpoilerTemplateButtonInCreatePrivateMessageActivity() {
++        composeRule.assertSpoilerButtonIsImplemented {
++            CreatePrivateMessageActivity(
++                personId = 1,
++                personName = "Person Name",
++                accountViewModel = AccountViewModel(accountRepository),
++                onBack = {}
++            )
++        }
++    }
++
++    @Test
++    fun shouldShowAddSpoilerTemplateButtonInCreatePrivateMessageReplyActivity() {
++        composeRule.assertSpoilerButtonIsImplemented {
++            PrivateMessageReplyActivity(
++                privateMessageView = samplePrivateMessageView,
++                accountViewModel = AccountViewModel(accountRepository),
++                siteViewModel = SiteViewModel(accountRepository),
++                onBack = {},
++                onProfile = {}
++            )
++        }
++    }
++
++    @OptIn(ExperimentalTestApi::class)
++    fun ComposeContentTestRule.assertSpoilerButtonIsImplemented(content: @Composable () -> Unit) {
++        setContent(content)
++        val startingText = "Normal text"
++        val endingText = "End text"
++        val preselectedText = "Already selected text"
++        onNode(isFocused()).apply {
++            performTextInput(startingText)
++            performTextInput("\n")
++            performTextInput(preselectedText)
++            performTextInput("\n")
++            performTextInput(endingText)
++            val startSelection = startingText.length + 1
++            val endSelection = startSelection + preselectedText.length
++            performTextInputSelection(TextRange(startSelection, endSelection))
++        }
++        onNodeWithContentDescription("Insert spoiler")
++            .assertExists()
++            .performClick()
++        waitForIdle()
++        val actualText = onNode(isFocused()).fetchSemanticsNode().config[SemanticsProperties.EditableText]
++        val expectedText = "$startingText\n::: spoiler Title\n$preselectedText\n:::\n$endingText"
++        assertEquals(expectedText, actualText.toString())
++    }
++}
++
++object FakeAccountDao : AccountDao {
++    private val account = Account(
++        id = 1,
++        current = true,
++        instance = "",
++        name = "Account name",
++        jwt = "jwt",
++        defaultListingType = 1,
++        defaultSortType = 1,
++        verificationState = 1
++    )
++
++    override fun getAll(): LiveData<List<Account>> {
++        return MutableLiveData(listOf(account))
++    }
++
++    override fun getCurrent(): LiveData<Account?> {
++        return MutableLiveData()
++    }
++
++    override suspend fun insert(account: Account) {}
++
++    override suspend fun update(account: Account) {}
++
++    override suspend fun removeCurrent() {}
++
++    override suspend fun setCurrent(accountId: Int) {}
++
++    override suspend fun setVerificationState(accountId: Int, state: Int) {}
++
++    override suspend fun delete(account: Account) {}
++
++}

@@ -1,0 +1,1095 @@
+diff --git a/app/build.gradle.kts b/app/build.gradle.kts
+index 92739deb2f..5cda5d681d 100644
+--- a/app/build.gradle.kts
++++ b/app/build.gradle.kts
+@@ -25,8 +25,8 @@ android {
+     defaultConfig {
+         applicationId = "app.komikku"
+ 
+-        versionCode = 74
+-        versionName = "1.13.2"
++        versionCode = 75
++        versionName = "1.13.3"
+ 
+         buildConfigField("String", "COMMIT_COUNT", "\"${getCommitCount()}\"")
+         buildConfigField("String", "COMMIT_SHA", "\"${getGitSha()}\"")
+diff --git a/app/src/main/java/eu/kanade/presentation/history/HistoryScreen.kt b/app/src/main/java/eu/kanade/presentation/history/HistoryScreen.kt
+index a8fb38b694..e9fb97c74e 100644
+--- a/app/src/main/java/eu/kanade/presentation/history/HistoryScreen.kt
++++ b/app/src/main/java/eu/kanade/presentation/history/HistoryScreen.kt
+@@ -165,6 +165,15 @@ private fun HistoryScreenContent(
+                         onClickDelete = { onClickDelete(value) },
+                         onClickFavorite = { onClickFavorite(value) },
+                         // KMK -->
++                        readProgress = value.lastPageRead
++                            .takeIf { !value.read && it > 0L }
++                            ?.let {
++                                stringResource(
++                                    MR.strings.chapter_progress,
++                                    it + 1,
++                                )
++                            },
++                        hasUnread = value.unreadCount > 0,
+                         usePanoramaCover = usePanoramaCover,
+                         // KMK <--
+                     )
+diff --git a/app/src/main/java/eu/kanade/presentation/history/HistoryScreenModelStateProvider.kt b/app/src/main/java/eu/kanade/presentation/history/HistoryScreenModelStateProvider.kt
+index 835bef899d..6b6404a601 100644
+--- a/app/src/main/java/eu/kanade/presentation/history/HistoryScreenModelStateProvider.kt
++++ b/app/src/main/java/eu/kanade/presentation/history/HistoryScreenModelStateProvider.kt
+@@ -98,6 +98,12 @@ class HistoryScreenModelStateProvider : PreviewParameterProvider<HistoryScreenMo
+                         ogTitle = "Test Title",
+                         // SY <--
+                         chapterNumber = Random.nextDouble(),
++                        // KMK -->
++                        read = Random.nextBoolean(),
++                        lastPageRead = Random.nextLong(1, 10),
++                        totalChapters = Random.nextLong(1, 100),
++                        readCount = 1,
++                        // KMK <--
+                         readAt = Date.from(Instant.now()),
+                         readDuration = Random.nextLong(),
+                         coverData = MangaCover(
+diff --git a/app/src/main/java/eu/kanade/presentation/history/components/HistoryItem.kt b/app/src/main/java/eu/kanade/presentation/history/components/HistoryItem.kt
+index 9b69517b58..35e8b1ceed 100644
+--- a/app/src/main/java/eu/kanade/presentation/history/components/HistoryItem.kt
++++ b/app/src/main/java/eu/kanade/presentation/history/components/HistoryItem.kt
+@@ -7,10 +7,12 @@ import androidx.compose.foundation.layout.fillMaxHeight
+ import androidx.compose.foundation.layout.height
+ import androidx.compose.foundation.layout.padding
+ import androidx.compose.material.icons.Icons
++import androidx.compose.material.icons.filled.Circle
+ import androidx.compose.material.icons.outlined.Delete
+ import androidx.compose.material.icons.outlined.FavoriteBorder
+ import androidx.compose.material3.Icon
+ import androidx.compose.material3.IconButton
++import androidx.compose.material3.LocalContentColor
+ import androidx.compose.material3.MaterialTheme
+ import androidx.compose.material3.Surface
+ import androidx.compose.material3.Text
+@@ -26,6 +28,7 @@ import androidx.compose.ui.text.style.TextOverflow
+ import androidx.compose.ui.tooling.preview.PreviewLightDark
+ import androidx.compose.ui.tooling.preview.PreviewParameter
+ import androidx.compose.ui.unit.dp
++import eu.kanade.presentation.manga.components.DotSeparatorText
+ import eu.kanade.presentation.manga.components.MangaCover
+ import eu.kanade.presentation.manga.components.MangaCoverHide
+ import eu.kanade.presentation.manga.components.RatioSwitchToPanorama
+@@ -35,6 +38,7 @@ import eu.kanade.tachiyomi.util.lang.toTimestampString
+ import exh.debug.DebugToggles
+ import tachiyomi.domain.history.model.HistoryWithRelations
+ import tachiyomi.i18n.MR
++import tachiyomi.presentation.core.components.material.DISABLED_ALPHA
+ import tachiyomi.presentation.core.components.material.padding
+ import tachiyomi.presentation.core.i18n.stringResource
+ 
+@@ -49,10 +53,15 @@ fun HistoryItem(
+     onClickFavorite: () -> Unit,
+     modifier: Modifier = Modifier,
+     // KMK -->
++    readProgress: String?,
++    hasUnread: Boolean,
+     usePanoramaCover: Boolean,
+     coverRatio: MutableFloatState = remember { mutableFloatStateOf(1f) },
+     // KMK <--
+ ) {
++    // KMK -->
++    val textAlpha = if (history.read) DISABLED_ALPHA else 1f
++    // KMK <--
+     Row(
+         modifier = modifier
+             .clickable(onClick = onClickResume)
+@@ -111,28 +120,60 @@ fun HistoryItem(
+                 .weight(1f)
+                 .padding(start = MaterialTheme.padding.medium, end = MaterialTheme.padding.small),
+         ) {
+-            val textStyle = MaterialTheme.typography.bodyMedium
+             Text(
+                 text = history.title,
++                // KMK -->
++                color = LocalContentColor.current.copy(alpha = textAlpha),
++                // KMK <--
+                 fontWeight = FontWeight.SemiBold,
+                 maxLines = 2,
+                 overflow = TextOverflow.Ellipsis,
+-                style = textStyle,
++                style = MaterialTheme.typography.bodyMedium,
+             )
+             val readAt = remember { history.readAt?.toTimestampString() ?: "" }
+-            Text(
+-                text = if (history.chapterNumber > -1) {
+-                    stringResource(
+-                        MR.strings.recent_manga_time,
+-                        formatChapterNumber(history.chapterNumber),
+-                        readAt,
+-                    )
+-                } else {
+-                    readAt
+-                },
++            // KMK -->
++            Row(
++                verticalAlignment = Alignment.CenterVertically,
+                 modifier = Modifier.padding(top = 4.dp),
+-                style = textStyle,
+-            )
++            ) {
++                if (hasUnread) {
++                    Icon(
++                        imageVector = Icons.Filled.Circle,
++                        contentDescription = stringResource(MR.strings.unread),
++                        modifier = Modifier
++                            .height(8.dp)
++                            .padding(end = 4.dp),
++                        tint = MaterialTheme.colorScheme.primary,
++                    )
++                }
++                // KMK <--
++                Text(
++                    text = if (history.chapterNumber > -1) {
++                        stringResource(
++                            MR.strings.recent_manga_time,
++                            formatChapterNumber(history.chapterNumber),
++                            readAt,
++                        )
++                    } else {
++                        readAt
++                    },
++                    // KMK -->
++                    color = LocalContentColor.current.copy(alpha = textAlpha),
++                    style = MaterialTheme.typography.bodySmall,
++                    // KMK <--
++                )
++                // KMK -->
++                if (readProgress != null) {
++                    DotSeparatorText()
++                    Text(
++                        text = readProgress,
++                        maxLines = 1,
++                        color = LocalContentColor.current.copy(alpha = textAlpha),
++                        overflow = TextOverflow.Ellipsis,
++                    )
++                }
++                // KMK <--
++            }
+         }
+ 
+         if (!history.coverData.isMangaFavorite) {
+@@ -169,6 +210,8 @@ private fun HistoryItemPreviews(
+                 onClickResume = {},
+                 onClickDelete = {},
+                 onClickFavorite = {},
++                readProgress = "Page 5",
++                hasUnread = true,
+                 usePanoramaCover = false,
+             )
+         }
+diff --git a/app/src/main/java/eu/kanade/presentation/history/components/HistoryWithRelationsProvider.kt b/app/src/main/java/eu/kanade/presentation/history/components/HistoryWithRelationsProvider.kt
+index 0c75181777..958ea37c6b 100644
+--- a/app/src/main/java/eu/kanade/presentation/history/components/HistoryWithRelationsProvider.kt
++++ b/app/src/main/java/eu/kanade/presentation/history/components/HistoryWithRelationsProvider.kt
+@@ -14,6 +14,12 @@ internal class HistoryWithRelationsProvider : PreviewParameterProvider<HistoryWi
+         ogTitle = "Test Title",
+         // SY <--
+         chapterNumber = 10.2,
++        // KMK -->
++        read = true,
++        lastPageRead = 5,
++        totalChapters = 5L,
++        readCount = 3L,
++        // KMK <--
+         readAt = Date(1697247357L),
+         readDuration = 123L,
+         coverData = tachiyomi.domain.manga.model.MangaCover(
+@@ -33,6 +39,12 @@ internal class HistoryWithRelationsProvider : PreviewParameterProvider<HistoryWi
+         ogTitle = "Test Title",
+         // SY <--
+         chapterNumber = 10.2,
++        // KMK -->
++        read = false,
++        lastPageRead = 5,
++        totalChapters = 5L,
++        readCount = 3L,
++        // KMK <--
+         readAt = null,
+         readDuration = 123L,
+         coverData = tachiyomi.domain.manga.model.MangaCover(
+@@ -52,6 +64,12 @@ internal class HistoryWithRelationsProvider : PreviewParameterProvider<HistoryWi
+         ogTitle = "Test Title",
+         // SY <--
+         chapterNumber = -2.0,
++        // KMK -->
++        read = true,
++        lastPageRead = 5,
++        totalChapters = 5L,
++        readCount = 3L,
++        // KMK <--
+         readAt = Date(1697247357L),
+         readDuration = 123L,
+         coverData = tachiyomi.domain.manga.model.MangaCover(
+diff --git a/app/src/main/java/eu/kanade/tachiyomi/data/backup/create/creators/MangaBackupCreator.kt b/app/src/main/java/eu/kanade/tachiyomi/data/backup/create/creators/MangaBackupCreator.kt
+index 538a066631..4ac2308bc6 100644
+--- a/app/src/main/java/eu/kanade/tachiyomi/data/backup/create/creators/MangaBackupCreator.kt
++++ b/app/src/main/java/eu/kanade/tachiyomi/data/backup/create/creators/MangaBackupCreator.kt
+@@ -76,7 +76,11 @@ class MangaBackupCreator(
+             handler.awaitList {
+                 chaptersQueries.getChaptersByMangaId(
+                     mangaId = manga.id,
+-                    applyScanlatorFilter = 0, // false
++                    applyFilter = 0, // false
++                    // KMK -->
++                    Manga.CHAPTER_SHOW_NOT_BOOKMARKED,
++                    Manga.CHAPTER_SHOW_BOOKMARKED,
++                    // KMK <--
+                     mapper = backupChapterMapper,
+                 )
+             }
+diff --git a/app/src/main/java/eu/kanade/tachiyomi/data/sync/SyncManager.kt b/app/src/main/java/eu/kanade/tachiyomi/data/sync/SyncManager.kt
+index 0a79f4059f..a1f3d865f4 100644
+--- a/app/src/main/java/eu/kanade/tachiyomi/data/sync/SyncManager.kt
++++ b/app/src/main/java/eu/kanade/tachiyomi/data/sync/SyncManager.kt
+@@ -250,7 +250,16 @@ class SyncManager(
+     }
+ 
+     private suspend fun isMangaDifferent(localManga: Manga, remoteManga: BackupManga): Boolean {
+-        val localChapters = handler.await { chaptersQueries.getChaptersByMangaId(localManga.id, 0).executeAsList() }
++        val localChapters = handler.await {
++            chaptersQueries.getChaptersByMangaId(
++                localManga.id,
++                0,
++                // KMK -->
++                Manga.CHAPTER_SHOW_NOT_BOOKMARKED,
++                Manga.CHAPTER_SHOW_BOOKMARKED,
++                // KMK <--
++            ).executeAsList()
++        }
+         val localCategories = getCategories.await(localManga.id).map { it.order }
+ 
+         if (areChaptersDifferent(localChapters, remoteManga.chapters)) {
+diff --git a/app/src/main/java/eu/kanade/tachiyomi/ui/library/LibraryScreenModel.kt b/app/src/main/java/eu/kanade/tachiyomi/ui/library/LibraryScreenModel.kt
+index 84d762cc78..143e3bc394 100644
+--- a/app/src/main/java/eu/kanade/tachiyomi/ui/library/LibraryScreenModel.kt
++++ b/app/src/main/java/eu/kanade/tachiyomi/ui/library/LibraryScreenModel.kt
+@@ -785,9 +785,9 @@ class LibraryScreenModel(
+         // SY -->
+         val mergedManga = getMergedMangaById.await(manga.id).associateBy { it.id }
+         return if (manga.id == MERGED_SOURCE_ID) {
+-            getMergedChaptersByMangaId.await(manga.id, applyScanlatorFilter = true)
++            getMergedChaptersByMangaId.await(manga.id, applyFilter = true)
+         } else {
+-            getChaptersByMangaId.await(manga.id, applyScanlatorFilter = true)
++            getChaptersByMangaId.await(manga.id, applyFilter = true)
+         }.getNextUnread(manga, downloadManager, mergedManga)
+         // SY <--
+     }
+diff --git a/app/src/main/java/eu/kanade/tachiyomi/ui/manga/MangaScreenModel.kt b/app/src/main/java/eu/kanade/tachiyomi/ui/manga/MangaScreenModel.kt
+index 0b04421bc4..18d4e26af1 100644
+--- a/app/src/main/java/eu/kanade/tachiyomi/ui/manga/MangaScreenModel.kt
++++ b/app/src/main/java/eu/kanade/tachiyomi/ui/manga/MangaScreenModel.kt
+@@ -311,10 +311,10 @@ class MangaScreenModel(
+ 
+     init {
+         screenModelScope.launchIO {
+-            getMangaAndChapters.subscribe(mangaId, applyScanlatorFilter = true).distinctUntilChanged()
++            getMangaAndChapters.subscribe(mangaId, applyFilter = true).distinctUntilChanged()
+                 // SY -->
+                 .combine(
+-                    getMergedChaptersByMangaId.subscribe(mangaId, true, applyScanlatorFilter = true)
++                    getMergedChaptersByMangaId.subscribe(mangaId, true, applyFilter = true)
+                         .distinctUntilChanged(),
+                 ) { (manga, chapters), mergedChapters ->
+                     if (manga.source == MERGED_SOURCE_ID) {
+@@ -447,9 +447,9 @@ class MangaScreenModel(
+                 if (manga.source ==
+                     MERGED_SOURCE_ID
+                 ) {
+-                    getMergedChaptersByMangaId.await(mangaId, applyScanlatorFilter = true)
++                    getMergedChaptersByMangaId.await(mangaId, applyFilter = true)
+                 } else {
+-                    getMangaAndChapters.awaitChapters(mangaId, applyScanlatorFilter = true)
++                    getMangaAndChapters.awaitChapters(mangaId, applyFilter = true)
+                 }
+                 )
+                 .toChapterListItems(manga, mergedData)
+diff --git a/app/src/main/java/eu/kanade/tachiyomi/ui/reader/ReaderViewModel.kt b/app/src/main/java/eu/kanade/tachiyomi/ui/reader/ReaderViewModel.kt
+index c4ae406cb7..5016f85f9d 100644
+--- a/app/src/main/java/eu/kanade/tachiyomi/ui/reader/ReaderViewModel.kt
++++ b/app/src/main/java/eu/kanade/tachiyomi/ui/reader/ReaderViewModel.kt
+@@ -183,7 +183,7 @@ class ReaderViewModel @JvmOverloads constructor(
+ 
+     private val unfilteredChapterList by lazy {
+         val manga = manga!!
+-        runBlocking { getChaptersByMangaId.await(manga.id, applyScanlatorFilter = false) }
++        runBlocking { getChaptersByMangaId.await(manga.id, applyFilter = false) }
+     }
+ 
+     /**
+@@ -195,11 +195,11 @@ class ReaderViewModel @JvmOverloads constructor(
+         // SY -->
+         val (chapters, mangaMap) = runBlocking {
+             if (manga.source == MERGED_SOURCE_ID) {
+-                getMergedChaptersByMangaId.await(manga.id, applyScanlatorFilter = true) to
++                getMergedChaptersByMangaId.await(manga.id, applyFilter = true) to
+                     getMergedMangaById.await(manga.id)
+                         .associateBy { it.id }
+             } else {
+-                getChaptersByMangaId.await(manga.id, applyScanlatorFilter = true) to null
++                getChaptersByMangaId.await(manga.id, applyFilter = true) to null
+             }
+         }
+         fun isChapterDownloaded(chapter: Chapter): Boolean {
+diff --git a/data/src/main/java/tachiyomi/data/chapter/ChapterRepositoryImpl.kt b/data/src/main/java/tachiyomi/data/chapter/ChapterRepositoryImpl.kt
+index 133d6a9393..238dbf3286 100644
+--- a/data/src/main/java/tachiyomi/data/chapter/ChapterRepositoryImpl.kt
++++ b/data/src/main/java/tachiyomi/data/chapter/ChapterRepositoryImpl.kt
+@@ -8,6 +8,7 @@ import tachiyomi.data.DatabaseHandler
+ import tachiyomi.domain.chapter.model.Chapter
+ import tachiyomi.domain.chapter.model.ChapterUpdate
+ import tachiyomi.domain.chapter.repository.ChapterRepository
++import tachiyomi.domain.manga.model.Manga
+ 
+ class ChapterRepositoryImpl(
+     private val handler: DatabaseHandler,
+@@ -80,9 +81,17 @@ class ChapterRepositoryImpl(
+         }
+     }
+ 
+-    override suspend fun getChapterByMangaId(mangaId: Long, applyScanlatorFilter: Boolean): List<Chapter> {
++    override suspend fun getChapterByMangaId(mangaId: Long, applyFilter: Boolean): List<Chapter> {
+         return handler.awaitList {
+-            chaptersQueries.getChaptersByMangaId(mangaId, applyScanlatorFilter.toLong(), ChapterMapper::mapChapter)
++            chaptersQueries.getChaptersByMangaId(
++                mangaId,
++                applyFilter.toLong(),
++                // KMK -->
++                Manga.CHAPTER_SHOW_NOT_BOOKMARKED,
++                Manga.CHAPTER_SHOW_BOOKMARKED,
++                // KMK <--
++                ChapterMapper::mapChapter,
++            )
+         }
+     }
+ 
+@@ -111,9 +120,17 @@ class ChapterRepositoryImpl(
+         return handler.awaitOneOrNull { chaptersQueries.getChapterById(id, ChapterMapper::mapChapter) }
+     }
+ 
+-    override suspend fun getChapterByMangaIdAsFlow(mangaId: Long, applyScanlatorFilter: Boolean): Flow<List<Chapter>> {
++    override suspend fun getChapterByMangaIdAsFlow(mangaId: Long, applyFilter: Boolean): Flow<List<Chapter>> {
+         return handler.subscribeToList {
+-            chaptersQueries.getChaptersByMangaId(mangaId, applyScanlatorFilter.toLong(), ChapterMapper::mapChapter)
++            chaptersQueries.getChaptersByMangaId(
++                mangaId,
++                applyFilter.toLong(),
++                // KMK -->
++                Manga.CHAPTER_SHOW_NOT_BOOKMARKED,
++                Manga.CHAPTER_SHOW_BOOKMARKED,
++                // KMK <--
++                ChapterMapper::mapChapter,
++            )
+         }
+     }
+ 
+@@ -132,11 +149,15 @@ class ChapterRepositoryImpl(
+         return handler.awaitList { chaptersQueries.getChapterByUrl(url, ChapterMapper::mapChapter) }
+     }
+ 
+-    override suspend fun getMergedChapterByMangaId(mangaId: Long, applyScanlatorFilter: Boolean): List<Chapter> {
++    override suspend fun getMergedChapterByMangaId(mangaId: Long, applyFilter: Boolean): List<Chapter> {
+         return handler.awaitList {
+             chaptersQueries.getMergedChaptersByMangaId(
+                 mangaId,
+-                applyScanlatorFilter.toLong(),
++                applyFilter.toLong(),
++                // KMK -->
++                Manga.CHAPTER_SHOW_NOT_BOOKMARKED,
++                Manga.CHAPTER_SHOW_BOOKMARKED,
++                // KMK <--
+                 ChapterMapper::mapChapter,
+             )
+         }
+@@ -144,12 +165,16 @@ class ChapterRepositoryImpl(
+ 
+     override suspend fun getMergedChapterByMangaIdAsFlow(
+         mangaId: Long,
+-        applyScanlatorFilter: Boolean,
++        applyFilter: Boolean,
+     ): Flow<List<Chapter>> {
+         return handler.subscribeToList {
+             chaptersQueries.getMergedChaptersByMangaId(
+                 mangaId,
+-                applyScanlatorFilter.toLong(),
++                applyFilter.toLong(),
++                // KMK -->
++                Manga.CHAPTER_SHOW_NOT_BOOKMARKED,
++                Manga.CHAPTER_SHOW_BOOKMARKED,
++                // KMK <--
+                 ChapterMapper::mapChapter,
+             )
+         }
+diff --git a/data/src/main/java/tachiyomi/data/history/HistoryMapper.kt b/data/src/main/java/tachiyomi/data/history/HistoryMapper.kt
+index 45b2531bf7..7cf4055267 100644
+--- a/data/src/main/java/tachiyomi/data/history/HistoryMapper.kt
++++ b/data/src/main/java/tachiyomi/data/history/HistoryMapper.kt
+@@ -28,6 +28,12 @@ object HistoryMapper {
+         isFavorite: Boolean,
+         coverLastModified: Long,
+         chapterNumber: Double,
++        // KMK -->
++        read: Boolean,
++        lastPageRead: Long,
++        totalCount: Double,
++        readCount: Double,
++        // KMK <--
+         readAt: Date?,
+         readDuration: Long,
+     ): HistoryWithRelations = HistoryWithRelations(
+@@ -38,6 +44,12 @@ object HistoryMapper {
+         ogTitle = title,
+         // SY <--
+         chapterNumber = chapterNumber,
++        // KMK -->
++        read = read,
++        lastPageRead = lastPageRead,
++        totalChapters = totalCount.toLong(),
++        readCount = readCount.toLong(),
++        // KMK <--
+         readAt = readAt,
+         readDuration = readDuration,
+         coverData = MangaCover(
+diff --git a/data/src/main/java/tachiyomi/data/history/HistoryRepositoryImpl.kt b/data/src/main/java/tachiyomi/data/history/HistoryRepositoryImpl.kt
+index 25e8c87633..5f4087a672 100644
+--- a/data/src/main/java/tachiyomi/data/history/HistoryRepositoryImpl.kt
++++ b/data/src/main/java/tachiyomi/data/history/HistoryRepositoryImpl.kt
+@@ -8,6 +8,7 @@ import tachiyomi.domain.history.model.History
+ import tachiyomi.domain.history.model.HistoryUpdate
+ import tachiyomi.domain.history.model.HistoryWithRelations
+ import tachiyomi.domain.history.repository.HistoryRepository
++import tachiyomi.domain.manga.model.Manga
+ 
+ class HistoryRepositoryImpl(
+     private val handler: DatabaseHandler,
+@@ -15,13 +16,22 @@ class HistoryRepositoryImpl(
+ 
+     override fun getHistory(query: String): Flow<List<HistoryWithRelations>> {
+         return handler.subscribeToList {
+-            historyViewQueries.history(query, HistoryMapper::mapHistoryWithRelations)
++            historyViewQueries.history(
++                Manga.CHAPTER_SHOW_NOT_BOOKMARKED,
++                Manga.CHAPTER_SHOW_BOOKMARKED,
++                query,
++                HistoryMapper::mapHistoryWithRelations,
++            )
+         }
+     }
+ 
+     override suspend fun getLastHistory(): HistoryWithRelations? {
+         return handler.awaitOneOrNull {
+-            historyViewQueries.getLatestHistory(HistoryMapper::mapHistoryWithRelations)
++            historyViewQueries.getLatestHistory(
++                Manga.CHAPTER_SHOW_NOT_BOOKMARKED,
++                Manga.CHAPTER_SHOW_BOOKMARKED,
++                HistoryMapper::mapHistoryWithRelations,
++            )
+         }
+     }
+ 
+diff --git a/data/src/main/java/tachiyomi/data/manga/MangaMapper.kt b/data/src/main/java/tachiyomi/data/manga/MangaMapper.kt
+index 6bfa301014..679fcf997f 100644
+--- a/data/src/main/java/tachiyomi/data/manga/MangaMapper.kt
++++ b/data/src/main/java/tachiyomi/data/manga/MangaMapper.kt
+@@ -101,6 +101,9 @@ object MangaMapper {
+         chapterFetchedAt: Long,
+         lastRead: Long,
+         bookmarkCount: Double,
++        // KMK -->
++        bookmarkedReadCount: Long,
++        // KMK <--
+         category: Long,
+     ): LibraryManga = LibraryManga(
+         manga = mapManga(
+@@ -137,6 +140,10 @@ object MangaMapper {
+         totalChapters = totalCount,
+         readCount = readCount.toLong(),
+         bookmarkCount = bookmarkCount.toLong(),
++        // KMK -->
++        bookmarkReadCount = bookmarkedReadCount,
++        chapterFlags = chapterFlags,
++        // KMK <--
+         latestUpload = latestUpload,
+         chapterFetchedAt = chapterFetchedAt,
+         lastRead = lastRead,
+diff --git a/data/src/main/sqldelight/tachiyomi/data/chapters.sq b/data/src/main/sqldelight/tachiyomi/data/chapters.sq
+index cc9a979dd8..447cddab88 100644
+--- a/data/src/main/sqldelight/tachiyomi/data/chapters.sq
++++ b/data/src/main/sqldelight/tachiyomi/data/chapters.sq
+@@ -56,13 +56,22 @@ WHERE _id = :id;
+ getChaptersByMangaId:
+ SELECT C.*
+ FROM chapters C
++-- KMK -->
++JOIN mangas M ON C.manga_id = M._id
++-- KMK <--
+ LEFT JOIN excluded_scanlators ES
+ ON C.manga_id = ES.manga_id
+ AND C.scanlator = ES.scanlator
+ WHERE C.manga_id = :mangaId
+ AND (
+-    :applyScanlatorFilter = 0
+-    OR ES.scanlator IS NULL
++    :applyFilter = 0
++    -- KMK -->
++    OR (
++        ES.scanlator IS NULL
++        AND ((M.chapter_flags & :bookmarkUnmask) = 0 OR C.bookmark = 0)
++        AND ((M.chapter_flags & :bookmarkMask) = 0 OR C.bookmark = 1)
++    )
++    -- KMK <--
+ );
+ 
+ getScanlatorsByMangaId:
+@@ -97,10 +106,19 @@ ON C.manga_id = M.manga_id
+ LEFT JOIN excluded_scanlators ES
+ ON M.merge_id = ES.manga_id
+ AND C.scanlator = ES.scanlator
++-- KMK -->
++JOIN mangas MA ON MA._id = :mangaId
++-- KMK <--
+ WHERE M.merge_id = :mangaId
+ AND (
+-    :applyScanlatorFilter = 0
+-    OR ES.scanlator IS NULL
++    :applyFilter = 0
++    -- KMK -->
++    OR (
++        ES.scanlator IS NULL
++        AND ((MA.chapter_flags & :bookmarkUnmask) = 0 OR C.bookmark = 0)
++        AND ((MA.chapter_flags & :bookmarkMask) = 0 OR C.bookmark = 1)
++    )
++    -- KMK <--
+ );
+ 
+ getScanlatorsByMergeId:
+@@ -142,4 +160,4 @@ SET manga_id = coalesce(:mangaId, manga_id),
+ WHERE _id = :chapterId;
+ 
+ selectLastInsertedRowId:
+-SELECT last_insert_rowid();
+\ No newline at end of file
++SELECT last_insert_rowid();
+diff --git a/data/src/main/sqldelight/tachiyomi/migrations/40.sqm b/data/src/main/sqldelight/tachiyomi/migrations/40.sqm
+new file mode 100644
+index 0000000000..918b64bb2f
+--- /dev/null
++++ b/data/src/main/sqldelight/tachiyomi/migrations/40.sqm
+@@ -0,0 +1,147 @@
++DROP VIEW IF EXISTS historyView;
++
++CREATE VIEW historyView AS
++SELECT
++    history._id AS id,
++    mangas._id AS mangaId,
++    chapters._id AS chapterId,
++    mangas.title,
++    mangas.thumbnail_url AS thumbnailUrl,
++    mangas.source,
++    mangas.favorite,
++    mangas.cover_last_modified,
++    chapters.chapter_number AS chapterNumber,
++    -- KMK -->
++    mangas.chapter_flags AS chapterFlags,
++    chapters.read AS read,
++    chapters.last_page_read AS lastPageRead,
++    coalesce(C.total, 0) AS totalCount,
++    coalesce(C.readCount, 0) AS readCount,
++    coalesce(C.bookmarkCount, 0) AS bookmarkCount,
++    coalesce(C.bookmarkReadCount, 0) AS bookmarkReadCount,
++    -- KMK <--
++    history.last_read AS readAt,
++    history.time_read AS readDuration,
++    max_last_read.last_read AS maxReadAt,
++    max_last_read.chapter_id AS maxReadAtChapterId
++FROM mangas
++JOIN chapters
++ON mangas._id = chapters.manga_id
++JOIN history
++ON chapters._id = history.chapter_id
++JOIN (
++    SELECT chapters.manga_id,chapters._id AS chapter_id, MAX(history.last_read) AS last_read
++    FROM chapters JOIN history
++    ON chapters._id = history.chapter_id
++    GROUP BY chapters.manga_id
++) AS max_last_read
++ON chapters.manga_id = max_last_read.manga_id
++-- KMK -->
++LEFT JOIN(
++    SELECT
++        chapters.manga_id,
++        count(*) AS total,
++        sum(read) AS readCount,
++        sum(bookmark) AS bookmarkCount,
++        sum(CASE WHEN bookmark = 1 AND read = 1 THEN 1 ELSE 0 END) AS bookmarkReadCount,
++        excluded_scanlators.scanlator AS ex_scanlator
++    FROM chapters
++    LEFT JOIN excluded_scanlators
++    ON chapters.manga_id = excluded_scanlators.manga_id
++    AND chapters.scanlator = excluded_scanlators.scanlator
++    WHERE ex_scanlator IS NULL
++    GROUP BY chapters.manga_id
++) AS C
++ON mangas._id = C.manga_id;
++-- KMK <--
++
++DROP VIEW IF EXISTS libraryView;
++
++CREATE VIEW libraryView AS
++SELECT
++    M.*,
++    coalesce(C.total, 0) AS totalCount,
++    coalesce(C.readCount, 0) AS readCount,
++    coalesce(C.latestUpload, 0) AS latestUpload,
++    coalesce(C.fetchedAt, 0) AS chapterFetchedAt,
++    coalesce(C.lastRead, 0) AS lastRead,
++    coalesce(C.bookmarkCount, 0) AS bookmarkCount,
++    -- KMK -->
++    coalesce(C.bookmarkReadCount, 0) AS bookmarkedReadCount,
++    -- KMK <--
++    coalesce(MC.category_id, 0) AS category
++FROM mangas M
++LEFT JOIN(
++    SELECT
++        chapters.manga_id,
++        count(*) AS total,
++        sum(read) AS readCount,
++        coalesce(max(chapters.date_upload), 0) AS latestUpload,
++        coalesce(max(history.last_read), 0) AS lastRead,
++        coalesce(max(chapters.date_fetch), 0) AS fetchedAt,
++        sum(chapters.bookmark) AS bookmarkCount,
++        -- KMK -->
++        sum(CASE WHEN chapters.bookmark = 1 AND chapters.read = 1 THEN 1 ELSE 0 END) AS bookmarkReadCount,
++        -- KMK <--
++        excluded_scanlators.scanlator AS ex_scanlator
++    FROM chapters
++    LEFT JOIN excluded_scanlators
++    ON chapters.manga_id = excluded_scanlators.manga_id
++    AND chapters.scanlator = excluded_scanlators.scanlator
++    LEFT JOIN history
++    ON chapters._id = history.chapter_id
++    WHERE ex_scanlator IS NULL
++    GROUP BY chapters.manga_id
++) AS C
++ON M._id = C.manga_id
++LEFT JOIN mangas_categories AS MC
++ON MC.manga_id = M._id
++WHERE M.source <> 6969
++UNION
++SELECT
++    M.*,
++    coalesce(C.total, 0) AS totalCount,
++    coalesce(C.readCount, 0) AS readCount,
++    coalesce(C.latestUpload, 0) AS latestUpload,
++    coalesce(C.fetchedAt, 0) AS chapterFetchedAt,
++    coalesce(C.lastRead, 0) AS lastRead,
++    coalesce(C.bookmarkCount, 0) AS bookmarkCount,
++    -- KMK -->
++    coalesce(C.bookmarkReadCount, 0) AS bookmarkedReadCount,
++    -- KMK <--
++    coalesce(MC.category_id, 0) AS category
++FROM mangas M
++LEFT JOIN (
++    SELECT merged.manga_id,merged.merge_id
++    FROM merged
++    GROUP BY merged.merge_id
++) AS ME
++ON ME.merge_id = M._id
++LEFT JOIN(
++    SELECT
++        ME.merge_id,
++        count(*) AS total,
++        sum(read) AS readCount,
++        coalesce(max(chapters.date_upload), 0) AS latestUpload,
++        coalesce(max(history.last_read), 0) AS lastRead,
++        coalesce(max(chapters.date_fetch), 0) AS fetchedAt,
++        sum(chapters.bookmark) AS bookmarkCount,
++        -- KMK -->
++        sum(CASE WHEN chapters.bookmark = 1 AND chapters.read = 1 THEN 1 ELSE 0 END) AS bookmarkReadCount,
++        -- KMK <--
++        excluded_scanlators.scanlator AS ex_scanlator
++    FROM chapters
++    LEFT JOIN excluded_scanlators
++    ON chapters.manga_id = excluded_scanlators.manga_id
++    AND chapters.scanlator = excluded_scanlators.scanlator
++    LEFT JOIN history
++    ON chapters._id = history.chapter_id
++    LEFT JOIN merged ME
++    ON ME.manga_id = chapters.manga_id
++    WHERE ex_scanlator IS NULL
++    GROUP BY ME.merge_id
++) AS C
++ON M._id = C.merge_id  -- ON ME.merge_id = C.merge_id
++LEFT JOIN mangas_categories AS MC
++ON MC.manga_id = M._id
++WHERE M.source = 6969;
+diff --git a/data/src/main/sqldelight/tachiyomi/view/historyView.sq b/data/src/main/sqldelight/tachiyomi/view/historyView.sq
+index bdaeb52594..a4257ea0ae 100644
+--- a/data/src/main/sqldelight/tachiyomi/view/historyView.sq
++++ b/data/src/main/sqldelight/tachiyomi/view/historyView.sq
+@@ -9,6 +9,15 @@ SELECT
+     mangas.favorite,
+     mangas.cover_last_modified,
+     chapters.chapter_number AS chapterNumber,
++    -- KMK -->
++    mangas.chapter_flags AS chapterFlags,
++    chapters.read AS read,
++    chapters.last_page_read AS lastPageRead,
++    coalesce(C.total, 0) AS totalCount,
++    coalesce(C.readCount, 0) AS readCount,
++    coalesce(C.bookmarkCount, 0) AS bookmarkCount,
++    coalesce(C.bookmarkReadCount, 0) AS bookmarkReadCount,
++    -- KMK <--
+     history.last_read AS readAt,
+     history.time_read AS readDuration,
+     max_last_read.last_read AS maxReadAt,
+@@ -24,7 +33,25 @@ JOIN (
+     ON chapters._id = history.chapter_id
+     GROUP BY chapters.manga_id
+ ) AS max_last_read
+-ON chapters.manga_id = max_last_read.manga_id;
++ON chapters.manga_id = max_last_read.manga_id
++-- KMK -->
++LEFT JOIN(
++    SELECT
++        chapters.manga_id,
++        count(*) AS total,
++        sum(read) AS readCount,
++        sum(bookmark) AS bookmarkCount,
++        sum(CASE WHEN bookmark = 1 AND read = 1 THEN 1 ELSE 0 END) AS bookmarkReadCount,
++        excluded_scanlators.scanlator AS ex_scanlator
++    FROM chapters
++    LEFT JOIN excluded_scanlators
++    ON chapters.manga_id = excluded_scanlators.manga_id
++    AND chapters.scanlator = excluded_scanlators.scanlator
++    WHERE ex_scanlator IS NULL
++    GROUP BY chapters.manga_id
++) AS C
++ON mangas._id = C.manga_id;
++-- KMK <--
+ 
+ history:
+ SELECT
+@@ -37,6 +64,20 @@ source,
+ favorite,
+ cover_last_modified,
+ chapterNumber,
++-- KMK -->
++read,
++lastPageRead,
++CASE
++    WHEN (chapterFlags & :bookmarkUnmask) != 0 THEN totalCount - bookmarkCount
++    WHEN (chapterFlags & :bookmarkMask) != 0 THEN bookmarkCount
++    ELSE totalCount
++END AS totalCount,
++CASE
++    WHEN (chapterFlags & :bookmarkUnmask) != 0 THEN readCount - bookmarkReadCount
++    WHEN (chapterFlags & :bookmarkMask) != 0 THEN bookmarkReadCount
++    ELSE readCount
++END AS readCount,
++-- KMK <--
+ readAt,
+ readDuration
+ FROM historyView
+@@ -56,6 +97,20 @@ source,
+ favorite,
+ cover_last_modified,
+ chapterNumber,
++-- KMK -->
++read,
++lastPageRead,
++CASE
++    WHEN (chapterFlags & :bookmarkUnmask) != 0 THEN totalCount - bookmarkCount
++    WHEN (chapterFlags & :bookmarkMask) != 0 THEN bookmarkCount
++    ELSE totalCount
++END AS totalCount,
++CASE
++    WHEN (chapterFlags & :bookmarkUnmask) != 0 THEN readCount - bookmarkReadCount
++    WHEN (chapterFlags & :bookmarkMask) != 0 THEN bookmarkReadCount
++    ELSE readCount
++END AS readCount,
++-- KMK <--
+ readAt,
+ readDuration
+ FROM historyView
+diff --git a/data/src/main/sqldelight/tachiyomi/view/libraryView.sq b/data/src/main/sqldelight/tachiyomi/view/libraryView.sq
+index 4d0ead3187..c0c94778bb 100644
+--- a/data/src/main/sqldelight/tachiyomi/view/libraryView.sq
++++ b/data/src/main/sqldelight/tachiyomi/view/libraryView.sq
+@@ -8,6 +8,9 @@ SELECT
+     coalesce(C.fetchedAt, 0) AS chapterFetchedAt,
+     coalesce(C.lastRead, 0) AS lastRead,
+     coalesce(C.bookmarkCount, 0) AS bookmarkCount,
++    -- KMK -->
++    coalesce(C.bookmarkReadCount, 0) AS bookmarkedReadCount,
++    -- KMK <--
+     coalesce(MC.category_id, 0) AS category
+ FROM mangas M
+ LEFT JOIN(
+@@ -19,6 +22,9 @@ LEFT JOIN(
+         coalesce(max(history.last_read), 0) AS lastRead,
+         coalesce(max(chapters.date_fetch), 0) AS fetchedAt,
+         sum(chapters.bookmark) AS bookmarkCount,
++        -- KMK -->
++        sum(CASE WHEN chapters.bookmark = 1 AND chapters.read = 1 THEN 1 ELSE 0 END) AS bookmarkReadCount,
++        -- KMK <--
+         excluded_scanlators.scanlator AS ex_scanlator
+     FROM chapters
+     LEFT JOIN excluded_scanlators
+@@ -42,6 +48,9 @@ SELECT
+     coalesce(C.fetchedAt, 0) AS chapterFetchedAt,
+     coalesce(C.lastRead, 0) AS lastRead,
+     coalesce(C.bookmarkCount, 0) AS bookmarkCount,
++    -- KMK -->
++    coalesce(C.bookmarkReadCount, 0) AS bookmarkedReadCount,
++    -- KMK <--
+     coalesce(MC.category_id, 0) AS category
+ FROM mangas M
+ LEFT JOIN (
+@@ -59,6 +68,9 @@ LEFT JOIN(
+         coalesce(max(history.last_read), 0) AS lastRead,
+         coalesce(max(chapters.date_fetch), 0) AS fetchedAt,
+         sum(chapters.bookmark) AS bookmarkCount,
++        -- KMK -->
++        sum(CASE WHEN chapters.bookmark = 1 AND chapters.read = 1 THEN 1 ELSE 0 END) AS bookmarkReadCount,
++        -- KMK <--
+         excluded_scanlators.scanlator AS ex_scanlator
+     FROM chapters
+     LEFT JOIN excluded_scanlators
+@@ -84,4 +96,4 @@ WHERE libraryView.favorite = 1;
+ readMangaNonLibrary:
+ SELECT *
+ FROM libraryView
+-WHERE libraryView.favorite = 0 AND libraryView.readCount != 0;
+\ No newline at end of file
++WHERE libraryView.favorite = 0 AND libraryView.readCount != 0;
+diff --git a/domain/src/main/java/tachiyomi/domain/chapter/interactor/GetChaptersByMangaId.kt b/domain/src/main/java/tachiyomi/domain/chapter/interactor/GetChaptersByMangaId.kt
+index 1dee7770e1..ff81cfb3b1 100644
+--- a/domain/src/main/java/tachiyomi/domain/chapter/interactor/GetChaptersByMangaId.kt
++++ b/domain/src/main/java/tachiyomi/domain/chapter/interactor/GetChaptersByMangaId.kt
+@@ -9,9 +9,9 @@ class GetChaptersByMangaId(
+     private val chapterRepository: ChapterRepository,
+ ) {
+ 
+-    suspend fun await(mangaId: Long, applyScanlatorFilter: Boolean = false): List<Chapter> {
++    suspend fun await(mangaId: Long, applyFilter: Boolean = false): List<Chapter> {
+         return try {
+-            chapterRepository.getChapterByMangaId(mangaId, applyScanlatorFilter)
++            chapterRepository.getChapterByMangaId(mangaId, applyFilter)
+         } catch (e: Exception) {
+             logcat(LogPriority.ERROR, e)
+             emptyList()
+diff --git a/domain/src/main/java/tachiyomi/domain/chapter/interactor/GetMergedChaptersByMangaId.kt b/domain/src/main/java/tachiyomi/domain/chapter/interactor/GetMergedChaptersByMangaId.kt
+index 4ac4d8225b..d38b90cc49 100644
+--- a/domain/src/main/java/tachiyomi/domain/chapter/interactor/GetMergedChaptersByMangaId.kt
++++ b/domain/src/main/java/tachiyomi/domain/chapter/interactor/GetMergedChaptersByMangaId.kt
+@@ -19,11 +19,11 @@ class GetMergedChaptersByMangaId(
+     suspend fun await(
+         mangaId: Long,
+         dedupe: Boolean = true,
+-        applyScanlatorFilter: Boolean = false,
++        applyFilter: Boolean = false,
+     ): List<Chapter> {
+         return transformMergedChapters(
+             getMergedReferencesById.await(mangaId),
+-            getFromDatabase(mangaId, applyScanlatorFilter),
++            getFromDatabase(mangaId, applyFilter),
+             dedupe,
+         )
+     }
+@@ -31,10 +31,10 @@ class GetMergedChaptersByMangaId(
+     suspend fun subscribe(
+         mangaId: Long,
+         dedupe: Boolean = true,
+-        applyScanlatorFilter: Boolean = false,
++        applyFilter: Boolean = false,
+     ): Flow<List<Chapter>> {
+         return try {
+-            chapterRepository.getMergedChapterByMangaIdAsFlow(mangaId, applyScanlatorFilter)
++            chapterRepository.getMergedChapterByMangaIdAsFlow(mangaId, applyFilter)
+                 .combine(getMergedReferencesById.subscribe(mangaId)) { chapters, references ->
+                     transformMergedChapters(references, chapters, dedupe)
+                 }
+@@ -46,10 +46,10 @@ class GetMergedChaptersByMangaId(
+ 
+     private suspend fun getFromDatabase(
+         mangaId: Long,
+-        applyScanlatorFilter: Boolean = false,
++        applyFilter: Boolean = false,
+     ): List<Chapter> {
+         return try {
+-            chapterRepository.getMergedChapterByMangaId(mangaId, applyScanlatorFilter)
++            chapterRepository.getMergedChapterByMangaId(mangaId, applyFilter)
+         } catch (e: Exception) {
+             logcat(LogPriority.ERROR, e)
+             emptyList()
+diff --git a/domain/src/main/java/tachiyomi/domain/chapter/repository/ChapterRepository.kt b/domain/src/main/java/tachiyomi/domain/chapter/repository/ChapterRepository.kt
+index ef5061496f..be3f80326f 100644
+--- a/domain/src/main/java/tachiyomi/domain/chapter/repository/ChapterRepository.kt
++++ b/domain/src/main/java/tachiyomi/domain/chapter/repository/ChapterRepository.kt
+@@ -14,7 +14,7 @@ interface ChapterRepository {
+ 
+     suspend fun removeChaptersWithIds(chapterIds: List<Long>)
+ 
+-    suspend fun getChapterByMangaId(mangaId: Long, applyScanlatorFilter: Boolean = false): List<Chapter>
++    suspend fun getChapterByMangaId(mangaId: Long, applyFilter: Boolean = false): List<Chapter>
+ 
+     suspend fun getScanlatorsByMangaId(mangaId: Long): List<String>
+ 
+@@ -24,18 +24,18 @@ interface ChapterRepository {
+ 
+     suspend fun getChapterById(id: Long): Chapter?
+ 
+-    suspend fun getChapterByMangaIdAsFlow(mangaId: Long, applyScanlatorFilter: Boolean = false): Flow<List<Chapter>>
++    suspend fun getChapterByMangaIdAsFlow(mangaId: Long, applyFilter: Boolean = false): Flow<List<Chapter>>
+ 
+     suspend fun getChapterByUrlAndMangaId(url: String, mangaId: Long): Chapter?
+ 
+     // SY -->
+     suspend fun getChapterByUrl(url: String): List<Chapter>
+ 
+-    suspend fun getMergedChapterByMangaId(mangaId: Long, applyScanlatorFilter: Boolean = false): List<Chapter>
++    suspend fun getMergedChapterByMangaId(mangaId: Long, applyFilter: Boolean = false): List<Chapter>
+ 
+     suspend fun getMergedChapterByMangaIdAsFlow(
+         mangaId: Long,
+-        applyScanlatorFilter: Boolean = false,
++        applyFilter: Boolean = false,
+     ): Flow<List<Chapter>>
+ 
+     suspend fun getScanlatorsByMergeId(mangaId: Long): List<String>
+diff --git a/domain/src/main/java/tachiyomi/domain/history/interactor/GetNextChapters.kt b/domain/src/main/java/tachiyomi/domain/history/interactor/GetNextChapters.kt
+index be10e688f3..ca8c8ab5d7 100644
+--- a/domain/src/main/java/tachiyomi/domain/history/interactor/GetNextChapters.kt
++++ b/domain/src/main/java/tachiyomi/domain/history/interactor/GetNextChapters.kt
+@@ -29,7 +29,7 @@ class GetNextChapters(
+ 
+         // SY -->
+         if (manga.source == MERGED_SOURCE_ID) {
+-            val chapters = getMergedChaptersByMangaId.await(mangaId, applyScanlatorFilter = true)
++            val chapters = getMergedChaptersByMangaId.await(mangaId, applyFilter = true)
+                 .sortedWith(getChapterSort(manga, sortDescending = false))
+ 
+             return if (onlyUnread) {
+@@ -39,7 +39,7 @@ class GetNextChapters(
+             }
+         }
+         if (manga.isEhBasedManga()) {
+-            val chapters = getChaptersByMangaId.await(mangaId, applyScanlatorFilter = true)
++            val chapters = getChaptersByMangaId.await(mangaId, applyFilter = true)
+                 .sortedWith(getChapterSort(manga, sortDescending = false))
+ 
+             return if (onlyUnread) {
+@@ -50,7 +50,7 @@ class GetNextChapters(
+         }
+         // SY <--
+ 
+-        val chapters = getChaptersByMangaId.await(mangaId, applyScanlatorFilter = true)
++        val chapters = getChaptersByMangaId.await(mangaId, applyFilter = true)
+             .sortedWith(getChapterSort(manga, sortDescending = false))
+ 
+         return if (onlyUnread) {
+diff --git a/domain/src/main/java/tachiyomi/domain/history/model/HistoryWithRelations.kt b/domain/src/main/java/tachiyomi/domain/history/model/HistoryWithRelations.kt
+index 4013f94f73..85a5e19fdb 100644
+--- a/domain/src/main/java/tachiyomi/domain/history/model/HistoryWithRelations.kt
++++ b/domain/src/main/java/tachiyomi/domain/history/model/HistoryWithRelations.kt
+@@ -13,6 +13,12 @@ data class HistoryWithRelations(
+     val ogTitle: String,
+     // SY <--
+     val chapterNumber: Double,
++    // KMK -->
++    val read: Boolean,
++    val lastPageRead: Long,
++    val totalChapters: Long,
++    val readCount: Long,
++    // KMK <--
+     val readAt: Date?,
+     val readDuration: Long,
+     val coverData: MangaCover,
+@@ -24,4 +30,9 @@ data class HistoryWithRelations(
+         private val customMangaManager: GetCustomMangaInfo by injectLazy()
+     }
+     // SY <--
++
++    // KMK -->
++    val unreadCount
++        get() = totalChapters - readCount
++    // KMK <--
+ }
+diff --git a/domain/src/main/java/tachiyomi/domain/library/model/LibraryManga.kt b/domain/src/main/java/tachiyomi/domain/library/model/LibraryManga.kt
+index 65e06c1952..a9f067861a 100644
+--- a/domain/src/main/java/tachiyomi/domain/library/model/LibraryManga.kt
++++ b/domain/src/main/java/tachiyomi/domain/library/model/LibraryManga.kt
+@@ -8,6 +8,10 @@ data class LibraryManga(
+     val totalChapters: Long,
+     val readCount: Long,
+     val bookmarkCount: Long,
++    // KMK -->
++    val bookmarkReadCount: Long,
++    val chapterFlags: Long,
++    // KMK <--
+     val latestUpload: Long,
+     val chapterFetchedAt: Long,
+     val lastRead: Long,
+@@ -15,7 +19,13 @@ data class LibraryManga(
+     val id: Long = manga.id
+ 
+     val unreadCount
+-        get() = totalChapters - readCount
++        get() = when {
++            // KMK -->
++            chapterFlags and Manga.CHAPTER_SHOW_NOT_BOOKMARKED != 0L -> totalChapters - bookmarkCount - (readCount - bookmarkReadCount)
++            chapterFlags and Manga.CHAPTER_SHOW_BOOKMARKED != 0L -> bookmarkCount - bookmarkReadCount
++            // KMK <--
++            else -> totalChapters - readCount
++        }
+ 
+     val hasBookmarks
+         get() = bookmarkCount > 0
+diff --git a/domain/src/main/java/tachiyomi/domain/manga/interactor/FetchInterval.kt b/domain/src/main/java/tachiyomi/domain/manga/interactor/FetchInterval.kt
+index 3517bfab16..2623bebb40 100644
+--- a/domain/src/main/java/tachiyomi/domain/manga/interactor/FetchInterval.kt
++++ b/domain/src/main/java/tachiyomi/domain/manga/interactor/FetchInterval.kt
+@@ -20,7 +20,7 @@ class FetchInterval(
+         window: Pair<Long, Long>,
+     ): MangaUpdate {
+         val interval = manga.fetchInterval.takeIf { it < 0 } ?: calculateInterval(
+-            chapters = getChaptersByMangaId.await(manga.id, applyScanlatorFilter = true),
++            chapters = getChaptersByMangaId.await(manga.id, applyFilter = true),
+             zone = dateTime.zone,
+         )
+         val currentWindow = if (window.first == 0L && window.second == 0L) {
+diff --git a/domain/src/main/java/tachiyomi/domain/manga/interactor/GetMangaWithChapters.kt b/domain/src/main/java/tachiyomi/domain/manga/interactor/GetMangaWithChapters.kt
+index 4fddd81401..c3f7c4ed1d 100644
+--- a/domain/src/main/java/tachiyomi/domain/manga/interactor/GetMangaWithChapters.kt
++++ b/domain/src/main/java/tachiyomi/domain/manga/interactor/GetMangaWithChapters.kt
+@@ -12,10 +12,10 @@ class GetMangaWithChapters(
+     private val chapterRepository: ChapterRepository,
+ ) {
+ 
+-    suspend fun subscribe(id: Long, applyScanlatorFilter: Boolean = false): Flow<Pair<Manga, List<Chapter>>> {
++    suspend fun subscribe(id: Long, applyFilter: Boolean = false): Flow<Pair<Manga, List<Chapter>>> {
+         return combine(
+             mangaRepository.getMangaByIdAsFlow(id),
+-            chapterRepository.getChapterByMangaIdAsFlow(id, applyScanlatorFilter),
++            chapterRepository.getChapterByMangaIdAsFlow(id, applyFilter),
+         ) { manga, chapters ->
+             Pair(manga, chapters)
+         }
+@@ -25,7 +25,7 @@ class GetMangaWithChapters(
+         return mangaRepository.getMangaById(id)
+     }
+ 
+-    suspend fun awaitChapters(id: Long, applyScanlatorFilter: Boolean = false): List<Chapter> {
+-        return chapterRepository.getChapterByMangaId(id, applyScanlatorFilter)
++    suspend fun awaitChapters(id: Long, applyFilter: Boolean = false): List<Chapter> {
++        return chapterRepository.getChapterByMangaId(id, applyFilter)
+     }
+ }
+

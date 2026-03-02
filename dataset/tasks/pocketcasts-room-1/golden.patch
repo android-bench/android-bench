@@ -1,0 +1,166 @@
+diff --git a/modules/features/settings/src/main/java/au/com/shiftyjelly/pocketcasts/settings/AutoDownloadSettingsPlaylistsPage.kt b/modules/features/settings/src/main/java/au/com/shiftyjelly/pocketcasts/settings/AutoDownloadSettingsPlaylistsPage.kt
+index 38a787266..ac4fb3388 100644
+--- a/modules/features/settings/src/main/java/au/com/shiftyjelly/pocketcasts/settings/AutoDownloadSettingsPlaylistsPage.kt
++++ b/modules/features/settings/src/main/java/au/com/shiftyjelly/pocketcasts/settings/AutoDownloadSettingsPlaylistsPage.kt
+@@ -1,7 +1,6 @@
+ package au.com.shiftyjelly.pocketcasts.settings
+ 
+ import androidx.compose.foundation.Image
+-import androidx.compose.foundation.background
+ import androidx.compose.foundation.clickable
+ import androidx.compose.foundation.layout.Column
+ import androidx.compose.foundation.layout.Row
+@@ -45,6 +44,7 @@ import au.com.shiftyjelly.pocketcasts.models.to.PlaylistIcon
+ import au.com.shiftyjelly.pocketcasts.models.type.SmartRules
+ import au.com.shiftyjelly.pocketcasts.models.type.SmartRules.PodcastsRule
+ import au.com.shiftyjelly.pocketcasts.repositories.extensions.drawableId
++import au.com.shiftyjelly.pocketcasts.repositories.playlist.ManualPlaylistPreview
+ import au.com.shiftyjelly.pocketcasts.repositories.playlist.Playlist
+ import au.com.shiftyjelly.pocketcasts.repositories.playlist.PlaylistPreview
+ import au.com.shiftyjelly.pocketcasts.repositories.playlist.SmartPlaylistPreview
+@@ -169,10 +169,12 @@ private fun PlaylistRow(
+                     TextH40(
+                         text = playlist.title,
+                     )
+-                    TextP50(
+-                        text = stringResource(LR.string.smart_playlist),
+-                        color = MaterialTheme.theme.colors.primaryText02,
+-                    )
++                    if (playlist.type == Playlist.Type.Smart) {
++                        TextP50(
++                            text = stringResource(LR.string.smart_playlist),
++                            color = MaterialTheme.theme.colors.primaryText02,
++                        )
++                    }
+                 }
+                 Spacer(
+                     modifier = Modifier.width(16.dp),
+@@ -224,21 +226,47 @@ private fun AutoDownloadSettingsPlaylistsPagePreview(
+ ) {
+     AppThemeWithBackground(themeType) {
+         AutoDownloadSettingsPlaylistsPage(
+-            playlists = List(3) { index ->
++            playlists = listOf(
+                 SmartPlaylistPreview(
+-                    uuid = "playlist-uuid-$index",
+-                    title = "Playlist $index",
++                    uuid = "playlist-uuid-0",
++                    title = "Smart Playlist 0",
+                     episodeCount = 0,
+                     artworkPodcastUuids = emptyList(),
+                     settings = Playlist.Settings.ForPreview.copy(
+-                        isAutoDownloadEnabled = index % 2 == 0,
++                        isAutoDownloadEnabled = true,
+                     ),
+-                    smartRules = SmartRules.Default.copy(
+-                        podcasts = PodcastsRule.Selected(uuids = setOf("podcast-uuid-$index")),
++                    smartRules = SmartRules.Default,
++                    icon = PlaylistIcon(0),
++                ),
++                SmartPlaylistPreview(
++                    uuid = "playlist-uuid-1",
++                    title = "Smart Playlist 1",
++                    episodeCount = 0,
++                    artworkPodcastUuids = emptyList(),
++                    settings = Playlist.Settings.ForPreview,
++                    smartRules = SmartRules.Default,
++                    icon = PlaylistIcon(0),
++                ),
++                ManualPlaylistPreview(
++                    uuid = "playlist-uuid-2",
++                    title = "Manual Playlist 2",
++                    episodeCount = 0,
++                    artworkPodcastUuids = emptyList(),
++                    settings = Playlist.Settings.ForPreview,
++                    icon = PlaylistIcon(0),
++                ),
++                ManualPlaylistPreview(
++                    uuid = "playlist-uuid-3",
++                    title = "Manual Playlist 3",
++                    episodeCount = 0,
++                    artworkPodcastUuids = emptyList(),
++                    settings = Playlist.Settings.ForPreview.copy(
++                        isAutoDownloadEnabled = true,
+                     ),
+                     icon = PlaylistIcon(0),
+-                )
+-            },
++                ),
++
++            ),
+             onChangePlaylist = { _, _ -> },
+             onChangeAllPlaylists = {},
+         )
+diff --git a/modules/features/settings/src/main/java/au/com/shiftyjelly/pocketcasts/settings/viewmodel/AutoDownloadSettingsViewModel.kt b/modules/features/settings/src/main/java/au/com/shiftyjelly/pocketcasts/settings/viewmodel/AutoDownloadSettingsViewModel.kt
+index 40441ea8e..629e9d715 100644
+--- a/modules/features/settings/src/main/java/au/com/shiftyjelly/pocketcasts/settings/viewmodel/AutoDownloadSettingsViewModel.kt
++++ b/modules/features/settings/src/main/java/au/com/shiftyjelly/pocketcasts/settings/viewmodel/AutoDownloadSettingsViewModel.kt
+@@ -152,7 +152,14 @@ class AutoDownloadSettingsViewModel @Inject constructor(
+     }
+ 
+     fun changeAllPlaylistsAutoDownload(enable: Boolean) {
+-        // TODO: Implement
++        viewModelScope.launch {
++            val playlistUuids = withContext(Dispatchers.Default) {
++                uiState.value?.playlists?.map(PlaylistPreview::uuid)
++            }
++            if (playlistUuids != null) {
++                playlistManager.updateAutoDownload(playlistUuids, isEnabled = enable)
++            }
++        }
+     }
+ 
+     fun stopAllDownloads() {
+diff --git a/modules/services/model/src/main/java/au/com/shiftyjelly/pocketcasts/models/db/dao/PlaylistDao.kt b/modules/services/model/src/main/java/au/com/shiftyjelly/pocketcasts/models/db/dao/PlaylistDao.kt
+index ed474dc39..f431a04ec 100644
+--- a/modules/services/model/src/main/java/au/com/shiftyjelly/pocketcasts/models/db/dao/PlaylistDao.kt
++++ b/modules/services/model/src/main/java/au/com/shiftyjelly/pocketcasts/models/db/dao/PlaylistDao.kt
+@@ -143,8 +143,15 @@ abstract class PlaylistDao {
+     @Query("UPDATE playlists SET sortId = :sortType, syncStatus = $SYNC_STATUS_NOT_SYNCED WHERE uuid = :uuid")
+     abstract suspend fun updateSortType(uuid: String, sortType: PlaylistEpisodeSortType)
+ 
+-    @Query("UPDATE playlists SET autoDownload = :isEnabled, syncStatus = $SYNC_STATUS_NOT_SYNCED WHERE uuid = :uuid")
+-    abstract suspend fun updateAutoDownload(uuid: String, isEnabled: Boolean)
++    @Query("UPDATE playlists SET autoDownload = :isEnabled WHERE uuid IN (:uuids)")
++    protected abstract suspend fun updateAutoDownloadUnsafe(uuids: Collection<String>, isEnabled: Boolean)
++
++    @Transaction
++    open suspend fun updateAutoDownload(uuids: Collection<String>, isEnabled: Boolean) {
++        uuids.chunked(AppDatabase.SQLITE_BIND_ARG_LIMIT - 1).forEach { chunk ->
++            updateAutoDownloadUnsafe(chunk, isEnabled)
++        }
++    }
+ 
+     @Query("UPDATE playlists SET autoDownloadLimit = :limit, syncStatus = $SYNC_STATUS_NOT_SYNCED WHERE uuid = :uuid")
+     abstract suspend fun updateAutoDownloadLimit(uuid: String, limit: Int)
+diff --git a/modules/services/repositories/src/main/java/au/com/shiftyjelly/pocketcasts/repositories/playlist/PlaylistManager.kt b/modules/services/repositories/src/main/java/au/com/shiftyjelly/pocketcasts/repositories/playlist/PlaylistManager.kt
+index 663dfcf4c..b66a2cdbf 100644
+--- a/modules/services/repositories/src/main/java/au/com/shiftyjelly/pocketcasts/repositories/playlist/PlaylistManager.kt
++++ b/modules/services/repositories/src/main/java/au/com/shiftyjelly/pocketcasts/repositories/playlist/PlaylistManager.kt
+@@ -21,7 +21,9 @@ interface PlaylistManager {
+ 
+     suspend fun updateSortType(uuid: String, type: SortType)
+ 
+-    suspend fun updateAutoDownload(uuid: String, isEnabled: Boolean)
++    suspend fun updateAutoDownload(uuids: Collection<String>, isEnabled: Boolean)
++
++    suspend fun updateAutoDownload(uuid: String, isEnabled: Boolean) = updateAutoDownload(listOf(uuid), isEnabled)
+ 
+     suspend fun updateAutoDownloadLimit(uuid: String, limit: Int)
+ 
+diff --git a/modules/services/repositories/src/main/java/au/com/shiftyjelly/pocketcasts/repositories/playlist/PlaylistManagerImpl.kt b/modules/services/repositories/src/main/java/au/com/shiftyjelly/pocketcasts/repositories/playlist/PlaylistManagerImpl.kt
+index 501f6f09c..63c5dd7e8 100644
+--- a/modules/services/repositories/src/main/java/au/com/shiftyjelly/pocketcasts/repositories/playlist/PlaylistManagerImpl.kt
++++ b/modules/services/repositories/src/main/java/au/com/shiftyjelly/pocketcasts/repositories/playlist/PlaylistManagerImpl.kt
+@@ -140,8 +140,8 @@ class PlaylistManagerImpl(
+         playlistDao.updateSortType(uuid, type)
+     }
+ 
+-    override suspend fun updateAutoDownload(uuid: String, isEnabled: Boolean) {
+-        playlistDao.updateAutoDownload(uuid, isEnabled)
++    override suspend fun updateAutoDownload(uuids: Collection<String>, isEnabled: Boolean) {
++        playlistDao.updateAutoDownload(uuids, isEnabled)
+     }
+ 
+     override suspend fun updateAutoDownloadLimit(uuid: String, limit: Int) {
+

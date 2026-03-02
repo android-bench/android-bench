@@ -1,0 +1,57 @@
+diff --git a/richeditor-compose/src/commonMain/kotlin/com/mohamedrejeb/richeditor/model/RichTextState.kt b/richeditor-compose/src/commonMain/kotlin/com/mohamedrejeb/richeditor/model/RichTextState.kt
+index 47d91f0..64ab3f1 100644
+--- a/richeditor-compose/src/commonMain/kotlin/com/mohamedrejeb/richeditor/model/RichTextState.kt
++++ b/richeditor-compose/src/commonMain/kotlin/com/mohamedrejeb/richeditor/model/RichTextState.kt
+@@ -1570,15 +1570,15 @@ public class RichTextState internal constructor(
+ 
+             // If the new paragraph is empty apply style depending on the config
+             if (tempTextFieldValue.selection.collapsed && newParagraph.isEmpty()) {
+-                val richSpan = newParagraph.getFirstNonEmptyChild()
++                val newParagraphFirstRichSpan = newParagraph.getFirstNonEmptyChild()
+ 
+                 // Check if the cursor is at the new paragraph
+                 if (
+-                    !config.preserveStyleOnEmptyLine &&
+-                    richSpan?.textRange?.min == tempTextFieldValue.selection.min - 1
++                    (!config.preserveStyleOnEmptyLine || richSpan.paragraph.isEmpty()) &&
++                    newParagraphFirstRichSpan?.textRange?.min == tempTextFieldValue.selection.min - 1
+                 ) {
+-                    richSpan.spanStyle = SpanStyle()
+-                    richSpan.richSpanStyle = RichSpanStyle.Default
++                    newParagraphFirstRichSpan.spanStyle = SpanStyle()
++                    newParagraphFirstRichSpan.richSpanStyle = RichSpanStyle.Default
+                 }
+             }
+ 
+@@ -2406,8 +2406,16 @@ public class RichTextState internal constructor(
+                 config.preserveStyleOnEmptyLine &&
+                 (richSpan == null || (richSpan.isFirstInParagraph && richSpan.paragraph.isEmpty()))
+             ) {
+-                toAddRichSpanStyle = currentAppliedRichSpanStyle
+-                toAddSpanStyle = currentAppliedSpanStyle
++                val paragraphBefore =
++                    if (selection.min - 2 < 0)
++                        null
++                    else
++                        getRichParagraphByTextIndex(selection.min - 2)
++
++                if (paragraphBefore?.isEmpty() != true) {
++                    toAddRichSpanStyle = currentAppliedRichSpanStyle
++                    toAddSpanStyle = currentAppliedSpanStyle
++                }
+             }
+ 
+             currentAppliedRichSpanStyle = richSpan
+diff --git a/richeditor-compose/src/commonMain/kotlin/com/mohamedrejeb/richeditor/paragraph/RichParagraph.kt b/richeditor-compose/src/commonMain/kotlin/com/mohamedrejeb/richeditor/paragraph/RichParagraph.kt
+index 77d99ff..fce542d 100644
+--- a/richeditor-compose/src/commonMain/kotlin/com/mohamedrejeb/richeditor/paragraph/RichParagraph.kt
++++ b/richeditor-compose/src/commonMain/kotlin/com/mohamedrejeb/richeditor/paragraph/RichParagraph.kt
+@@ -151,7 +151,6 @@ internal class RichParagraph(
+     fun isNotBlank(ignoreStartRichSpan: Boolean = true): Boolean = !isBlank(ignoreStartRichSpan)
+ 
+     fun getFirstNonEmptyChild(offset: Int = -1): RichSpan? {
+-        println("children: $children")
+         children.fastForEach { richSpan ->
+             if (richSpan.text.isNotEmpty()) {
+                 if (offset != -1)
+

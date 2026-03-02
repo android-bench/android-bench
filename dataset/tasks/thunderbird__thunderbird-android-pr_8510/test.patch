@@ -1,0 +1,204 @@
+diff --git a/feature/account/edit/src/test/kotlin/app/k9mail/feature/account/edit/ui/server/settings/modify/ModifyIncomingServerSettingsViewModelTest.kt b/feature/account/edit/src/test/kotlin/app/k9mail/feature/account/edit/ui/server/settings/modify/ModifyIncomingServerSettingsViewModelTest.kt
+index 81ee598028..4537b45372 100644
+--- a/feature/account/edit/src/test/kotlin/app/k9mail/feature/account/edit/ui/server/settings/modify/ModifyIncomingServerSettingsViewModelTest.kt
++++ b/feature/account/edit/src/test/kotlin/app/k9mail/feature/account/edit/ui/server/settings/modify/ModifyIncomingServerSettingsViewModelTest.kt
+@@ -80,8 +80,6 @@ class ModifyIncomingServerSettingsViewModelTest {
+                     imapPrefix = StringInputField(value = ""),
+                     imapUseCompression = true,
+                     imapSendClientInfo = true,
+-
+-                    isLoading = false,
+                 ),
+             )
+         }
+diff --git a/feature/account/edit/src/test/kotlin/app/k9mail/feature/account/edit/ui/server/settings/modify/ModifyOutgoingServerSettingsViewModelTest.kt b/feature/account/edit/src/test/kotlin/app/k9mail/feature/account/edit/ui/server/settings/modify/ModifyOutgoingServerSettingsViewModelTest.kt
+index 78a0142fee..0095229c41 100644
+--- a/feature/account/edit/src/test/kotlin/app/k9mail/feature/account/edit/ui/server/settings/modify/ModifyOutgoingServerSettingsViewModelTest.kt
++++ b/feature/account/edit/src/test/kotlin/app/k9mail/feature/account/edit/ui/server/settings/modify/ModifyOutgoingServerSettingsViewModelTest.kt
+@@ -69,8 +69,6 @@ class ModifyOutgoingServerSettingsViewModelTest {
+                     authenticationType = AuthenticationType.PasswordCleartext,
+                     username = StringInputField(value = "username"),
+                     password = StringInputField(value = "password"),
+-
+-                    isLoading = false,
+                 ),
+             )
+         }
+diff --git a/feature/account/server/settings/src/test/kotlin/app/k9mail/feature/account/server/settings/ui/incoming/IncomingServerSettingsStateMapperKtTest.kt b/feature/account/server/settings/src/test/kotlin/app/k9mail/feature/account/server/settings/ui/incoming/IncomingServerSettingsStateMapperKtTest.kt
+index f70cc9a370..ccce4248ae 100644
+--- a/feature/account/server/settings/src/test/kotlin/app/k9mail/feature/account/server/settings/ui/incoming/IncomingServerSettingsStateMapperKtTest.kt
++++ b/feature/account/server/settings/src/test/kotlin/app/k9mail/feature/account/server/settings/ui/incoming/IncomingServerSettingsStateMapperKtTest.kt
+@@ -29,7 +29,6 @@ class IncomingServerSettingsStateMapperKtTest {
+         assertThat(result).isEqualTo(
+             State(
+                 username = StringInputField(value = "test@example.com"),
+-                isLoading = false,
+             ),
+         )
+     }
+@@ -42,7 +41,7 @@ class IncomingServerSettingsStateMapperKtTest {
+ 
+         val result = serverSettings.toIncomingServerSettingsState()
+ 
+-        assertThat(result).isEqualTo(INCOMING_IMAP_STATE.copy(isLoading = false))
++        assertThat(result).isEqualTo(INCOMING_IMAP_STATE)
+     }
+ 
+     @Test
+@@ -67,7 +66,7 @@ class IncomingServerSettingsStateMapperKtTest {
+ 
+         val result = serverSettings.toIncomingServerSettingsState()
+ 
+-        assertThat(result).isEqualTo(INCOMING_POP3_STATE.copy(isLoading = false))
++        assertThat(result).isEqualTo(INCOMING_POP3_STATE)
+     }
+ 
+     @Test
+diff --git a/feature/account/server/settings/src/test/kotlin/app/k9mail/feature/account/server/settings/ui/incoming/IncomingServerSettingsStateTest.kt b/feature/account/server/settings/src/test/kotlin/app/k9mail/feature/account/server/settings/ui/incoming/IncomingServerSettingsStateTest.kt
+index 99dd038ba5..a6cb9a2069 100644
+--- a/feature/account/server/settings/src/test/kotlin/app/k9mail/feature/account/server/settings/ui/incoming/IncomingServerSettingsStateTest.kt
++++ b/feature/account/server/settings/src/test/kotlin/app/k9mail/feature/account/server/settings/ui/incoming/IncomingServerSettingsStateTest.kt
+@@ -30,9 +30,6 @@ class IncomingServerSettingsStateTest {
+                 imapAutodetectNamespaceEnabled = true,
+                 imapUseCompression = true,
+                 imapSendClientInfo = true,
+-
+-                isLoading = true,
+-                error = null,
+             ),
+         )
+     }
+diff --git a/feature/account/server/settings/src/test/kotlin/app/k9mail/feature/account/server/settings/ui/incoming/IncomingServerSettingsViewModelTest.kt b/feature/account/server/settings/src/test/kotlin/app/k9mail/feature/account/server/settings/ui/incoming/IncomingServerSettingsViewModelTest.kt
+index 015d8ddeab..7ecab14fb8 100644
+--- a/feature/account/server/settings/src/test/kotlin/app/k9mail/feature/account/server/settings/ui/incoming/IncomingServerSettingsViewModelTest.kt
++++ b/feature/account/server/settings/src/test/kotlin/app/k9mail/feature/account/server/settings/ui/incoming/IncomingServerSettingsViewModelTest.kt
+@@ -85,8 +85,6 @@ class IncomingServerSettingsViewModelTest {
+                     imapPrefix = StringInputField(value = ""),
+                     imapUseCompression = true,
+                     imapSendClientInfo = true,
+-
+-                    isLoading = false,
+                 ),
+             )
+         }
+diff --git a/feature/account/server/settings/src/test/kotlin/app/k9mail/feature/account/server/settings/ui/outgoing/OutgoingServerSettingsStateMapperKtTest.kt b/feature/account/server/settings/src/test/kotlin/app/k9mail/feature/account/server/settings/ui/outgoing/OutgoingServerSettingsStateMapperKtTest.kt
+index 06b649cb15..015914db40 100644
+--- a/feature/account/server/settings/src/test/kotlin/app/k9mail/feature/account/server/settings/ui/outgoing/OutgoingServerSettingsStateMapperKtTest.kt
++++ b/feature/account/server/settings/src/test/kotlin/app/k9mail/feature/account/server/settings/ui/outgoing/OutgoingServerSettingsStateMapperKtTest.kt
+@@ -27,7 +27,6 @@ class OutgoingServerSettingsStateMapperKtTest {
+         assertThat(result).isEqualTo(
+             State(
+                 username = StringInputField(value = "test@example.com"),
+-                isLoading = false,
+             ),
+         )
+     }
+@@ -46,7 +45,6 @@ class OutgoingServerSettingsStateMapperKtTest {
+             State(
+                 username = StringInputField(value = "test@domain.example"),
+                 password = StringInputField(value = INCOMING_SERVER_PASSWORD),
+-                isLoading = false,
+             ),
+         )
+     }
+@@ -59,7 +57,7 @@ class OutgoingServerSettingsStateMapperKtTest {
+ 
+         val result = accountState.toOutgoingServerSettingsState()
+ 
+-        assertThat(result).isEqualTo(OUTGOING_STATE.copy(isLoading = false))
++        assertThat(result).isEqualTo(OUTGOING_STATE)
+     }
+ 
+     @Test
+@@ -74,7 +72,6 @@ class OutgoingServerSettingsStateMapperKtTest {
+         assertThat(result).isEqualTo(
+             OUTGOING_STATE.copy(
+                 password = StringInputField(value = INCOMING_SERVER_PASSWORD),
+-                isLoading = false,
+             ),
+         )
+     }
+@@ -90,7 +87,6 @@ class OutgoingServerSettingsStateMapperKtTest {
+         assertThat(result).isEqualTo(
+             OUTGOING_STATE.copy(
+                 password = StringInputField(value = ""),
+-                isLoading = false,
+             ),
+         )
+     }
+diff --git a/feature/account/server/settings/src/test/kotlin/app/k9mail/feature/account/server/settings/ui/outgoing/OutgoingServerSettingsStateTest.kt b/feature/account/server/settings/src/test/kotlin/app/k9mail/feature/account/server/settings/ui/outgoing/OutgoingServerSettingsStateTest.kt
+index 700b2fc28b..ade28a9679 100644
+--- a/feature/account/server/settings/src/test/kotlin/app/k9mail/feature/account/server/settings/ui/outgoing/OutgoingServerSettingsStateTest.kt
++++ b/feature/account/server/settings/src/test/kotlin/app/k9mail/feature/account/server/settings/ui/outgoing/OutgoingServerSettingsStateTest.kt
+@@ -25,9 +25,6 @@ class OutgoingServerSettingsStateTest {
+                 username = StringInputField(),
+                 password = StringInputField(),
+                 clientCertificateAlias = null,
+-
+-                isLoading = true,
+-                error = null,
+             ),
+         )
+     }
+diff --git a/feature/account/server/settings/src/test/kotlin/app/k9mail/feature/account/server/settings/ui/outgoing/OutgoingServerSettingsViewModelTest.kt b/feature/account/server/settings/src/test/kotlin/app/k9mail/feature/account/server/settings/ui/outgoing/OutgoingServerSettingsViewModelTest.kt
+index dadd63776b..ecd21ee1b0 100644
+--- a/feature/account/server/settings/src/test/kotlin/app/k9mail/feature/account/server/settings/ui/outgoing/OutgoingServerSettingsViewModelTest.kt
++++ b/feature/account/server/settings/src/test/kotlin/app/k9mail/feature/account/server/settings/ui/outgoing/OutgoingServerSettingsViewModelTest.kt
+@@ -72,8 +72,6 @@ class OutgoingServerSettingsViewModelTest {
+                     authenticationType = AuthenticationType.PasswordCleartext,
+                     username = StringInputField(value = "username"),
+                     password = StringInputField(value = "password"),
+-
+-                    isLoading = false,
+                 ),
+             )
+         }
+diff --git a/feature/account/setup/src/debug/kotlin/app/k9mail/feature/account/setup/ui/specialfolders/fake/FakeSpecialFoldersViewModel.kt b/feature/account/setup/src/debug/kotlin/app/k9mail/feature/account/setup/ui/specialfolders/fake/FakeSpecialFoldersViewModel.kt
+index 904dea200a..70dbf75e6f 100644
+--- a/feature/account/setup/src/debug/kotlin/app/k9mail/feature/account/setup/ui/specialfolders/fake/FakeSpecialFoldersViewModel.kt
++++ b/feature/account/setup/src/debug/kotlin/app/k9mail/feature/account/setup/ui/specialfolders/fake/FakeSpecialFoldersViewModel.kt
+@@ -19,4 +19,8 @@ class FakeSpecialFoldersViewModel(
+     fun effect(effect: Effect) {
+         emitEffect(effect)
+     }
++
++    fun updateStateForTest(update: (State) -> State) {
++        updateState(update)
++    }
+ }
+diff --git a/feature/account/setup/src/test/kotlin/app/k9mail/feature/account/setup/ui/specialfolders/SpecialFoldersScreenKtTest.kt b/feature/account/setup/src/test/kotlin/app/k9mail/feature/account/setup/ui/specialfolders/SpecialFoldersScreenKtTest.kt
+index d5d10961c8..5466d7e1d3 100644
+--- a/feature/account/setup/src/test/kotlin/app/k9mail/feature/account/setup/ui/specialfolders/SpecialFoldersScreenKtTest.kt
++++ b/feature/account/setup/src/test/kotlin/app/k9mail/feature/account/setup/ui/specialfolders/SpecialFoldersScreenKtTest.kt
+@@ -42,4 +42,31 @@ class SpecialFoldersScreenKtTest : ComposeTest() {
+         assertThat(onNextCounter).isEqualTo(1)
+         assertThat(onBackCounter).isEqualTo(1)
+     }
++
++    @Test
++    fun `switch from error to loading state`() {
++        val initialState = State(
++            isLoading = false,
++            error = SpecialFoldersContract.Failure.LoadFoldersFailed("irrelevant")
++        )
++        val viewModel = FakeSpecialFoldersViewModel(initialState)
++
++        setContentWithTheme {
++            SpecialFoldersScreen(
++                onNext = { },
++                onBack = { },
++                viewModel = viewModel,
++                brandNameProvider = FakeBrandNameProvider,
++            )
++        }
++
++        viewModel.updateStateForTest {
++            it.copy(
++                isLoading = true,
++                error = null
++            )
++        }
++
++        composeTestRule.mainClock.advanceTimeBy(500)
++    }
+ }

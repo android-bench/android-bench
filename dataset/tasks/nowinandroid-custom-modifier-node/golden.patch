@@ -1,0 +1,156 @@
+diff --git a/core/analytics/src/main/kotlin/com/google/samples/apps/nowinandroid/core/analytics/AnalyticsEvent.kt b/core/analytics/src/main/kotlin/com/google/samples/apps/nowinandroid/core/analytics/AnalyticsEvent.kt
+index 97ae76b5..3be8fd0b 100644
+--- a/core/analytics/src/main/kotlin/com/google/samples/apps/nowinandroid/core/analytics/AnalyticsEvent.kt
++++ b/core/analytics/src/main/kotlin/com/google/samples/apps/nowinandroid/core/analytics/AnalyticsEvent.kt
+@@ -34,6 +34,7 @@ data class AnalyticsEvent(
+     class Types {
+         companion object {
+             const val SCREEN_VIEW = "screen_view" // (extras: SCREEN_NAME)
++            const val IMPRESSION = "impression" // (extras: SCREEN_NAME)
+         }
+     }
+ 
+@@ -53,6 +54,7 @@ data class AnalyticsEvent(
+     class ParamKeys {
+         companion object {
+             const val SCREEN_NAME = "screen_name"
++            const val SWIPE_DIRECTION = "swipe_direction"
+         }
+     }
+ }
+diff --git a/feature/foryou/src/main/kotlin/com/google/samples/apps/nowinandroid/feature/foryou/ForYouScreen.kt b/feature/foryou/src/main/kotlin/com/google/samples/apps/nowinandroid/feature/foryou/ForYouScreen.kt
+index 1a332599..11b8e973 100644
+--- a/feature/foryou/src/main/kotlin/com/google/samples/apps/nowinandroid/feature/foryou/ForYouScreen.kt
++++ b/feature/foryou/src/main/kotlin/com/google/samples/apps/nowinandroid/feature/foryou/ForYouScreen.kt
+@@ -68,7 +68,16 @@ import androidx.compose.runtime.getValue
+ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.graphics.toArgb
++import androidx.compose.ui.input.pointer.PointerEvent
++import androidx.compose.ui.input.pointer.PointerEventPass
++import androidx.compose.ui.input.pointer.PointerInputChange
++import androidx.compose.ui.input.pointer.changedToDown
++import androidx.compose.ui.input.pointer.changedToDownIgnoreConsumed
++import androidx.compose.ui.input.pointer.changedToUp
++import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
+ import androidx.compose.ui.layout.layout
++import androidx.compose.ui.node.ModifierNodeElement
++import androidx.compose.ui.node.PointerInputModifierNode
+ import androidx.compose.ui.platform.LocalContext
+ import androidx.compose.ui.platform.LocalDensity
+ import androidx.compose.ui.platform.LocalInspectionMode
+@@ -77,6 +86,7 @@ import androidx.compose.ui.res.painterResource
+ import androidx.compose.ui.res.stringResource
+ import androidx.compose.ui.text.style.TextAlign
+ import androidx.compose.ui.tooling.preview.PreviewParameter
++import androidx.compose.ui.unit.IntSize
+ import androidx.compose.ui.unit.dp
+ import androidx.compose.ui.unit.max
+ import androidx.compose.ui.unit.sp
+@@ -85,6 +95,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
+ import com.google.accompanist.permissions.ExperimentalPermissionsApi
+ import com.google.accompanist.permissions.PermissionStatus.Denied
+ import com.google.accompanist.permissions.rememberPermissionState
++import com.google.samples.apps.nowinandroid.core.analytics.AnalyticsEvent
++import com.google.samples.apps.nowinandroid.core.analytics.AnalyticsEvent.Types.Companion.IMPRESSION
++import com.google.samples.apps.nowinandroid.core.analytics.AnalyticsHelper
++import com.google.samples.apps.nowinandroid.core.analytics.LocalAnalyticsHelper
+ import com.google.samples.apps.nowinandroid.core.designsystem.component.DynamicAsyncImage
+ import com.google.samples.apps.nowinandroid.core.designsystem.component.NiaButton
+ import com.google.samples.apps.nowinandroid.core.designsystem.component.NiaIconToggleButton
+@@ -160,6 +174,7 @@ internal fun ForYouScreen(
+ 
+     Box(
+         modifier = modifier
++            .touchDirectionCapture(LocalAnalyticsHelper.current)
+             .fillMaxSize(),
+     ) {
+         LazyVerticalStaggeredGrid(
+@@ -264,7 +279,7 @@ private fun LazyStaggeredGridScope.onboarding(
+         OnboardingUiState.Loading,
+         OnboardingUiState.LoadFailed,
+         OnboardingUiState.NotShown,
+-        -> Unit
++            -> Unit
+ 
+         is OnboardingUiState.Shown -> {
+             item(span = StaggeredGridItemSpan.FullLine, contentType = "onboarding") {
+@@ -493,7 +508,7 @@ private fun feedItemsSize(
+         OnboardingUiState.Loading,
+         OnboardingUiState.LoadFailed,
+         OnboardingUiState.NotShown,
+-        -> 0
++            -> 0
+ 
+         is OnboardingUiState.Shown -> 1
+     }
+@@ -617,3 +632,67 @@ fun ForYouScreenPopulatedAndLoading(
+         )
+     }
+ }
++
++private fun Modifier.touchDirectionCapture(analyticsHelper: AnalyticsHelper): Modifier =
++    this.then(TouchDirectionModifierNodeElement(analyticsHelper))
++
++private class TouchDirectionModifierNodeElement(val analyticsHelper: AnalyticsHelper) :
++    ModifierNodeElement<TouchDirectionModifierNode>() {
++    override fun create(): TouchDirectionModifierNode = TouchDirectionModifierNode(analyticsHelper)
++
++    override fun hashCode(): Int {
++        return analyticsHelper.hashCode()
++    }
++
++    override fun equals(other: Any?): Boolean {
++        val otherTyped = other as? TouchDirectionModifierNodeElement ?: return false
++        return analyticsHelper == otherTyped.analyticsHelper
++    }
++
++    override fun update(node: TouchDirectionModifierNode) {
++        node.analyticsHelper = analyticsHelper
++    }
++}
++
++private class TouchDirectionModifierNode(var analyticsHelper: AnalyticsHelper) : Modifier.Node(),
++    PointerInputModifierNode {
++    private var downEvent: PointerInputChange? = null
++
++    override fun onCancelPointerInput() {
++        downEvent = null
++    }
++
++    override fun onPointerEvent(
++        pointerEvent: PointerEvent,
++        pass: PointerEventPass,
++        bounds: IntSize,
++    ) {
++        // only track during the main pass
++        if (pass != PointerEventPass.Main) return
++        val change = pointerEvent.changes.first()
++        val currentDown = downEvent
++        if (currentDown == null) {
++            if (change.changedToDownIgnoreConsumed()) {
++                downEvent = change
++            }
++        } else if (change.changedToUpIgnoreConsumed()) {
++            val delta = change.position - currentDown.position
++            val swipeDirection = when {
++                delta.y < 0f -> "UP"
++                delta.y > 0f -> "DOWN"
++                else -> ""
++            }
++            analyticsHelper.logEvent(
++                AnalyticsEvent(
++                    IMPRESSION,
++                    listOf(
++                        AnalyticsEvent.Param(
++                            AnalyticsEvent.ParamKeys.SWIPE_DIRECTION, swipeDirection,
++                        ),
++                    ),
++                ),
++            )
++            downEvent = null
++        }
++    }
++}
+\ No newline at end of file
+

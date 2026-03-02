@@ -1,0 +1,187 @@
+diff --git a/app/src/main/kotlin/at/bitfire/davdroid/ui/setup/LoginActivity.kt b/app/src/main/kotlin/at/bitfire/davdroid/ui/setup/LoginActivity.kt
+index e779d9b0..f1b983be 100644
+--- a/app/src/main/kotlin/at/bitfire/davdroid/ui/setup/LoginActivity.kt
++++ b/app/src/main/kotlin/at/bitfire/davdroid/ui/setup/LoginActivity.kt
+@@ -23,6 +23,32 @@ import javax.inject.Inject
+ @AndroidEntryPoint
+ class LoginActivity @Inject constructor(): AppCompatActivity() {
+ 
++    @Inject lateinit var loginTypesProvider: LoginTypesProvider
++
++    override fun onCreate(savedInstanceState: Bundle?) {
++        super.onCreate(savedInstanceState)
++
++        val (initialLoginType, skipLoginTypePage) = loginTypesProvider.intentToInitialLoginType(intent)
++
++        setContent {
++            LoginScreen(
++                initialLoginType = initialLoginType,
++                skipLoginTypePage = skipLoginTypePage,
++                initialLoginInfo = loginInfoFromIntent(intent),
++                onNavUp = { onSupportNavigateUp() },
++                onFinish = { newAccount ->
++                    finish()
++
++                    if (newAccount != null) {
++                        val intent = Intent(this, AccountActivity::class.java)
++                        intent.putExtra(AccountActivity.EXTRA_ACCOUNT, newAccount)
++                        startActivity(intent)
++                    }
++                }
++            )
++        }
++    }
++
+     companion object {
+ 
+         /**
+@@ -59,18 +85,23 @@ class LoginActivity @Inject constructor(): AppCompatActivity() {
+             var givenUsername: String? = null
+             var givenPassword: String? = null
+ 
+-            // extract URI and optionally username/password from Intent data
++            // extract URI or email and optionally username/password from Intent data
+             val logger = Logger.getGlobal()
+             intent.data?.normalizeScheme()?.let { uri ->
+-                try {
++                val realScheme = when (uri.scheme) {
+                     // replace caldav[s]:// and carddav[s]:// with http[s]://
+-                    val realScheme = when (uri.scheme) {
+-                        "caldav", "carddav" -> "http"
+-                        "caldavs", "carddavs", "davx5" -> "https"
+-                        "http", "https" -> uri.scheme
+-                        else -> null
+-                    }
+-                    if (realScheme != null) {
++                    "caldav", "carddav" -> "http"
++                    "caldavs", "carddavs", "davx5" -> "https"
++
++                    // keep these
++                    "http", "https", "mailto" -> uri.scheme
++
++                    // unknown scheme
++                    else -> null
++                }
++
++                when (realScheme) {
++                    "http", "https" -> {
+                         // extract user info
+                         uri.userInfo?.split(':')?.let { userInfo ->
+                             givenUsername = userInfo.getOrNull(0)
+@@ -85,8 +116,9 @@ class LoginActivity @Inject constructor(): AppCompatActivity() {
+                             null
+                         }
+                     }
+-                } catch (_: URISyntaxException) {
+-                    logger.warning("Got invalid URI from login Intent: $uri")
++
++                    "mailto" ->
++                        givenUsername = uri.schemeSpecificPart
+                 }
+             }
+ 
+@@ -114,30 +146,4 @@ class LoginActivity @Inject constructor(): AppCompatActivity() {
+ 
+     }
+ 
+-    @Inject lateinit var loginTypesProvider: LoginTypesProvider
+-
+-    override fun onCreate(savedInstanceState: Bundle?) {
+-        super.onCreate(savedInstanceState)
+-
+-        val (initialLoginType, skipLoginTypePage) = loginTypesProvider.intentToInitialLoginType(intent)
+-
+-        setContent {
+-            LoginScreen(
+-                initialLoginType = initialLoginType,
+-                skipLoginTypePage = skipLoginTypePage,
+-                initialLoginInfo = loginInfoFromIntent(intent),
+-                onNavUp = { onSupportNavigateUp() },
+-                onFinish = { newAccount ->
+-                    finish()
+-
+-                    if (newAccount != null) {
+-                        val intent = Intent(this, AccountActivity::class.java)
+-                        intent.putExtra(AccountActivity.EXTRA_ACCOUNT, newAccount)
+-                        startActivity(intent)
+-                    }
+-                }
+-            )
+-        }
+-    }
+-
+ }
+\ No newline at end of file
+diff --git a/app/src/main/kotlin/at/bitfire/davdroid/ui/setup/LoginTypesProvider.kt b/app/src/main/kotlin/at/bitfire/davdroid/ui/setup/LoginTypesProvider.kt
+index e8ee643a..6faa126c 100644
+--- a/app/src/main/kotlin/at/bitfire/davdroid/ui/setup/LoginTypesProvider.kt
++++ b/app/src/main/kotlin/at/bitfire/davdroid/ui/setup/LoginTypesProvider.kt
+@@ -10,13 +10,18 @@ import androidx.compose.runtime.Composable
+ 
+ interface LoginTypesProvider {
+ 
++    data class LoginAction(
++        val loginType: LoginType,
++        val skipLoginTypePage: Boolean
++    )
++
+     val defaultLoginType: LoginType
+ 
+     /**
+-     * Which login type to use and whether to skip the login type selection page. Used for Nextcloud
+-     * login flow. May be used by other login flows.
++     * Which login type to use and whether to skip the login type page. Used for Nextcloud login
++     * flow and may be used for other intent started flows.
+      */
+-    fun intentToInitialLoginType(intent: Intent): Pair<LoginType, Boolean> = Pair(defaultLoginType, false)
++    fun intentToInitialLoginType(intent: Intent): LoginAction = LoginAction(defaultLoginType, false)
+ 
+     /** Whether the [LoginTypePage] may be non-interactive. This causes it to be skipped in back navigation. */
+     val maybeNonInteractive: Boolean
+diff --git a/app/src/ose/kotlin/at/bitfire/davdroid/ui/setup/StandardLoginTypesProvider.kt b/app/src/ose/kotlin/at/bitfire/davdroid/ui/setup/StandardLoginTypesProvider.kt
+index abe60982..19ea4b5f 100644
+--- a/app/src/ose/kotlin/at/bitfire/davdroid/ui/setup/StandardLoginTypesProvider.kt
++++ b/app/src/ose/kotlin/at/bitfire/davdroid/ui/setup/StandardLoginTypesProvider.kt
+@@ -7,9 +7,13 @@ package at.bitfire.davdroid.ui.setup
+ import android.content.Intent
+ import androidx.compose.material3.SnackbarHostState
+ import androidx.compose.runtime.Composable
++import at.bitfire.davdroid.ui.setup.LoginTypesProvider.LoginAction
++import java.util.logging.Logger
+ import javax.inject.Inject
+ 
+-class StandardLoginTypesProvider @Inject constructor() : LoginTypesProvider {
++class StandardLoginTypesProvider @Inject constructor(
++    private val logger: Logger
++) : LoginTypesProvider {
+ 
+     companion object {
+         val genericLoginTypes = listOf(
+@@ -26,11 +30,21 @@ class StandardLoginTypesProvider @Inject constructor() : LoginTypesProvider {
+ 
+     override val defaultLoginType = UrlLogin
+ 
+-    override fun intentToInitialLoginType(intent: Intent) =
+-        if (intent.hasExtra(LoginActivity.EXTRA_LOGIN_FLOW))
+-            Pair(NextcloudLogin, true)
+-        else
+-            Pair(defaultLoginType, false)
++    override fun intentToInitialLoginType(intent: Intent): LoginAction =
++        intent.data?.normalizeScheme().let { uri ->
++            when {
++                intent.hasExtra(LoginActivity.EXTRA_LOGIN_FLOW) ->
++                    LoginAction(NextcloudLogin, true)
++                uri?.scheme == "mailto" ->
++                    LoginAction(EmailLogin, true)
++                listOf("caldavs", "carddavs", "davx5", "http", "https").any { uri?.scheme == it } ->
++                    LoginAction(UrlLogin, true)
++                else -> {
++                    logger.warning("Did not understand login intent: $intent")
++                    LoginAction(defaultLoginType, false) // Don't skip login type page if intent is unclear
++                }
++            }
++        }
+ 
+     @Composable
+     override fun LoginTypePage(
+

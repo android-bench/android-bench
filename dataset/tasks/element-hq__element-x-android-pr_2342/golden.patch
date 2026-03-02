@@ -1,0 +1,439 @@
+diff --git a/changelog.d/2330.feature b/changelog.d/2330.feature
+new file mode 100644
+index 0000000000..c501ded646
+--- /dev/null
++++ b/changelog.d/2330.feature
+@@ -0,0 +1 @@
++Add empty state to the room list.
+diff --git a/features/roomlist/impl/src/main/kotlin/io/element/android/features/roomlist/impl/RoomListPresenter.kt b/features/roomlist/impl/src/main/kotlin/io/element/android/features/roomlist/impl/RoomListPresenter.kt
+index 8ab1bde3f4..421cdb0c62 100644
+--- a/features/roomlist/impl/src/main/kotlin/io/element/android/features/roomlist/impl/RoomListPresenter.kt
++++ b/features/roomlist/impl/src/main/kotlin/io/element/android/features/roomlist/impl/RoomListPresenter.kt
+@@ -23,6 +23,7 @@ import androidx.compose.runtime.collectAsState
+ import androidx.compose.runtime.derivedStateOf
+ import androidx.compose.runtime.getValue
+ import androidx.compose.runtime.mutableStateOf
++import androidx.compose.runtime.produceState
+ import androidx.compose.runtime.remember
+ import androidx.compose.runtime.saveable.rememberSaveable
+ import androidx.compose.runtime.setValue
+@@ -32,6 +33,7 @@ import io.element.android.features.networkmonitor.api.NetworkMonitor
+ import io.element.android.features.networkmonitor.api.NetworkStatus
+ import io.element.android.features.roomlist.impl.datasource.InviteStateDataSource
+ import io.element.android.features.roomlist.impl.datasource.RoomListDataSource
++import io.element.android.libraries.architecture.AsyncData
+ import io.element.android.libraries.architecture.Presenter
+ import io.element.android.libraries.designsystem.utils.snackbar.SnackbarDispatcher
+ import io.element.android.libraries.designsystem.utils.snackbar.collectSnackbarMessageAsState
+@@ -68,7 +70,9 @@ class RoomListPresenter @Inject constructor(
+         val matrixUser: MutableState<MatrixUser?> = rememberSaveable {
+             mutableStateOf(null)
+         }
+-        val roomList by roomListDataSource.allRooms.collectAsState()
++        val roomList by produceState(initialValue = AsyncData.Loading()) {
++            roomListDataSource.allRooms.collect { value = AsyncData.Success(it) }
++        }
+         val filteredRoomList by roomListDataSource.filteredRooms.collectAsState()
+         val filter by roomListDataSource.filter.collectAsState()
+         val networkConnectionStatus by networkMonitor.connectivity.collectAsState()
+diff --git a/features/roomlist/impl/src/main/kotlin/io/element/android/features/roomlist/impl/RoomListState.kt b/features/roomlist/impl/src/main/kotlin/io/element/android/features/roomlist/impl/RoomListState.kt
+index 7003da36e5..b1180aecb3 100644
+--- a/features/roomlist/impl/src/main/kotlin/io/element/android/features/roomlist/impl/RoomListState.kt
++++ b/features/roomlist/impl/src/main/kotlin/io/element/android/features/roomlist/impl/RoomListState.kt
+@@ -19,6 +19,7 @@ package io.element.android.features.roomlist.impl
+ import androidx.compose.runtime.Immutable
+ import io.element.android.features.leaveroom.api.LeaveRoomState
+ import io.element.android.features.roomlist.impl.model.RoomListRoomSummary
++import io.element.android.libraries.architecture.AsyncData
+ import io.element.android.libraries.designsystem.utils.snackbar.SnackbarMessage
+ import io.element.android.libraries.matrix.api.core.RoomId
+ import io.element.android.libraries.matrix.api.user.MatrixUser
+@@ -28,7 +29,7 @@ import kotlinx.collections.immutable.ImmutableList
+ data class RoomListState(
+     val matrixUser: MatrixUser?,
+     val showAvatarIndicator: Boolean,
+-    val roomList: ImmutableList<RoomListRoomSummary>,
++    val roomList: AsyncData<ImmutableList<RoomListRoomSummary>>,
+     val filter: String?,
+     val filteredRoomList: ImmutableList<RoomListRoomSummary>,
+     val displayVerificationPrompt: Boolean,
+diff --git a/features/roomlist/impl/src/main/kotlin/io/element/android/features/roomlist/impl/RoomListStateProvider.kt b/features/roomlist/impl/src/main/kotlin/io/element/android/features/roomlist/impl/RoomListStateProvider.kt
+index b1e43f147e..55cbcf925b 100644
+--- a/features/roomlist/impl/src/main/kotlin/io/element/android/features/roomlist/impl/RoomListStateProvider.kt
++++ b/features/roomlist/impl/src/main/kotlin/io/element/android/features/roomlist/impl/RoomListStateProvider.kt
+@@ -18,8 +18,10 @@ package io.element.android.features.roomlist.impl
+ 
+ import androidx.compose.ui.tooling.preview.PreviewParameterProvider
+ import io.element.android.features.leaveroom.api.aLeaveRoomState
++import io.element.android.features.roomlist.impl.datasource.RoomListRoomSummaryFactory
+ import io.element.android.features.roomlist.impl.model.RoomListRoomSummary
+ import io.element.android.features.roomlist.impl.model.aRoomListRoomSummary
++import io.element.android.libraries.architecture.AsyncData
+ import io.element.android.libraries.designsystem.components.avatar.AvatarData
+ import io.element.android.libraries.designsystem.components.avatar.AvatarSize
+ import io.element.android.libraries.designsystem.utils.snackbar.SnackbarMessage
+@@ -49,13 +51,15 @@ open class RoomListStateProvider : PreviewParameterProvider<RoomListState> {
+                 )
+             ),
+             aRoomListState().copy(displayRecoveryKeyPrompt = true),
++            aRoomListState().copy(roomList = AsyncData.Success(persistentListOf())),
++            aRoomListState().copy(roomList = AsyncData.Loading(prevData = RoomListRoomSummaryFactory.createFakeList())),
+         )
+ }
+ 
+ internal fun aRoomListState() = RoomListState(
+     matrixUser = MatrixUser(userId = UserId("@id:domain"), displayName = "User#1"),
+     showAvatarIndicator = false,
+-    roomList = aRoomListRoomSummaryList(),
++    roomList = AsyncData.Success(aRoomListRoomSummaryList()),
+     filter = "filter",
+     filteredRoomList = aRoomListRoomSummaryList(),
+     hasNetworkConnection = true,
+diff --git a/features/roomlist/impl/src/main/kotlin/io/element/android/features/roomlist/impl/RoomListView.kt b/features/roomlist/impl/src/main/kotlin/io/element/android/features/roomlist/impl/RoomListView.kt
+index 0a9f4f523b..929d2550a4 100644
+--- a/features/roomlist/impl/src/main/kotlin/io/element/android/features/roomlist/impl/RoomListView.kt
++++ b/features/roomlist/impl/src/main/kotlin/io/element/android/features/roomlist/impl/RoomListView.kt
+@@ -17,7 +17,10 @@
+ package io.element.android.features.roomlist.impl
+ 
+ import androidx.compose.foundation.background
++import androidx.compose.foundation.layout.Arrangement
+ import androidx.compose.foundation.layout.Box
++import androidx.compose.foundation.layout.Column
++import androidx.compose.foundation.layout.PaddingValues
+ import androidx.compose.foundation.layout.Spacer
+ import androidx.compose.foundation.layout.consumeWindowInsets
+ import androidx.compose.foundation.layout.fillMaxSize
+@@ -35,6 +38,7 @@ import androidx.compose.runtime.Composable
+ import androidx.compose.runtime.derivedStateOf
+ import androidx.compose.runtime.getValue
+ import androidx.compose.runtime.remember
++import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+ import androidx.compose.ui.input.nestedscroll.nestedScroll
+@@ -42,6 +46,7 @@ import androidx.compose.ui.res.stringResource
+ import androidx.compose.ui.tooling.preview.PreviewParameter
+ import androidx.compose.ui.unit.Velocity
+ import androidx.compose.ui.unit.dp
++import io.element.android.compound.theme.ElementTheme
+ import io.element.android.features.leaveroom.api.LeaveRoomView
+ import io.element.android.features.networkmonitor.api.ui.ConnectivityIndicatorContainer
+ import io.element.android.features.roomlist.impl.components.ConfirmRecoveryKeyBanner
+@@ -51,17 +56,22 @@ import io.element.android.features.roomlist.impl.components.RoomListTopBar
+ import io.element.android.features.roomlist.impl.components.RoomSummaryRow
+ import io.element.android.features.roomlist.impl.model.RoomListRoomSummary
+ import io.element.android.features.roomlist.impl.search.RoomListSearchResultView
++import io.element.android.libraries.architecture.AsyncData
+ import io.element.android.libraries.designsystem.preview.ElementPreview
+ import io.element.android.libraries.designsystem.preview.PreviewsDayNight
++import io.element.android.libraries.designsystem.theme.components.Button
+ import io.element.android.libraries.designsystem.theme.components.FloatingActionButton
+ import io.element.android.libraries.designsystem.theme.components.HorizontalDivider
+ import io.element.android.libraries.designsystem.theme.components.Icon
++import io.element.android.libraries.designsystem.theme.components.IconSource
+ import io.element.android.libraries.designsystem.theme.components.Scaffold
++import io.element.android.libraries.designsystem.theme.components.Text
+ import io.element.android.libraries.designsystem.utils.CommonDrawables
+ import io.element.android.libraries.designsystem.utils.LogCompositions
+ import io.element.android.libraries.designsystem.utils.snackbar.SnackbarHost
+ import io.element.android.libraries.designsystem.utils.snackbar.rememberSnackbarHostState
+ import io.element.android.libraries.matrix.api.core.RoomId
++import io.element.android.libraries.ui.strings.CommonStrings
+ 
+ @Composable
+ fun RoomListView(
+@@ -122,6 +132,35 @@ fun RoomListView(
+     }
+ }
+ 
++@Composable
++private fun EmptyRoomListView(
++    onCreateRoomClicked: () -> Unit,
++) {
++    Column(
++        modifier = Modifier.fillMaxSize(),
++        horizontalAlignment = Alignment.CenterHorizontally,
++        verticalArrangement = Arrangement.Center
++    ) {
++        Text(
++            text = stringResource(R.string.screen_roomlist_empty_title),
++            style = ElementTheme.typography.fontBodyLgRegular,
++            color = ElementTheme.colors.textSecondary,
++        )
++        Spacer(modifier = Modifier.height(4.dp))
++        Text(
++            text = stringResource(R.string.screen_roomlist_empty_message),
++            style = ElementTheme.typography.fontBodyLgRegular,
++            color = ElementTheme.colors.textSecondary,
++        )
++        Spacer(modifier = Modifier.height(16.dp))
++        Button(
++            text = stringResource(CommonStrings.action_start_chat),
++            leadingIcon = IconSource.Resource(CommonDrawables.ic_new_message),
++            onClick = onCreateRoomClicked,
++        )
++    }
++}
++
+ @OptIn(ExperimentalMaterial3Api::class)
+ @Composable
+ private fun RoomListContent(
+@@ -182,56 +221,59 @@ private fun RoomListContent(
+             )
+         },
+         content = { padding ->
+-            LazyColumn(
+-                modifier = Modifier
+-                    .padding(padding)
+-                    .consumeWindowInsets(padding)
+-                    .nestedScroll(nestedScrollConnection),
+-                state = lazyListState,
+-            ) {
+-                when {
+-                    state.displayVerificationPrompt -> {
+-                        item {
+-                            RequestVerificationHeader(
+-                                onVerifyClicked = onVerifyClicked,
+-                                onDismissClicked = { state.eventSink(RoomListEvents.DismissRequestVerificationPrompt) }
+-                            )
++            if (state.roomList is AsyncData.Success && state.roomList.data.isEmpty()) {
++                EmptyRoomListView(onCreateRoomClicked)
++            } else {
++                LazyColumn(
++                    modifier = Modifier
++                        .padding(padding)
++                        .consumeWindowInsets(padding)
++                        .nestedScroll(nestedScrollConnection),
++                    state = lazyListState,
++                    // FAB height is 56dp, bottom padding is 16dp, we add 8dp as extra margin -> 56+16+8 = 80
++                    contentPadding = PaddingValues(bottom = 80.dp)
++                ) {
++                    when {
++                        state.displayVerificationPrompt -> {
++                            item {
++                                RequestVerificationHeader(
++                                    onVerifyClicked = onVerifyClicked,
++                                    onDismissClicked = { state.eventSink(RoomListEvents.DismissRequestVerificationPrompt) }
++                                )
++                            }
+                         }
+-                    }
+-                    state.displayRecoveryKeyPrompt -> {
+-                        item {
+-                            ConfirmRecoveryKeyBanner(
+-                                onContinueClicked = onOpenSettings,
+-                                onDismissClicked = { state.eventSink(RoomListEvents.DismissRecoveryKeyPrompt) }
+-                            )
++                        state.displayRecoveryKeyPrompt -> {
++                            item {
++                                ConfirmRecoveryKeyBanner(
++                                    onContinueClicked = onOpenSettings,
++                                    onDismissClicked = { state.eventSink(RoomListEvents.DismissRecoveryKeyPrompt) }
++                                )
++                            }
+                         }
+                     }
+-                }
+ 
+-                if (state.invitesState != InvitesState.NoInvites) {
+-                    item {
+-                        InvitesEntryPointView(onInvitesClicked, state.invitesState)
++                    if (state.invitesState != InvitesState.NoInvites) {
++                        item {
++                            InvitesEntryPointView(onInvitesClicked, state.invitesState)
++                        }
+                     }
+-                }
+ 
+-                itemsIndexed(
+-                    items = state.roomList,
+-                    contentType = { _, room -> room.contentType() },
+-                ) { index, room ->
+-                    RoomSummaryRow(
+-                        room = room,
+-                        onClick = ::onRoomClicked,
+-                        onLongClick = onRoomLongClicked,
+-                    )
+-                    if (index != state.roomList.lastIndex) {
+-                        HorizontalDivider()
++                    val roomList = state.roomList.dataOrNull().orEmpty()
++                    itemsIndexed(
++                        items = roomList,
++                        contentType = { _, room -> room.contentType() },
++                        key = { _, room -> room.roomId.value }
++                    ) { index, room ->
++                        RoomSummaryRow(
++                            room = room,
++                            onClick = ::onRoomClicked,
++                            onLongClick = onRoomLongClicked,
++                        )
++                        if (index != roomList.lastIndex) {
++                            HorizontalDivider()
++                        }
+                     }
+                 }
+-                // Add a last Spacer item to ensure that the FAB does not hide the last room item
+-                // FAB height is 56dp, bottom padding is 16dp, we add 8dp as extra margin -> 56+16+8 = 80
+-                item {
+-                    Spacer(modifier = Modifier.height(80.dp))
+-                }
+             }
+         },
+         floatingActionButton = {
+diff --git a/features/roomlist/impl/src/main/kotlin/io/element/android/features/roomlist/impl/datasource/RoomListDataSource.kt b/features/roomlist/impl/src/main/kotlin/io/element/android/features/roomlist/impl/datasource/RoomListDataSource.kt
+index a255767d7e..c55a47596b 100644
+--- a/features/roomlist/impl/src/main/kotlin/io/element/android/features/roomlist/impl/datasource/RoomListDataSource.kt
++++ b/features/roomlist/impl/src/main/kotlin/io/element/android/features/roomlist/impl/datasource/RoomListDataSource.kt
+@@ -21,6 +21,7 @@ import io.element.android.libraries.androidutils.diff.DiffCacheUpdater
+ import io.element.android.libraries.androidutils.diff.MutableListDiffCache
+ import io.element.android.libraries.core.coroutine.CoroutineDispatchers
+ import io.element.android.libraries.matrix.api.notificationsettings.NotificationSettingsService
++import io.element.android.libraries.matrix.api.roomlist.RoomList
+ import io.element.android.libraries.matrix.api.roomlist.RoomListService
+ import io.element.android.libraries.matrix.api.roomlist.RoomSummary
+ import kotlinx.collections.immutable.ImmutableList
+@@ -28,7 +29,9 @@ import kotlinx.collections.immutable.persistentListOf
+ import kotlinx.collections.immutable.toImmutableList
+ import kotlinx.coroutines.CoroutineScope
+ import kotlinx.coroutines.FlowPreview
++import kotlinx.coroutines.flow.MutableSharedFlow
+ import kotlinx.coroutines.flow.MutableStateFlow
++import kotlinx.coroutines.flow.SharedFlow
+ import kotlinx.coroutines.flow.StateFlow
+ import kotlinx.coroutines.flow.combine
+ import kotlinx.coroutines.flow.debounce
+@@ -52,7 +55,7 @@ class RoomListDataSource @Inject constructor(
+     }
+ 
+     private val _filter = MutableStateFlow("")
+-    private val _allRooms = MutableStateFlow<ImmutableList<RoomListRoomSummary>>(persistentListOf())
++    private val _allRooms = MutableSharedFlow<ImmutableList<RoomListRoomSummary>>(replay = 1)
+     private val _filteredRooms = MutableStateFlow<ImmutableList<RoomListRoomSummary>>(persistentListOf())
+ 
+     private val lock = Mutex()
+@@ -90,7 +93,7 @@ class RoomListDataSource @Inject constructor(
+     }
+ 
+     val filter: StateFlow<String> = _filter
+-    val allRooms: StateFlow<ImmutableList<RoomListRoomSummary>> = _allRooms
++    val allRooms: SharedFlow<ImmutableList<RoomListRoomSummary>> = _allRooms
+     val filteredRooms: StateFlow<ImmutableList<RoomListRoomSummary>> = _filteredRooms
+ 
+     @OptIn(FlowPreview::class)
+@@ -111,10 +114,9 @@ class RoomListDataSource @Inject constructor(
+     }
+ 
+     private suspend fun buildAndEmitAllRooms(roomSummaries: List<RoomSummary>) {
+-        if (diffCache.isEmpty()) {
+-            _allRooms.emit(
+-                roomListRoomSummaryFactory.createFakeList()
+-            )
++        if (diffCache.isEmpty() && roomListService.allRooms.loadingState.value is RoomList.LoadingState.NotLoaded) {
++            // If the room list is not loaded, we emit a fake placeholders list
++            _allRooms.emit(RoomListRoomSummaryFactory.createFakeList())
+         } else {
+             val roomListRoomSummaries = ArrayList<RoomListRoomSummary>()
+             for (index in diffCache.indices()) {
+@@ -133,7 +135,7 @@ class RoomListDataSource @Inject constructor(
+ 
+     private fun buildAndCacheItem(roomSummaries: List<RoomSummary>, index: Int): RoomListRoomSummary? {
+         val roomListRoomSummary = when (val roomSummary = roomSummaries.getOrNull(index)) {
+-            is RoomSummary.Empty -> roomListRoomSummaryFactory.createPlaceholder(roomSummary.identifier)
++            is RoomSummary.Empty -> RoomListRoomSummaryFactory.createPlaceholder(roomSummary.identifier)
+             is RoomSummary.Filled -> roomListRoomSummaryFactory.create(roomSummary)
+             null -> null
+         }
+diff --git a/features/roomlist/impl/src/main/kotlin/io/element/android/features/roomlist/impl/datasource/RoomListRoomSummaryFactory.kt b/features/roomlist/impl/src/main/kotlin/io/element/android/features/roomlist/impl/datasource/RoomListRoomSummaryFactory.kt
+index 9f1416c701..2d47be35a3 100644
+--- a/features/roomlist/impl/src/main/kotlin/io/element/android/features/roomlist/impl/datasource/RoomListRoomSummaryFactory.kt
++++ b/features/roomlist/impl/src/main/kotlin/io/element/android/features/roomlist/impl/datasource/RoomListRoomSummaryFactory.kt
+@@ -32,28 +32,30 @@ class RoomListRoomSummaryFactory @Inject constructor(
+     private val lastMessageTimestampFormatter: LastMessageTimestampFormatter,
+     private val roomLastMessageFormatter: RoomLastMessageFormatter,
+ ) {
+-    fun createPlaceholder(id: String): RoomListRoomSummary {
+-        return RoomListRoomSummary(
+-            id = id,
+-            roomId = RoomId("!aRoom:domain"),
+-            isPlaceholder = true,
+-            name = "Short name",
+-            timestamp = "hh:mm",
+-            lastMessage = "Last message for placeholder",
+-            avatarData = AvatarData(id, "S", size = AvatarSize.RoomListItem),
+-            numberOfUnreadMessages = 0,
+-            numberOfUnreadMentions = 0,
+-            numberOfUnreadNotifications = 0,
+-            userDefinedNotificationMode = null,
+-            hasRoomCall = false,
+-            isDm = false,
+-        )
+-    }
++    companion object {
++        fun createPlaceholder(id: String): RoomListRoomSummary {
++            return RoomListRoomSummary(
++                id = id,
++                roomId = RoomId(id),
++                isPlaceholder = true,
++                name = "Short name",
++                timestamp = "hh:mm",
++                lastMessage = "Last message for placeholder",
++                avatarData = AvatarData(id, "S", size = AvatarSize.RoomListItem),
++                numberOfUnreadMessages = 0,
++                numberOfUnreadMentions = 0,
++                numberOfUnreadNotifications = 0,
++                userDefinedNotificationMode = null,
++                hasRoomCall = false,
++                isDm = false,
++            )
++        }
+ 
+-    fun createFakeList(): ImmutableList<RoomListRoomSummary> {
+-        return List(16) {
+-            createPlaceholder("!fakeRoom$it:domain")
+-        }.toImmutableList()
++        fun createFakeList(): ImmutableList<RoomListRoomSummary> {
++            return List(16) {
++                createPlaceholder("!fakeRoom$it:domain")
++            }.toImmutableList()
++        }
+     }
+ 
+     fun create(roomSummary: RoomSummary.Filled): RoomListRoomSummary {
+diff --git a/tests/uitests/src/test/snapshots/images/ui_S_t[f.roomlist.impl_RoomListView_null_RoomListView-Day-3_4_null_10,NEXUS_5,1.0,en].png b/tests/uitests/src/test/snapshots/images/ui_S_t[f.roomlist.impl_RoomListView_null_RoomListView-Day-3_4_null_10,NEXUS_5,1.0,en].png
+new file mode 100644
+index 0000000000..15095f8707
+--- /dev/null
++++ b/tests/uitests/src/test/snapshots/images/ui_S_t[f.roomlist.impl_RoomListView_null_RoomListView-Day-3_4_null_10,NEXUS_5,1.0,en].png
+@@ -0,0 +1,3 @@
++version https://git-lfs.github.com/spec/v1
++oid sha256:7f0dfd19b21ff2ba1fdbb423578f71e4d28a01d84bc7e1a41a1027b1b2d09db3
++size 55268
+diff --git a/tests/uitests/src/test/snapshots/images/ui_S_t[f.roomlist.impl_RoomListView_null_RoomListView-Day-3_4_null_11,NEXUS_5,1.0,en].png b/tests/uitests/src/test/snapshots/images/ui_S_t[f.roomlist.impl_RoomListView_null_RoomListView-Day-3_4_null_11,NEXUS_5,1.0,en].png
+new file mode 100644
+index 0000000000..cc18d97b3a
+--- /dev/null
++++ b/tests/uitests/src/test/snapshots/images/ui_S_t[f.roomlist.impl_RoomListView_null_RoomListView-Day-3_4_null_11,NEXUS_5,1.0,en].png
+@@ -0,0 +1,3 @@
++version https://git-lfs.github.com/spec/v1
++oid sha256:a2fb4ca138fefc4d4c4e09d3c1c403bea3f54aa226bba6a836711f21093e06b6
++size 51707
+diff --git a/tests/uitests/src/test/snapshots/images/ui_S_t[f.roomlist.impl_RoomListView_null_RoomListView-Night-3_5_null_10,NEXUS_5,1.0,en].png b/tests/uitests/src/test/snapshots/images/ui_S_t[f.roomlist.impl_RoomListView_null_RoomListView-Night-3_5_null_10,NEXUS_5,1.0,en].png
+new file mode 100644
+index 0000000000..3b31d08513
+--- /dev/null
++++ b/tests/uitests/src/test/snapshots/images/ui_S_t[f.roomlist.impl_RoomListView_null_RoomListView-Night-3_5_null_10,NEXUS_5,1.0,en].png
+@@ -0,0 +1,3 @@
++version https://git-lfs.github.com/spec/v1
++oid sha256:5ab5f276868ad19ac4c5f6bbce92286bd6a846c77b91cb8c76d12a9d6aeca31c
++size 57171
+diff --git a/tests/uitests/src/test/snapshots/images/ui_S_t[f.roomlist.impl_RoomListView_null_RoomListView-Night-3_5_null_11,NEXUS_5,1.0,en].png b/tests/uitests/src/test/snapshots/images/ui_S_t[f.roomlist.impl_RoomListView_null_RoomListView-Night-3_5_null_11,NEXUS_5,1.0,en].png
+new file mode 100644
+index 0000000000..6c07e38044
+--- /dev/null
++++ b/tests/uitests/src/test/snapshots/images/ui_S_t[f.roomlist.impl_RoomListView_null_RoomListView-Night-3_5_null_11,NEXUS_5,1.0,en].png
+@@ -0,0 +1,3 @@
++version https://git-lfs.github.com/spec/v1
++oid sha256:aecfc26c04a2c1d16ae9d00a85388ac6497190c743b8b6b37b40c4337c216216
++size 53371
+

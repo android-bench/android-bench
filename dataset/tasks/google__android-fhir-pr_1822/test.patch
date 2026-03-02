@@ -1,0 +1,314 @@
+diff --git a/datacapture/src/androidTest/java/com/google/android/fhir/datacapture/views/QuestionnaireItemDatePickerViewHolderFactoryEspressoTest.kt b/datacapture/src/androidTest/java/com/google/android/fhir/datacapture/views/QuestionnaireItemDatePickerViewHolderFactoryEspressoTest.kt
+index 142cc376..f252fb7e 100644
+--- a/datacapture/src/androidTest/java/com/google/android/fhir/datacapture/views/QuestionnaireItemDatePickerViewHolderFactoryEspressoTest.kt
++++ b/datacapture/src/androidTest/java/com/google/android/fhir/datacapture/views/QuestionnaireItemDatePickerViewHolderFactoryEspressoTest.kt
+@@ -151,7 +151,7 @@ class QuestionnaireItemDatePickerViewHolderFactoryEspressoTest {
+     onView(withId(R.id.text_input_edit_text)).perform(ViewActions.typeText("40/0/-9992"))
+ 
+     assertThat(viewHolder.itemView.findViewById<TextInputLayout>(R.id.text_input_layout).error)
+-      .isEqualTo("Date format needs to be M/d/yy")
++      .isEqualTo("Date format needs to be MM/dd/yyyy (e.g. 01/01/2023)")
+   }
+ 
+   @Test
+@@ -170,7 +170,7 @@ class QuestionnaireItemDatePickerViewHolderFactoryEspressoTest {
+     onView(withId(R.id.text_input_edit_text)).perform(ViewActions.typeText("1/100/2"))
+ 
+     assertThat(viewHolder.itemView.findViewById<TextInputLayout>(R.id.text_input_layout).error)
+-      .isEqualTo("Date format needs to be M/d/yy")
++      .isEqualTo("Date format needs to be MM/dd/yyyy (e.g. 01/01/2023)")
+   }
+ 
+   @Test
+@@ -189,7 +189,7 @@ class QuestionnaireItemDatePickerViewHolderFactoryEspressoTest {
+     onView(withId(R.id.text_input_edit_text)).perform(ViewActions.typeText("40/1/2"))
+ 
+     assertThat(viewHolder.itemView.findViewById<TextInputLayout>(R.id.text_input_layout).error)
+-      .isEqualTo("Date format needs to be M/d/yy")
++      .isEqualTo("Date format needs to be MM/dd/yyyy (e.g. 01/01/2023)")
+   }
+ 
+   @Test
+@@ -208,7 +208,7 @@ class QuestionnaireItemDatePickerViewHolderFactoryEspressoTest {
+     onView(withId(R.id.text_input_edit_text)).perform(ViewActions.typeText("1/1/22222"))
+ 
+     assertThat(viewHolder.itemView.findViewById<TextInputLayout>(R.id.text_input_layout).error)
+-      .isEqualTo("Date format needs to be M/d/yy")
++      .isEqualTo("Date format needs to be MM/dd/yyyy (e.g. 01/01/2023)")
+   }
+   @Test
+   fun shouldNotSetDateInput_outsideMaxRange() {
+diff --git a/datacapture/src/test/java/com/google/android/fhir/datacapture/MoreQuestionnaireResponseItemAnswerComponentTest.kt b/datacapture/src/test/java/com/google/android/fhir/datacapture/MoreQuestionnaireResponseItemAnswerComponentTest.kt
+index d14fa2ec..5bac5a59 100644
+--- a/datacapture/src/test/java/com/google/android/fhir/datacapture/MoreQuestionnaireResponseItemAnswerComponentTest.kt
++++ b/datacapture/src/test/java/com/google/android/fhir/datacapture/MoreQuestionnaireResponseItemAnswerComponentTest.kt
+@@ -20,7 +20,7 @@ import android.app.Application
+ import android.os.Build
+ import androidx.test.core.app.ApplicationProvider
+ import com.google.android.fhir.datacapture.common.datatype.displayString
+-import com.google.android.fhir.datacapture.utilities.localizedString
++import com.google.android.fhir.datacapture.utilities.format
+ import com.google.android.fhir.datacapture.utilities.toLocalizedString
+ import com.google.common.truth.Truth.assertThat
+ import java.time.LocalDate
+@@ -176,7 +176,7 @@ class MoreQuestionnaireResponseItemAnswerComponentTest {
+     val answer =
+       QuestionnaireResponse.QuestionnaireResponseItemAnswerComponent().setValue(DateType(Date()))
+ 
+-    assertThat(answer.value.displayString(context)).isEqualTo(LocalDate.now().localizedString)
++    assertThat(answer.value.displayString(context)).isEqualTo(LocalDate.now().format())
+   }
+ 
+   @Test
+@@ -186,7 +186,7 @@ class MoreQuestionnaireResponseItemAnswerComponentTest {
+         .setValue(DateTimeType(Date()))
+ 
+     assertThat(answer.value.displayString(context))
+-      .isEqualTo("${LocalDate.now().localizedString} ${LocalTime.now().toLocalizedString(context)}")
++      .isEqualTo("${LocalDate.now().format()} ${LocalTime.now().toLocalizedString(context)}")
+   }
+ 
+   @Test
+diff --git a/datacapture/src/test/java/com/google/android/fhir/datacapture/utilities/MoreLocalDateTimesTest.kt b/datacapture/src/test/java/com/google/android/fhir/datacapture/utilities/MoreLocalDateTimesTest.kt
+index 561559c6..e17f1a1c 100644
+--- a/datacapture/src/test/java/com/google/android/fhir/datacapture/utilities/MoreLocalDateTimesTest.kt
++++ b/datacapture/src/test/java/com/google/android/fhir/datacapture/utilities/MoreLocalDateTimesTest.kt
+@@ -35,7 +35,7 @@ class MoreLocalDateTimesTest {
+   fun localizedString_US() {
+     Locale.setDefault(Locale.US)
+     val localDateTime = LocalDateTime.of(LocalDate.of(2010, 10, 18), LocalTime.of(18, 10, 10))
+-    assertThat(localDateTime.localizedDateString).isEqualTo("10/18/10")
++    assertThat(localDateTime.toLocalDate().format()).isEqualTo("10/18/10")
+     assertThat(localDateTime.toLocalizedTimeString(ApplicationProvider.getApplicationContext()))
+       .isEqualTo("6:10 PM")
+   }
+@@ -45,7 +45,7 @@ class MoreLocalDateTimesTest {
+     org.robolectric.shadows.ShadowSettings.set24HourTimeFormat(true)
+     Locale.setDefault(Locale.US)
+     val localDateTime = LocalDateTime.of(LocalDate.of(2010, 10, 18), LocalTime.of(18, 10, 10))
+-    assertThat(localDateTime.localizedDateString).isEqualTo("10/18/10")
++    assertThat(localDateTime.toLocalDate().format()).isEqualTo("10/18/10")
+     assertThat(localDateTime.toLocalizedTimeString(ApplicationProvider.getApplicationContext()))
+       .isEqualTo("18:10")
+   }
+@@ -54,7 +54,7 @@ class MoreLocalDateTimesTest {
+   fun localizedString_Japan() {
+     Locale.setDefault(Locale.JAPAN)
+     val localDateTime = LocalDateTime.of(LocalDate.of(2010, 10, 18), LocalTime.of(18, 10, 10))
+-    assertThat(localDateTime.localizedDateString).isEqualTo("2010/10/18")
++    assertThat(localDateTime.toLocalDate().format()).isEqualTo("2010/10/18")
+     assertThat(localDateTime.toLocalizedTimeString(ApplicationProvider.getApplicationContext()))
+       .isEqualTo("6:10 午後")
+   }
+@@ -64,7 +64,7 @@ class MoreLocalDateTimesTest {
+     org.robolectric.shadows.ShadowSettings.set24HourTimeFormat(true)
+     Locale.setDefault(Locale.JAPAN)
+     val localDateTime = LocalDateTime.of(LocalDate.of(2010, 10, 18), LocalTime.of(18, 10, 10))
+-    assertThat(localDateTime.localizedDateString).isEqualTo("2010/10/18")
++    assertThat(localDateTime.toLocalDate().format()).isEqualTo("2010/10/18")
+     assertThat(localDateTime.toLocalizedTimeString(ApplicationProvider.getApplicationContext()))
+       .isEqualTo("18:10")
+   }
+diff --git a/datacapture/src/test/java/com/google/android/fhir/datacapture/utilities/MoreLocalDatesTest.kt b/datacapture/src/test/java/com/google/android/fhir/datacapture/utilities/MoreLocalDatesTest.kt
+index 1929610f..10944435 100644
+--- a/datacapture/src/test/java/com/google/android/fhir/datacapture/utilities/MoreLocalDatesTest.kt
++++ b/datacapture/src/test/java/com/google/android/fhir/datacapture/utilities/MoreLocalDatesTest.kt
+@@ -17,9 +17,12 @@
+ package com.google.android.fhir.datacapture.utilities
+ 
+ import android.os.Build
++import com.google.android.fhir.datacapture.views.getLocalizedDateTimePattern
+ import com.google.common.truth.Truth.assertThat
++import java.text.ParseException
+ import java.time.LocalDate
+ import java.util.Locale
++import kotlin.test.assertFailsWith
+ import org.junit.Test
+ import org.junit.runner.RunWith
+ import org.robolectric.RobolectricTestRunner
+@@ -30,23 +33,98 @@ import org.robolectric.annotation.Config
+ class MoreLocalDatesTest {
+ 
+   @Test
+-  fun localizedString_US() {
++  fun `should format date in US locale`() {
+     Locale.setDefault(Locale.US)
+     val localDate = LocalDate.of(2010, 10, 18)
+-    assertThat(localDate.localizedString).isEqualTo("10/18/10")
++    assertThat(localDate.format()).isEqualTo("10/18/10")
+   }
+ 
+   @Test
+-  fun localizedString_Japan() {
++  fun `should format date in Japan locale`() {
+     Locale.setDefault(Locale.JAPAN)
+     val localDate = LocalDate.of(2010, 10, 18)
+-    assertThat(localDate.localizedString).isEqualTo("2010/10/18")
++    assertThat(localDate.format()).isEqualTo("2010/10/18")
+   }
+ 
+   @Test
+-  fun localizedString_Italy() {
++  fun `should format date in Italy locale`() {
+     Locale.setDefault(Locale.ITALY)
+     val localDate = LocalDate.of(2010, 10, 18)
+-    assertThat(localDate.localizedString).isEqualTo("18/10/10")
++    assertThat(localDate.format()).isEqualTo("18/10/10")
++  }
++
++  @Test
++  fun `should get date separator for US locale`() {
++    Locale.setDefault(Locale.US)
++    assertThat(getDateSeparator(getLocalizedDateTimePattern())).isEqualTo('/')
++  }
++
++  @Test
++  fun `should get date separator for Korean locale`() {
++    Locale.setDefault(Locale.KOREA)
++    assertThat(getDateSeparator(getLocalizedDateTimePattern())).isEqualTo('.')
++  }
++
++  @Test
++  fun `should get date separator for Canada locale`() {
++    Locale.setDefault(Locale.CANADA)
++    assertThat(getDateSeparator(getLocalizedDateTimePattern())).isEqualTo('-')
++  }
++
++  @Test
++  fun `should canonicalize date format from US locale date pattern`() {
++    Locale.setDefault(Locale.US)
++    assertThat(canonicalizeDatePattern(getLocalizedDateTimePattern())).isEqualTo("MM/dd/yyyy")
++  }
++
++  @Test
++  fun `should canonicalize date format from Korean locale date pattern`() {
++    Locale.setDefault(Locale.KOREA)
++    assertThat(canonicalizeDatePattern(getLocalizedDateTimePattern())).isEqualTo("yyyy.MM.dd.")
++  }
++
++  @Test
++  fun `should canonicalize date format from Canada locale date pattern`() {
++    Locale.setDefault(Locale.CANADA)
++    assertThat(canonicalizeDatePattern(getLocalizedDateTimePattern())).isEqualTo("yyyy-MM-dd")
++  }
++
++  @Test
++  fun `should parse date for US locale`() {
++    Locale.setDefault(Locale.US)
++    val localDate = parseDate("01/25/2023", "MM/dd/yyyy")
++    assertThat(localDate.dayOfMonth).isEqualTo(25)
++    assertThat(localDate.month.value).isEqualTo(1)
++    assertThat(localDate.year).isEqualTo(2023)
++  }
++
++  @Test
++  fun `should parse date for Korean locale`() {
++    Locale.setDefault(Locale.KOREA)
++    val localDate = parseDate("2023.01.25.", "yyyy.MM.dd.")
++    assertThat(localDate.dayOfMonth).isEqualTo(25)
++    assertThat(localDate.month.value).isEqualTo(1)
++    assertThat(localDate.year).isEqualTo(2023)
++  }
++
++  @Test
++  fun `should parse US locale date for Canada locale`() {
++    Locale.setDefault(Locale.CANADA)
++    assertFailsWith<ParseException> { parseDate("01/25/2023", "yyyy-MM-dd") }
++  }
++
++  @Test
++  fun `should format ITALY locale date using its canonicalizedDatePattern`() {
++    Locale.setDefault(Locale.ITALY)
++    val localDate = LocalDate.of(2010, 1, 1)
++    assertThat(localDate.format(canonicalizeDatePattern(getLocalizedDateTimePattern())))
++      .isEqualTo("01/01/2010")
++  }
++
++  @Test
++  fun `should use default locale if pattern is empty`() {
++    Locale.setDefault(Locale.ITALY)
++    val localDate = LocalDate.of(2010, 1, 1)
++    assertThat(localDate.format("")).isEqualTo(localDate.format())
+   }
+ }
+diff --git a/datacapture/src/test/java/com/google/android/fhir/datacapture/views/QuestionnaireItemDatePickerViewHolderFactoryTest.kt b/datacapture/src/test/java/com/google/android/fhir/datacapture/views/QuestionnaireItemDatePickerViewHolderFactoryTest.kt
+index bb6ab268..d064ccf4 100644
+--- a/datacapture/src/test/java/com/google/android/fhir/datacapture/views/QuestionnaireItemDatePickerViewHolderFactoryTest.kt
++++ b/datacapture/src/test/java/com/google/android/fhir/datacapture/views/QuestionnaireItemDatePickerViewHolderFactoryTest.kt
+@@ -104,7 +104,7 @@ class QuestionnaireItemDatePickerViewHolderFactoryTest {
+         answersChangedCallback = { _, _, _ -> },
+       )
+     )
+-    assertThat(viewHolder.dateInputView.text.toString()).isEqualTo("11/19/20")
++    assertThat(viewHolder.dateInputView.text.toString()).isEqualTo("11/19/2020")
+   }
+ 
+   @Test
+@@ -140,7 +140,7 @@ class QuestionnaireItemDatePickerViewHolderFactoryTest {
+         answersChangedCallback = { _, _, _ -> },
+       )
+     )
+-    assertThat(viewHolder.dateInputView.text.toString()).isEqualTo("11/19/20")
++    assertThat(viewHolder.dateInputView.text.toString()).isEqualTo("11/19/2020")
+   }
+ 
+   @Test
+@@ -178,7 +178,7 @@ class QuestionnaireItemDatePickerViewHolderFactoryTest {
+       )
+     viewHolder.bind(item)
+     viewHolder.dateInputView.text = "2020/11/19"
+-    val answer = answers!!.single()?.value as DateType
++    val answer = answers!!.single().value as DateType
+ 
+     assertThat(answer.day).isEqualTo(19)
+     assertThat(answer.month).isEqualTo(10)
+@@ -310,7 +310,7 @@ class QuestionnaireItemDatePickerViewHolderFactoryTest {
+         answersChangedCallback = { _, _, _ -> },
+       )
+     )
+-    assertThat(viewHolder.dateInputView.text.toString()).isEqualTo("11/19/20")
++    assertThat(viewHolder.dateInputView.text.toString()).isEqualTo("11/19/2020")
+ 
+     viewHolder.bind(
+       QuestionnaireItemViewItem(
+@@ -324,7 +324,7 @@ class QuestionnaireItemDatePickerViewHolderFactoryTest {
+         answersChangedCallback = { _, _, _ -> },
+       )
+     )
+-    assertThat(viewHolder.dateInputView.text.toString()).isEqualTo("11/19/21")
++    assertThat(viewHolder.dateInputView.text.toString()).isEqualTo("11/19/2021")
+ 
+     viewHolder.bind(
+       QuestionnaireItemViewItem(
+diff --git a/datacapture/src/test/java/com/google/android/fhir/datacapture/views/QuestionnaireItemDateTimePickerViewHolderFactoryTest.kt b/datacapture/src/test/java/com/google/android/fhir/datacapture/views/QuestionnaireItemDateTimePickerViewHolderFactoryTest.kt
+index d3adb077..bea668b3 100644
+--- a/datacapture/src/test/java/com/google/android/fhir/datacapture/views/QuestionnaireItemDateTimePickerViewHolderFactoryTest.kt
++++ b/datacapture/src/test/java/com/google/android/fhir/datacapture/views/QuestionnaireItemDateTimePickerViewHolderFactoryTest.kt
+@@ -94,7 +94,7 @@ class QuestionnaireItemDateTimePickerViewHolderFactoryTest {
+       )
+     )
+ 
+-    assertThat(viewHolder.dateInputView.text.toString()).isEqualTo("2/5/20")
++    assertThat(viewHolder.dateInputView.text.toString()).isEqualTo("02/05/2020")
+     assertThat(viewHolder.timeInputView.text.toString()).isEqualTo("1:30 AM")
+   }
+ 
+@@ -293,7 +293,7 @@ class QuestionnaireItemDateTimePickerViewHolderFactoryTest {
+       )
+     )
+ 
+-    assertThat(viewHolder.dateInputView.text.toString()).isEqualTo("2/5/20")
++    assertThat(viewHolder.dateInputView.text.toString()).isEqualTo("02/05/2020")
+     assertThat(viewHolder.timeInputView.text.toString()).isEqualTo("1:30 AM")
+ 
+     viewHolder.bind(
+@@ -309,7 +309,7 @@ class QuestionnaireItemDateTimePickerViewHolderFactoryTest {
+       )
+     )
+ 
+-    assertThat(viewHolder.dateInputView.text.toString()).isEqualTo("2/5/21")
++    assertThat(viewHolder.dateInputView.text.toString()).isEqualTo("02/05/2021")
+     assertThat(viewHolder.timeInputView.text.toString()).isEqualTo("2:30 AM")
+ 
+     viewHolder.bind(
+

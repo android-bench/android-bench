@@ -1,0 +1,24 @@
+diff --git a/app/src/main/java/com/jerboa/ui/components/home/HomeActivity.kt b/app/src/main/java/com/jerboa/ui/components/home/HomeActivity.kt
+index 7ecca296..f10c0f93 100644
+--- a/app/src/main/java/com/jerboa/ui/components/home/HomeActivity.kt
++++ b/app/src/main/java/com/jerboa/ui/components/home/HomeActivity.kt
+@@ -2,6 +2,7 @@ package com.jerboa.ui.components.home
+ 
+ import android.content.Context
+ import android.util.Log
++import androidx.activity.compose.BackHandler
+ import androidx.activity.compose.ReportDrawnWhen
+ import androidx.compose.foundation.layout.Box
+ import androidx.compose.foundation.layout.Column
+@@ -365,6 +366,10 @@ fun MainDrawer(
+     val accounts = accountViewModel.allAccounts.value
+     val account = getCurrentAccount(accountViewModel)
+ 
++    BackHandler(drawerState.isOpen) {
++        closeDrawer(scope, drawerState)
++    }
++
+     Drawer(
+         siteRes = siteViewModel.siteRes,
+         unreadCount = siteViewModel.getUnreadCountTotal(),
+

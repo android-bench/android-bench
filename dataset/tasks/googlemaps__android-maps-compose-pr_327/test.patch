@@ -1,0 +1,73 @@
+Subject: [PATCH] Add test for content padding in map
+---
+Index: app/src/androidTest/java/com/google/maps/android/compose/GoogleMapContentPaddingTest.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/androidTest/java/com/google/maps/android/compose/GoogleMapContentPaddingTest.kt b/app/src/androidTest/java/com/google/maps/android/compose/GoogleMapContentPaddingTest.kt
+new file mode 100644
+--- /dev/null	(revision 1b2d8581bbda5eb7666c930abd9410c7d13b259d)
++++ b/app/src/androidTest/java/com/google/maps/android/compose/GoogleMapContentPaddingTest.kt	(revision 1b2d8581bbda5eb7666c930abd9410c7d13b259d)
+@@ -0,0 +1,60 @@
++package com.google.maps.android.compose
++
++import android.graphics.Point
++import androidx.activity.ComponentActivity
++import androidx.compose.foundation.layout.PaddingValues
++import androidx.compose.foundation.layout.fillMaxSize
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.layout.onGloballyPositioned
++import androidx.compose.ui.test.junit4.createAndroidComposeRule
++import androidx.compose.ui.unit.IntSize
++import androidx.compose.ui.unit.dp
++import com.google.android.gms.maps.model.CameraPosition
++import com.google.android.gms.maps.model.LatLng
++import junit.framework.TestCase.assertNotNull
++import kotlinx.coroutines.test.runTest
++import org.junit.Assert.assertNotEquals
++import org.junit.Rule
++import org.junit.Test
++
++class GoogleMapContentPaddingTest {
++
++    @get:Rule
++    val composeTestRule = createAndroidComposeRule<ComponentActivity>()
++
++    @Test
++    fun testContentPaddingOffsetsCameraProjection() = runTest {
++        val state = CameraPositionState(
++            position = CameraPosition.fromLatLngZoom(LatLng(0.0, 0.0), 10f)
++        )
++        var size: IntSize? = null
++        composeTestRule.setContent {
++            GoogleMap(
++                cameraPositionState = state,
++                contentPadding = PaddingValues(start = 10.dp, top = 10.dp),
++                modifier = Modifier
++                    .fillMaxSize()
++                    .onGloballyPositioned { size = it.size },
++            )
++        }
++
++        composeTestRule.awaitIdle()
++
++        val projection = composeTestRule.runOnUiThread { state.projection }
++
++        assertNotNull(projection)
++
++        composeTestRule.waitUntil(1000) { size != null }
++
++        val centerPoint = composeTestRule.runOnUiThread {
++            Point(size!!.width / 2, size.height / 2)
++        }
++
++        val latLng = composeTestRule.runOnUiThread {
++            projection!!.fromScreenLocation(centerPoint)
++        }
++
++        assertNotEquals(0.0, latLng.latitude, 0.0001)
++        assertNotEquals(0.0, latLng.longitude, 0.0001)
++    }
++}
+\ No newline at end of file
