@@ -49,6 +49,9 @@ class LatencyDetails:
 class Status(str, Enum):
     """Enum for Status of a patch verification run."""
 
+    def _generate_next_value_(name, start, count, last_values):
+        return name
+
     def __str__(self):
         """Use the name directly instead of Status.X in outputs and diagnostics."""
         return self.name
