@@ -383,14 +383,16 @@ WORKDIR /workspace
                 if cmd and cmd.strip()
             ]
             build_command = " && ".join(all_commands)
-            java_home = f"/usr/lib/jvm/java-{java_version}-openjdk-amd64"
-            java_home_env = f"ENV JAVA_HOME={java_home}"
-
+            
+            # Using bash parameter expansion logic directly so it doesn't break depending on execution shell
+            java_home_env = f"ENV JAVA_HOME=/usr/lib/jvm/java-{java_version}-openjdk-${{TARGETARCH:-amd64}}"
+            
             if "sha" not in before_commit_info:
                 raise ValueError("sha must be specified in before_commit.")
             commit_sha = before_commit_info.get("sha")
             git_reset_command = f"git reset --hard {commit_sha}"
             dockerfile_content = f"""FROM {_get_base_image_name(repo_url).lower()}-base
+ARG TARGETARCH
 {java_home_env}
 ENV GRADLE_OPTS="-Xmx6g"
 RUN cd /workspace/testbed && \\

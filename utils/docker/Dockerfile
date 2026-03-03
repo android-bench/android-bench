@@ -11,7 +11,7 @@ ARG JDK_VERSION=17
 ARG KOTLIN_VERSION=2.1.0
 ARG ANDROID_CMD_TOOLS_VERSION=11076708
 
-RUN if [ "$TARGETARCH" = "arm64" ]; then echo "Architecture not supported, review prerequisites"; exit 1;
+ARG ANDROID_CMD_TOOLS_VERSION=11076708
 
 # Set non-interactive frontend
 ENV DEBIAN_FRONTEND=noninteractive
@@ -44,11 +44,12 @@ RUN apt-get update && \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Set environment variables
-ENV JAVA_HOME=/usr/lib/jvm/java-${JDK_VERSION}-openjdk-amd64
+ENV JAVA_HOME=/usr/lib/jvm/java-${JDK_VERSION}-openjdk-${TARGETARCH:-amd64}
 ENV ANDROID_SDK_ROOT=/opt/android-sdk
 ENV ANDROID_HOME=/opt/android-sdk
 ENV KOTLIN_HOME=/opt/kotlinc
-ENV PATH=${PATH}:${KOTLIN_HOME}/bin:${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin:${ANDROID_SDK_ROOT}/platform-tools:${ANDROID_SDK_ROOT}/emulator
+
+# Add EMULATOR conditionally depending on the architecture
 
 # Download and install Kotlin compiler (if needed for your specific workflow)
 RUN wget -q https://github.com/JetBrains/kotlin/releases/download/v${KOTLIN_VERSION}/kotlin-compiler-${KOTLIN_VERSION}.zip -O kotlin.zip && \
@@ -64,32 +65,53 @@ RUN mkdir -p ${ANDROID_SDK_ROOT} && \
     mv ${ANDROID_SDK_ROOT}/latest ${ANDROID_SDK_ROOT}/cmdline-tools/latest && \
     rm android-sdk.zip
 
-# ENV PATH=${PATH}:${GRADLE_HOME}/bin
+# When TARGETARCH=arm64, EMULATOR_PATH will evaluate to empty, otherwise to the emulator directory path
+ENV EMULATOR_PATH=${TARGETARCH:+-arm64}
+# This ugly bash parameter expansion says: if EMULATOR_PATH = "-arm64", return "", otherwise return ":${ANDROID_SDK_ROOT}/emulator"
+ENV EMULATOR_PATH=${EMULATOR_PATH:+-arm64:}:${EMULATOR_PATH:+:${ANDROID_SDK_ROOT}/emulator}
+
+ENV PATH=${PATH}:${KOTLIN_HOME}/bin:${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin:${ANDROID_SDK_ROOT}/platform-tools${EMULATOR_PATH}
 
 # Install all SDK packages in a single, non-blocking command
 RUN yes | sdkmanager --licenses > /dev/null && \
-    sdkmanager \
-    "platform-tools" \
-    "emulator" \
-    "platforms;android-31" \
-    "platforms;android-32" \
-    "platforms;android-33" \
-    "platforms;android-34" \
-    "platforms;android-35" \
-    "build-tools;31.0.0" \
-    "build-tools;32.0.0" \
-    "build-tools;33.0.0" \
-    "build-tools;34.0.0" \
-    "build-tools;35.0.0" \
-    "build-tools;36.0.0" \
-    "system-images;android-36;google_apis;x86_64" \
-    "system-images;android-35;google_apis;x86_64" \
-    "system-images;android-34;google_apis;x86_64" \
-    "system-images;android-33;google_apis;x86_64" \
-    "system-images;android-32;google_apis;x86_64" \
-    "system-images;android-31;google_apis;x86_64" \
-    "system-images;android-30;default;x86_64" \
-    "system-images;android-29;default;x86_64"
+    if [ "$TARGETARCH" = "arm64" ]; then \
+        sdkmanager \
+        "platform-tools" \
+        "platforms;android-31" \
+        "platforms;android-32" \
+        "platforms;android-33" \
+        "platforms;android-34" \
+        "platforms;android-35" \
+        "build-tools;31.0.0" \
+        "build-tools;32.0.0" \
+        "build-tools;33.0.0" \
+        "build-tools;34.0.0" \
+        "build-tools;35.0.0" \
+        "build-tools;36.0.0"; \
+    else \
+        sdkmanager \
+        "platform-tools" \
+        "emulator" \
+        "platforms;android-31" \
+        "platforms;android-32" \
+        "platforms;android-33" \
+        "platforms;android-34" \
+        "platforms;android-35" \
+        "build-tools;31.0.0" \
+        "build-tools;32.0.0" \
+        "build-tools;33.0.0" \
+        "build-tools;34.0.0" \
+        "build-tools;35.0.0" \
+        "build-tools;36.0.0" \
+        "system-images;android-36;google_apis;x86_64" \
+        "system-images;android-35;google_apis;x86_64" \
+        "system-images;android-34;google_apis;x86_64" \
+        "system-images;android-33;google_apis;x86_64" \
+        "system-images;android-32;google_apis;x86_64" \
+        "system-images;android-31;google_apis;x86_64" \
+        "system-images;android-30;default;x86_64" \
+        "system-images;android-29;default;x86_64"; \
+    fi
 
 # RUN wget https://services.gradle.org/distributions/gradle-8.11.1-bin.zip && \
 #      mkdir /opt/gradle && unzip -d /opt/gradle gradle-8.11.1-bin.zip
@@ -100,11 +122,13 @@ WORKDIR /workspace
 RUN mkdir /workspace/projects
 RUN mkdir /workspace/output
 
-RUN echo "no" | avdmanager create avd -n test_emulator_29 -k "system-images;android-29;default;x86_64" --device "pixel_6" --force
-RUN echo "no" | avdmanager create avd -n test_emulator_30 -k "system-images;android-30;default;x86_64" --device "pixel_6" --force
-RUN echo "no" | avdmanager create avd -n test_emulator_31 -k "system-images;android-31;google_apis;x86_64" --device "pixel_6" --force
-RUN echo "no" | avdmanager create avd -n test_emulator_32 -k "system-images;android-32;google_apis;x86_64" --device "pixel_6" --force
-RUN echo "no" | avdmanager create avd -n test_emulator_33 -k "system-images;android-33;google_apis;x86_64" --device "pixel_7" --force
-RUN echo "no" | avdmanager create avd -n test_emulator_34 -k "system-images;android-34;google_apis;x86_64" --device "pixel_7" --force
-RUN echo "no" | avdmanager create avd -n test_emulator_35 -k "system-images;android-35;google_apis;x86_64" --device "pixel_7" --force
-RUN echo "no" | avdmanager create avd -n test_emulator_36 -k "system-images;android-36;google_apis;x86_64" --device "pixel_7" --force
+RUN if [ "$TARGETARCH" != "arm64" ]; then \
+    echo "no" | avdmanager create avd -n test_emulator_29 -k "system-images;android-29;default;x86_64" --device "pixel_6" --force || true; \
+    echo "no" | avdmanager create avd -n test_emulator_30 -k "system-images;android-30;default;x86_64" --device "pixel_6" --force || true; \
+    echo "no" | avdmanager create avd -n test_emulator_31 -k "system-images;android-31;google_apis;x86_64" --device "pixel_6" --force || true; \
+    echo "no" | avdmanager create avd -n test_emulator_32 -k "system-images;android-32;google_apis;x86_64" --device "pixel_6" --force || true; \
+    echo "no" | avdmanager create avd -n test_emulator_33 -k "system-images;android-33;google_apis;x86_64" --device "pixel_7" --force || true; \
+    echo "no" | avdmanager create avd -n test_emulator_34 -k "system-images;android-34;google_apis;x86_64" --device "pixel_7" --force || true; \
+    echo "no" | avdmanager create avd -n test_emulator_35 -k "system-images;android-35;google_apis;x86_64" --device "pixel_7" --force || true; \
+    echo "no" | avdmanager create avd -n test_emulator_36 -k "system-images;android-36;google_apis;x86_64" --device "pixel_7" --force || true; \
+    fi

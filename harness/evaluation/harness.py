@@ -107,17 +107,22 @@ def run_benchmark_task(
         # --- Emulator Orchestration ---
         emulator_process = None
         if any("AndroidTest" in t for t in task.test_commands):
-            emulator_process = helpers.start_and_wait_for_emulator(
-                log_file,
-                f"test_emulator_{task.env_config.target_sdk}",
-                timeout_seconds=config.emulator_config.emulator_boot_timeout,
-            )
-
-            heartbeat = EmulatorHeartbeat(emulator_process, adb_path, log_file)
+            adb_command = f"{adb_path} connect host.docker.internal:5555"
+            logger.info(f"Connecting to host emulator: {adb_command}")
+            shell.run_command(adb_command)
+            
+            # Wait a moment for connection
+            import time
+            time.sleep(2)
+            
+            heartbeat = EmulatorHeartbeat(None, adb_path, log_file)
             heartbeat.start()
 
         # --- Set Java Version ---
-        java_home = f"/usr/lib/jvm/java-{task.env_config.jdk_version}-openjdk-amd64"
+        import platform
+        machine = platform.machine().lower()
+        target_arch = "arm64" if machine in ["arm64", "aarch64"] else "amd64"
+        java_home = f"/usr/lib/jvm/java-{task.env_config.jdk_version}-openjdk-{target_arch}"
         logger.info(f"Instance {task.instance_id}: Setting JAVA_HOME to: {java_home}")
         helpers.update_local_properties(work_dir, java_home)
 

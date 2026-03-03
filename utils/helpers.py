@@ -392,7 +392,7 @@ class EmulatorHeartbeat(threading.Thread):
         """Periodically checks the emulator status."""
         while not self._stop_event.is_set():
             # Check if the emulator process is still running
-            if self.emulator_process.poll() is not None:
+            if self.emulator_process and self.emulator_process.poll() is not None:
                 message = f"CRITICAL: Emulator process (PID {self.emulator_process.pid}) has exited unexpectedly with code {self.emulator_process.returncode}."
                 print_and_log(self.log_file, message)
                 self.failure = message

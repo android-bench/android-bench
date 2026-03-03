@@ -63,11 +63,12 @@ def score_patch(
         logger.info(f"Task JSON written to: {task_json_file}")
 
         image_name = instance_id.lower()
-        if not use_local_images:
-            image_name = f"{cfg.docker_repository}/{instance_id.lower()}"
-            # We need to pull the latest image first, otherwise we might have outdated ones
-            logger.info(f"Pulling image {image_name}")
-            client.images.pull(image_name)
+        # --- Temporarily disabled to prevent overwriting custom local arm64 images ---
+        # if not use_local_images:
+        #     image_name = f"{cfg.docker_repository}/{instance_id.lower()}"
+        #     # We need to pull the latest image first, otherwise we might have outdated ones
+        #     logger.info(f"Pulling image {image_name}")
+        #     client.images.pull(image_name)
 
         script_file_path = Path(__file__).resolve()
         local_project_path = script_file_path.parent.parent.parent

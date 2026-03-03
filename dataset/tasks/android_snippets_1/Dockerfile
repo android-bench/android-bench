@@ -1,5 +1,6 @@
 FROM android-snippets-base
-ENV JAVA_HOME=/usr/lib/jvm/java-25-openjdk-amd64
+ARG TARGETARCH
+ENV JAVA_HOME=/usr/lib/jvm/java-25-openjdk-${TARGETARCH:-amd64}
 ENV GRADLE_OPTS="-Xmx6g"
 RUN cd /workspace/testbed && \
     git reset --hard ecfd99173f6a17afaeb236c20b62b21924f52cb8 && \
