@@ -82,6 +82,7 @@ def main():
         if args.rebuild_local_image or not image_exists.stdout.strip():
             build_command = [
                 sys.executable,
+                "-m",
                 "utils.docker.generate_docker_images",
                 "--tasks-dir",
                 args.tasks_dir,
