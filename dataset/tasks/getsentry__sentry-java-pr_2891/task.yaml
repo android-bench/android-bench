@@ -56,7 +56,7 @@ commands:
     | xargs ./gradlew --no-configuration-cache --continue '
 issues:
 - id: null
-  url: https://b.corp.google.com/issues/459877763
+  url: b/459877763
 pull_request:
   id: 2891
   url: https://github.com/getsentry/sentry-java/pull/2891

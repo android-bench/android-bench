@@ -35,7 +35,7 @@ after_commit:
   sha: 9ebb530c9a6bd145bb403e49ee5e2e1e68bed184
   change_id: '1462'
   target_sdk: null
-  url: https://android-bench-review.git.corp.google.com/c/thunderbird/thunderbird-android/+/1462
+  url: https://android-bench-review.git.buganizer./c/thunderbird/thunderbird-android/+/1462
 patch: null
 commands:
   android_test:

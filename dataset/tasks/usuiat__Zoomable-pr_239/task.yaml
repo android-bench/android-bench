@@ -59,7 +59,7 @@ commands:
     | xargs ./gradlew --no-configuration-cache --continue '
 issues:
 - id: null
-  url: https://b.corp.google.com/issues/459840621
+  url: b/459840621
 pull_request:
   id: 239
   url: https://github.com/usuiat/Zoomable/pull/239

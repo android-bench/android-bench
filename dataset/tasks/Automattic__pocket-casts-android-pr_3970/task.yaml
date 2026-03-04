@@ -66,7 +66,7 @@ commands:
     | xargs ./gradlew --no-configuration-cache --continue '
 issues:
 - id: null
-  url: https://b.corp.google.com/issues/459651800
+  url: b/459651800
 pull_request:
   id: 3970
   url: https://github.com/Automattic/pocket-casts-android/pull/3970

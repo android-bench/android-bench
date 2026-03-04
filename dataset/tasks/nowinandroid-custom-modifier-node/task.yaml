@@ -61,7 +61,7 @@ issues:
 modules_affected_by_pr: []
 pull_request:
   id: null
-  url: https://android-bench-review.git.corp.google.com/c/android/nowinandroid/+/1561
+  url: https://android-bench-review.git.buganizer./c/android/nowinandroid/+/1561
 test_files:
 - feature/foryou/src/androidTest/kotlin/com/google/samples/apps/nowinandroid/feature/foryou/ForYouScreenTest.kt
 testing_type: ALL_UNIT_TESTS_AND_ALL_ANDROID_TESTS

@@ -67,7 +67,7 @@ issues:
 modules_affected_by_pr: []
 pull_request:
   id: null
-  url: https://android-bench-review.git.corp.google.com/c/Automattic/pocket-casts-android/+/1240
+  url: https://android-bench-review.git.buganizer./c/Automattic/pocket-casts-android/+/1240
 test_files:
 - app/src/androidTest/java/au/com/shiftyjelly/pocketcasts/repositories/playlist/PlaylistManagerManualTest.kt
 - app/src/androidTest/java/au/com/shiftyjelly/pocketcasts/repositories/playlist/PlaylistManagerSmartTest.kt

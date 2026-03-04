@@ -57,7 +57,7 @@ commands:
     | xargs ./gradlew --no-configuration-cache --continue '
 issues:
 - id: null
-  url: https://b.corp.google.com/issues/459855611
+  url: b/459855611
 pull_request:
   id: 694
   url: https://github.com/bumble-tech/appyx/pull/694

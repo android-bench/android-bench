@@ -71,7 +71,7 @@ commands:
     | xargs ./gradlew --no-configuration-cache --continue '
 issues:
 - id: null
-  url: https://b.corp.google.com/issues/459995194
+  url: b/459995194
 pull_request:
   id: 1848
   url: https://github.com/element-hq/element-x-android/pull/1848

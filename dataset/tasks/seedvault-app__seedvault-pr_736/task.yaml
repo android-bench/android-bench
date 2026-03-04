@@ -55,7 +55,7 @@ commands:
     | xargs ./gradlew --no-configuration-cache --continue '
 issues:
 - id: null
-  url: https://b.corp.google.com/issues/459650552
+  url: b/459650552
 pull_request:
   id: 736
   url: https://github.com/seedvault-app/seedvault/pull/736

@@ -55,7 +55,7 @@ commands:
     | xargs ./gradlew --no-configuration-cache --continue '
 issues:
 - id: null
-  url: https://b.corp.google.com/issues/459896434
+  url: b/459896434
 pull_request:
   id: 1964
   url: https://github.com/coil-kt/coil/pull/1964

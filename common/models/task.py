@@ -32,9 +32,6 @@ class Issue(BaseModel):
         if not v:
             return None
 
-        if v.startswith("b/"):
-            return f"https://b.corp.google.com/issues/{v[2:]}"
-
         if not v.startswith(("http://", "https://")):
             return f"https://{v}"
         return v
@@ -162,11 +159,4 @@ class Task(BaseModel):
                         repo_name = f"{match.group(1)}/{match.group(2)}".replace(
                             ".git", ""
                         )
-                elif "corp.google.com" in url or "sso://" in url:
-                    match = re.search(
-                        r"(?:sso://android-bench/|corp\.google\.com/c/)([^/]+/[^/]+)",
-                        url,
-                    )
-                    if match:
-                        repo_name = match.group(1)
         return repo_name

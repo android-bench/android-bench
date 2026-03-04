@@ -62,7 +62,7 @@ commands:
     | xargs ./gradlew  --no-configuration-cache --continue
 issues:
 - id: null
-  url: https://b.corp.google.com/issues/459766691
+  url: b/459766691
 modules_affected_by_pr: []
 pull_request:
   id: 553

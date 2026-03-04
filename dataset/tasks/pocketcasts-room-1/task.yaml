@@ -72,7 +72,7 @@ commands:
   unit_test: []
 issues:
 - id: null
-  url: https://b.corp.google.com/issues/454476079
+  url: b/454476079
 modules_affected_by_pr: []
 pull_request:
   id: null

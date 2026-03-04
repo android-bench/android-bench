@@ -156,7 +156,7 @@ commands:
     | xargs ./gradlew --no-configuration-cache --continue '
 issues:
 - id: null
-  url: https://b.corp.google.com/issues/459996024
+  url: b/459996024
 pull_request:
   id: 8510
   url: https://github.com/thunderbird/thunderbird-android/pull/8510

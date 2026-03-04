@@ -72,7 +72,7 @@ commands:
   - ./gradlew :modules:features:podcasts:test --no-configuration-cache --continue
 issues:
 - id: null
-  url: https://b.corp.google.com/issues/455401613
+  url: b/455401613
 modules_affected_by_pr: []
 pull_request:
   id: null
