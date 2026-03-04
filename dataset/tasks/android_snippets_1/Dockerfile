@@ -1,6 +1,6 @@
 FROM android-snippets-base
 ENV JAVA_HOME=/usr/lib/jvm/java-25-openjdk-amd64
-ENV GRADLE_OPTS="-Xmx6g"
+ENV GRADLE_OPTS="-Xmx2g"
 RUN cd /workspace/testbed && \
     git reset --hard ecfd99173f6a17afaeb236c20b62b21924f52cb8 && \
     git remote remove origin || true && \
@@ -14,5 +14,5 @@ RUN cd /workspace/testbed && \
         fi; \
     done && \
     git reflog expire --expire=now --all && \
-    git gc --prune=now --aggressive
+    git gc --prune=now
 WORKDIR /workspace/testbed

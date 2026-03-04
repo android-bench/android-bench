@@ -34,6 +34,7 @@ from rich.live import Live
 from rich.panel import Panel
 import yaml
 from .prebuild import run_prebuild_checks
+from .resources import recommend_gradle_memory, recommend_max_workers
 
 logger = logging.getLogger(__name__)
 configure_logging()
@@ -83,14 +84,45 @@ class BuildManager:
             return self.group
 
 
+def _image_exists(image_name: str) -> bool:
+    """Returns True if a Docker image already exists locally."""
+    result = subprocess.run(
+        ["docker", "image", "inspect", image_name],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    return result.returncode == 0
+
+
 def build_docker_image(
-    image_name, dockerfile_path, total, context_dir, build_manager: BuildManager
+    image_name,
+    dockerfile_path,
+    total,
+    context_dir,
+    build_manager: BuildManager,
+    build_timeout: int = 1800,
+    skip_existing: bool = False,
 ):
     """Builds a docker image."""
 
+    if skip_existing and _image_exists(image_name):
+        with lock:
+            global build_counter
+            build_counter += 1
+            build_manager.add_build(image_name)
+            build_manager.update_build(
+                image_name,
+                "Image already exists, skipping build.",
+                subtitle=(
+                    f"[{build_counter}/{total}] Skipped (already exists):"
+                    f" {image_name}"
+                ),
+                style="bold cyan",
+            )
+        return None
+
     Path(context_dir).mkdir(parents=True, exist_ok=True)
 
-    global build_counter
     output_lines = []
     build_manager.add_build(image_name)
 
@@ -116,7 +148,17 @@ def build_docker_image(
                 build_manager.update_build(
                     image_name, "".join(output_lines[-BuildManager.output_lines :])
                 )
-        process.wait()
+        try:
+            process.wait(timeout=build_timeout)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait()
+            raise subprocess.CalledProcessError(
+                -1,
+                build_command,
+                output=f"Build timed out after {build_timeout}s\n"
+                + "".join(output_lines[-20:]),
+            )
 
         output = "".join(output_lines)
 
@@ -155,6 +197,8 @@ def _build_images(
     images_to_build: List[Tuple[str, str, str]],
     max_workers: int,
     build_type: str,
+    build_timeout: int = 1800,
+    skip_existing: bool = False,
 ):
     """Builds a list of docker images in parallel."""
 
@@ -177,6 +221,8 @@ def _build_images(
                     total_builds,
                     context_dir,
                     build_manager,
+                    build_timeout,
+                    skip_existing,
                 )
                 for name, path, context_dir in images_to_build
             }
@@ -225,7 +271,7 @@ def shell_commands_to_remove_all_commits_after_base_commit(before_commit_sha):
         fi; \\
     done && \\
     git reflog expire --expire=now --all && \\
-    git gc --prune=now --aggressive"""
+    git gc --prune=now"""
 
 
 def main():
@@ -257,14 +303,39 @@ def main():
     parser.add_argument(
         "--max_workers",
         type=int,
-        default=4,
-        help="Maximum number of parallel builds.",
+        default=0,
+        help="Maximum number of parallel builds (0 = auto-detect based on system resources).",
     )
     parser.add_argument(
         "--task_id",
         help="Only generate the docker image for this task id.",
     )
+    parser.add_argument(
+        "--gradle_memory",
+        type=str,
+        default=None,
+        help="Gradle heap size for GRADLE_OPTS -Xmx (e.g. '2g'). Default: auto-detect.",
+    )
+    parser.add_argument(
+        "--skip_existing",
+        action="store_true",
+        help="Skip building images that already exist locally.",
+    )
+    parser.add_argument(
+        "--build_timeout",
+        type=int,
+        default=1800,
+        help="Timeout in seconds for each Docker build (default: 1800).",
+    )
     args = parser.parse_args()
+
+    gradle_memory = args.gradle_memory or recommend_gradle_memory()
+    max_workers = args.max_workers
+    if max_workers == 0:
+        max_workers = recommend_max_workers()
+    logger.info(
+        "Resource settings: max_workers=%d, gradle_memory=%s", max_workers, gradle_memory
+    )
 
     if args.build:
         _build_images(
@@ -275,8 +346,10 @@ def main():
                     root_dir,
                 )
             ],
-            args.max_workers,
+            max_workers,
             "android-bench-env",
+            args.build_timeout,
+            args.skip_existing,
         )
 
         if len(failed_builds) > 0:
@@ -329,7 +402,13 @@ WORKDIR /workspace
                 f.write(dockerfile_content)
 
         if args.build:
-            _build_images(base_images_to_build, args.max_workers, "base")
+            _build_images(
+                base_images_to_build,
+                max_workers,
+                "base",
+                args.build_timeout,
+                args.skip_existing,
+            )
 
         # Generate and build task-specific images
         task_images_to_build: list[tuple[str, str, str]] = []
@@ -379,7 +458,7 @@ WORKDIR /workspace
             git_reset_command = f"git reset --hard {commit_sha}"
             dockerfile_content = f"""FROM {_get_base_image_name(repo_url).lower()}-base
 {java_home_env}
-ENV GRADLE_OPTS="-Xmx6g"
+ENV GRADLE_OPTS="-Xmx{gradle_memory}"
 RUN cd /workspace/testbed && \\
     {git_reset_command} && \\
     {shell_commands_to_remove_all_commits_after_base_commit(commit_sha)}"""
@@ -395,7 +474,13 @@ RUN cd /workspace/testbed && \\
                 task_images_to_build.append((image_name, str(dockerfile_path), tmp_dir))
 
         if args.build:
-            _build_images(task_images_to_build, args.max_workers, "task")
+            _build_images(
+                task_images_to_build,
+                max_workers,
+                "task",
+                args.build_timeout,
+                args.skip_existing,
+            )
 
     except Exception:
         import traceback

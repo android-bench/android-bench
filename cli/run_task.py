@@ -55,7 +55,7 @@ def main():
 
     args = parser.parse_args()
 
-    username = os.getlogin()
+    username = os.getenv("USER", "user")
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
     if "/" in args.model:
@@ -89,6 +89,8 @@ def main():
                 "--build",
                 "--task_id",
                 args.task,
+                "--max_workers",
+                "1",
             ]
             print(f'Building local image: {" ".join(build_command)}')
             subprocess.run(build_command, check=True)

@@ -14,7 +14,12 @@
 import subprocess
 import argparse
 import datetime
+import logging
 import os
+
+from utils.docker.resources import recommend_max_workers
+
+logger = logging.getLogger(__name__)
 
 
 def main():
@@ -28,8 +33,8 @@ def main():
     parser.add_argument(
         "--workers",
         type=int,
-        default=4,
-        help="Number of parallel workers the agent should use",
+        default=0,
+        help="Number of parallel workers (0 = auto-detect based on system resources).",
     )
     parser.add_argument(
         "--tasks-filter",
@@ -51,8 +56,13 @@ def main():
     )
     args = parser.parse_args()
 
-    username = os.getlogin()
+    username = os.getenv("USER", "user")
     model_name = args.model.split("/")[-1]
+
+    workers = args.workers
+    if workers == 0:
+        workers = recommend_max_workers()
+        logger.info("Auto-detected --workers=%d based on system resources", workers)
 
     num_runs = args.num_runs
     if args.run_name:
@@ -70,7 +80,7 @@ def main():
         agent_command = [
             "agent",
             "--workers",
-            str(args.workers),
+            str(workers),
             "--model",
             args.model,
             "--tasks_filter",
@@ -91,7 +101,7 @@ def main():
             "--tasks-filter",
             args.tasks_filter,
             "--max-parallel-containers",
-            str(args.workers),
+            str(workers),
         ]
         if args.skip_existing:
             verifier_command.append("--skip-existing")

@@ -421,7 +421,7 @@ def run():
     parser.add_argument(
         "--max-parallel-containers",
         type=int,
-        default=4,
+        default=1,
         help="Maximum number of containers to run in parallel on a single machine.",
     )
     parser.add_argument(
