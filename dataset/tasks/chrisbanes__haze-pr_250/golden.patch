@@ -1,4 +1,5 @@
 diff --git a/.gitignore b/.gitignore
+index 37951cf..5fe2ca2 100644
 --- a/.gitignore
 +++ b/.gitignore
 @@ -88,6 +88,7 @@ playground.xcworkspace
@@ -10,6 +11,7 @@ diff --git a/.gitignore b/.gitignore
  # fastlane
  #
 diff --git a/.idea/kotlinc.xml b/.idea/kotlinc.xml
+index 148fdd2..6d0ee1c 100644
 --- a/.idea/kotlinc.xml
 +++ b/.idea/kotlinc.xml
 @@ -1,6 +1,6 @@
@@ -22,6 +24,7 @@ diff --git a/.idea/kotlinc.xml b/.idea/kotlinc.xml
  </project>
 \ No newline at end of file
 diff --git a/build.gradle.kts b/build.gradle.kts
+index 43788eb..32fb1ac 100644
 --- a/build.gradle.kts
 +++ b/build.gradle.kts
 @@ -13,7 +13,8 @@ plugins {
@@ -35,6 +38,7 @@ diff --git a/build.gradle.kts b/build.gradle.kts
    alias(libs.plugins.metalava) apply false
    alias(libs.plugins.roborazzi) apply false
 diff --git a/gradle/build-logic/convention/src/main/kotlin/dev/chrisbanes/gradle/ComposeMultiplatformConventionPlugin.kt b/gradle/build-logic/convention/src/main/kotlin/dev/chrisbanes/gradle/ComposeMultiplatformConventionPlugin.kt
+index 4fc7269..99a6bf8 100644
 --- a/gradle/build-logic/convention/src/main/kotlin/dev/chrisbanes/gradle/ComposeMultiplatformConventionPlugin.kt
 +++ b/gradle/build-logic/convention/src/main/kotlin/dev/chrisbanes/gradle/ComposeMultiplatformConventionPlugin.kt
 @@ -9,6 +9,7 @@ import org.gradle.api.Project
@@ -46,6 +50,7 @@ diff --git a/gradle/build-logic/convention/src/main/kotlin/dev/chrisbanes/gradle
    }
  }
 diff --git a/gradle/libs.versions.toml b/gradle/libs.versions.toml
+index ec6c7d0..6e260ad 100644
 --- a/gradle/libs.versions.toml
 +++ b/gradle/libs.versions.toml
 @@ -3,10 +3,10 @@ agp = "8.5.1"
@@ -72,6 +77,7 @@ diff --git a/gradle/libs.versions.toml b/gradle/libs.versions.toml
  kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
  metalava = { id = "me.tylerbwong.gradle.metalava", version = "0.3.5" }
 diff --git a/haze/build.gradle.kts b/haze/build.gradle.kts
+index aea27f4..8279c52 100644
 --- a/haze/build.gradle.kts
 +++ b/haze/build.gradle.kts
 @@ -19,7 +19,13 @@ android {
@@ -110,12 +116,11 @@ diff --git a/haze/build.gradle.kts b/haze/build.gradle.kts
  }
  
 diff --git a/haze/src/androidMain/kotlin/dev/chrisbanes/haze/AndroidHazeNode.kt b/haze/src/androidMain/kotlin/dev/chrisbanes/haze/AndroidHazeNode.kt
+deleted file mode 100644
+index fbb312e..0000000
 --- a/haze/src/androidMain/kotlin/dev/chrisbanes/haze/AndroidHazeNode.kt
-+++ b/a/haze/src/androidMain/kotlin/dev/chrisbanes/haze/AndroidHazeNode.kt
-@@ -1,543 +0,2 @@
- // Copyright 2023, Christopher Banes and the Haze project contributors
- // SPDX-License-Identifier: Apache-2.0
--
++++ /dev/null
+@@ -1,540 +0,0 @@
 -package dev.chrisbanes.haze
 -
 -import android.content.Context
@@ -658,10 +663,10 @@ diff --git a/haze/src/androidMain/kotlin/dev/chrisbanes/haze/AndroidHazeNode.kt 
 -}
 diff --git a/haze/src/androidMain/kotlin/dev/chrisbanes/haze/HazeNode.android.kt b/haze/src/androidMain/kotlin/dev/chrisbanes/haze/HazeNode.android.kt
 new file mode 100644
+index 0000000..28d17e3
 --- /dev/null
 +++ b/haze/src/androidMain/kotlin/dev/chrisbanes/haze/HazeNode.android.kt
-@@ -0,0 +1,110 @@
-+
+@@ -0,0 +1,109 @@
 +package dev.chrisbanes.haze
 +
 +import android.graphics.Bitmap
@@ -772,12 +777,11 @@ new file mode 100644
 +  }
 +}
 diff --git a/haze/src/androidMain/kotlin/dev/chrisbanes/haze/Pool.kt b/haze/src/androidMain/kotlin/dev/chrisbanes/haze/Pool.kt
+deleted file mode 100644
+index a2b40f5..0000000
 --- a/haze/src/androidMain/kotlin/dev/chrisbanes/haze/Pool.kt
-+++ b/a/haze/src/androidMain/kotlin/dev/chrisbanes/haze/Pool.kt
-@@ -1,25 +0,2 @@
- // Copyright 2024, Christopher Banes and the Haze project contributors
- // SPDX-License-Identifier: Apache-2.0
--
++++ /dev/null
+@@ -1,22 +0,0 @@
 -package dev.chrisbanes.haze
 -
 -import androidx.compose.ui.graphics.Path
@@ -804,6 +808,7 @@ diff --git a/haze/src/androidMain/kotlin/dev/chrisbanes/haze/Platform.kt b/haze/
 similarity index 84%
 rename from haze/src/androidMain/kotlin/dev/chrisbanes/haze/Platform.kt
 rename to haze/src/androidMain/kotlin/dev/chrisbanes/haze/Window.android.kt
+index d08c450..31a5c76 100644
 --- a/haze/src/androidMain/kotlin/dev/chrisbanes/haze/Platform.kt
 +++ b/haze/src/androidMain/kotlin/dev/chrisbanes/haze/Window.android.kt
 @@ -9,11 +9,6 @@ import androidx.compose.ui.node.currentValueOf
@@ -819,6 +824,7 @@ rename to haze/src/androidMain/kotlin/dev/chrisbanes/haze/Window.android.kt
    val loc = tmpArray.getOrSet { IntArray(2) }
    currentValueOf(LocalView).rootView.getLocationOnScreen(loc)
 diff --git a/haze/src/commonMain/kotlin/dev/chrisbanes/haze/Haze.kt b/haze/src/commonMain/kotlin/dev/chrisbanes/haze/Haze.kt
+index 4bd3f8e..ce4338b 100644
 --- a/haze/src/commonMain/kotlin/dev/chrisbanes/haze/Haze.kt
 +++ b/haze/src/commonMain/kotlin/dev/chrisbanes/haze/Haze.kt
 @@ -164,7 +164,7 @@ internal data class HazeNodeElement(
@@ -846,10 +852,10 @@ diff --git a/haze/src/commonMain/kotlin/dev/chrisbanes/haze/Haze.kt b/haze/src/c
   *
 diff --git a/haze/src/commonMain/kotlin/dev/chrisbanes/haze/HazeNode.kt b/haze/src/commonMain/kotlin/dev/chrisbanes/haze/HazeNode.kt
 new file mode 100644
+index 0000000..9edf491
 --- /dev/null
 +++ b/haze/src/commonMain/kotlin/dev/chrisbanes/haze/HazeNode.kt
-@@ -0,0 +1,404 @@
-+
+@@ -0,0 +1,403 @@
 +package dev.chrisbanes.haze
 +
 +import androidx.compose.runtime.getValue
@@ -1255,10 +1261,10 @@ new file mode 100644
 +}
 diff --git a/haze/src/commonMain/kotlin/dev/chrisbanes/haze/Pool.kt b/haze/src/commonMain/kotlin/dev/chrisbanes/haze/Pool.kt
 new file mode 100644
+index 0000000..e4f5377
 --- /dev/null
 +++ b/haze/src/commonMain/kotlin/dev/chrisbanes/haze/Pool.kt
-@@ -0,0 +1,44 @@
-+
+@@ -0,0 +1,43 @@
 +package dev.chrisbanes.haze
 +
 +import androidx.compose.ui.graphics.Path
@@ -1306,6 +1312,7 @@ diff --git a/haze/src/commonMain/kotlin/dev/chrisbanes/haze/Platform.kt b/haze/s
 similarity index 79%
 rename from haze/src/commonMain/kotlin/dev/chrisbanes/haze/Platform.kt
 rename to haze/src/commonMain/kotlin/dev/chrisbanes/haze/Window.kt
+index aa8a088..bfc6030 100644
 --- a/haze/src/commonMain/kotlin/dev/chrisbanes/haze/Platform.kt
 +++ b/haze/src/commonMain/kotlin/dev/chrisbanes/haze/Window.kt
 @@ -6,9 +6,4 @@ package dev.chrisbanes.haze
@@ -1319,12 +1326,11 @@ rename to haze/src/commonMain/kotlin/dev/chrisbanes/haze/Window.kt
 -
  internal expect fun CompositionLocalConsumerModifierNode.calculateWindowOffset(): Offset
 diff --git a/haze/src/skikoMain/kotlin/dev/chrisbanes/haze/HazeNode.kt b/haze/src/skikoMain/kotlin/dev/chrisbanes/haze/HazeNode.kt
+deleted file mode 100644
+index 613bdec..0000000
 --- a/haze/src/skikoMain/kotlin/dev/chrisbanes/haze/HazeNode.kt
-+++ b/a/haze/src/skikoMain/kotlin/dev/chrisbanes/haze/HazeNode.kt
-@@ -1,248 +0,2 @@
- // Copyright 2023, Christopher Banes and the Haze project contributors
- // SPDX-License-Identifier: Apache-2.0
--
++++ /dev/null
+@@ -1,245 +0,0 @@
 -package dev.chrisbanes.haze
 -
 -import androidx.compose.foundation.shape.CornerBasedShape
@@ -1575,8 +1581,7 @@ new file mode 100644
 index 0000000..2da1775
 --- /dev/null
 +++ b/haze/src/skikoMain/kotlin/dev/chrisbanes/haze/HazeNode.skiko.kt
-@@ -0,0 +1,57 @@
-+
+@@ -0,0 +1,56 @@
 +package dev.chrisbanes.haze
 +
 +import androidx.compose.ui.geometry.Rect
@@ -1744,8 +1749,7 @@ new file mode 100644
 index 0000000..0d33805
 --- /dev/null
 +++ b/haze/src/skikoMain/kotlin/dev/chrisbanes/haze/Window.skiko.kt
-@@ -0,0 +1,10 @@
-+
+@@ -0,0 +1,9 @@
 +package dev.chrisbanes.haze
 +
 +import androidx.compose.ui.geometry.Offset
@@ -2978,4 +2982,4 @@ index b15a52b..ca83c11 100644
  
  ws@~8.11.0:
    version "8.11.0"
- 
+
