@@ -21,7 +21,7 @@ The repository provides the tooling to evaluate a model's ability to act as an A
 ## Setup
 
 ```bash
-git clone https://github.com/google/android-bench.git
+git clone https://github.com/android-bench/android-bench.git
 cd android-bench
 
 # Create and activate the virtual environment
@@ -29,7 +29,7 @@ uv venv
 source .venv/bin/activate
 
 # Run the setup script
-uv run setup_env
+setup_env
 ```
 
 The `setup_env` takes care of the following:

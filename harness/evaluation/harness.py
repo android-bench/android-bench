@@ -268,13 +268,8 @@ def run_benchmark_task(
 
         old_fashioned_test_naming = True
         # New fashioned are {TaskName}#Test {testName}({testClass})
-        TEST_NAME_REGEX = r"^\w+#Test"
-        if (
-            fail_to_pass_tests_list
-            and re.match(TEST_NAME_REGEX, fail_to_pass_tests_list[0])
-        ) or (
-            pass_to_pass_tests_list
-            and re.match(TEST_NAME_REGEX, pass_to_pass_tests_list[0])
+        if fail_to_pass_tests_list and re.match(
+            r"^\w+#Test", fail_to_pass_tests_list[0]
         ):
             old_fashioned_test_naming = False
 

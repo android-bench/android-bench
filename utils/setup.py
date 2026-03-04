@@ -150,8 +150,10 @@ def analyze_docker(auto_confirm: bool) -> None:
     confirm = auto_confirm
     if not confirm:
         confirm_str = input(
-            "Docker images not found. "
-            "Do you want to build the Docker images? (y/n): "
+            "Docker images not found.\n"
+            "Note: This is only required to run the full benchmark and is an intensive operation taking multiple hours.\n"
+            "You do not need to do this to try individual tasks.\n"
+            "Do you want to build the Docker images now? (y/n): "
         )
         confirm = confirm_str.lower() in ["y", "yes"]
 

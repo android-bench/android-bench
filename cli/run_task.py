@@ -16,12 +16,8 @@ import argparse
 import datetime
 import os
 import sys
-import logging
-from common.constants import TASKS_DIR
-from common.logger import configure_logging
 
-logger = logging.getLogger(__name__)
-configure_logging()
+from common.constants import TASKS_DIR
 
 
 def main():
@@ -44,13 +40,7 @@ def main():
         "--local-images",
         action=argparse.BooleanOptionalAction,
         default=True,
-        help="Use local images and build them if not present (default: True).",
-    )
-    parser.add_argument(
-        "--rebuild-local-image",
-        action=argparse.BooleanOptionalAction,
-        default=False,
-        help="Rebuild the local image if not present (default: True).",
+        help="Use local images and build them first (default: True).",
     )
 
     args = parser.parse_args()
@@ -69,29 +59,17 @@ def main():
 
     # Build local image first if requested
     if args.local_images:
-        # Check first if the image already exists
-        logger.info("[bold blue]>>> Checking if Docker images are built...[/]")
-        image_exists = subprocess.run(
-            ["docker", "images", "-q", args.task],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-
-        # Build image if not present or requested
-        if args.rebuild_local_image or not image_exists.stdout.strip():
-            build_command = [
-                sys.executable,
-                "-m",
-                "utils.docker.generate_docker_images",
-                "--tasks-dir",
-                args.tasks_dir,
-                "--build",
-                "--task_id",
-                args.task,
-            ]
-            print(f'Building local image: {" ".join(build_command)}')
-            subprocess.run(build_command, check=True)
+        build_command = [
+            sys.executable,
+            "utils/docker/generate_docker_images.py",
+            "--tasks-dir",
+            args.tasks_dir,
+            "--build",
+            "--task_id",
+            args.task,
+        ]
+        print(f'Building local image: {" ".join(build_command)}')
+        subprocess.run(build_command, check=True)
 
     agent_command = [
         "agent",

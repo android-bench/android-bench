@@ -1,23 +1,23 @@
-diff --git forkSrcPrefix/modules/features/filters/src/test/kotlin/au/com/shiftyjelly/pocketcasts/playlists/create/FakePlaylistManager.kt forkDstPrefix/modules/features/filters/src/test/kotlin/au/com/shiftyjelly/pocketcasts/playlists/create/FakePlaylistManager.kt
-index 882f4669bb62da6f2785b9c31c00f908ede004fd..14172dbca5840254f20cd1631958ba4ea9ff8513 100644
---- forkSrcPrefix/modules/features/filters/src/test/kotlin/au/com/shiftyjelly/pocketcasts/playlists/create/FakePlaylistManager.kt
-+++ forkDstPrefix/modules/features/filters/src/test/kotlin/au/com/shiftyjelly/pocketcasts/playlists/create/FakePlaylistManager.kt
+diff --git a/modules/features/filters/src/test/kotlin/au/com/shiftyjelly/pocketcasts/playlists/create/FakePlaylistManager.kt b/modules/features/filters/src/test/kotlin/au/com/shiftyjelly/pocketcasts/playlists/create/FakePlaylistManager.kt
+index 882f4669b..14172dbca 100644
+--- a/modules/features/filters/src/test/kotlin/au/com/shiftyjelly/pocketcasts/playlists/create/FakePlaylistManager.kt
++++ b/modules/features/filters/src/test/kotlin/au/com/shiftyjelly/pocketcasts/playlists/create/FakePlaylistManager.kt
 @@ -36,7 +36,7 @@ class FakePlaylistManager : PlaylistManager {
-
+ 
      override suspend fun updateSortType(uuid: String, type: PlaylistEpisodeSortType) = Unit
-
+ 
 -    override suspend fun updateAutoDownload(uuid: String, isEnabled: Boolean) = Unit
 +    override suspend fun updateAutoDownload(uuids: Collection<String>, isEnabled: Boolean) = Unit
-
+ 
      override suspend fun updateAutoDownloadLimit(uuid: String, limit: Int) = Unit
-
-diff --git forkSrcPrefix/modules/features/settings/src/androidTest/java/au/com/shiftyjelly/pocketcasts/settings/settings/AutoDownloadSettingsPageTest.kt forkDstPrefix/modules/features/settings/src/androidTest/java/au/com/shiftyjelly/pocketcasts/settings/settings/AutoDownloadSettingsPageTest.kt
-index 4d95ca17e205c55c69515a534750e8928efedd90..3e9376b87223476959468b0d205c4ad7d6e578c6 100644
---- forkSrcPrefix/modules/features/settings/src/androidTest/java/au/com/shiftyjelly/pocketcasts/settings/settings/AutoDownloadSettingsPageTest.kt
-+++ forkDstPrefix/modules/features/settings/src/androidTest/java/au/com/shiftyjelly/pocketcasts/settings/settings/AutoDownloadSettingsPageTest.kt
+ 
+diff --git a/modules/features/settings/src/androidTest/java/au/com/shiftyjelly/pocketcasts/settings/settings/AutoDownloadSettingsPageTest.kt b/modules/features/settings/src/androidTest/java/au/com/shiftyjelly/pocketcasts/settings/settings/AutoDownloadSettingsPageTest.kt
+index 4d95ca17e..7643b25a2 100644
+--- a/modules/features/settings/src/androidTest/java/au/com/shiftyjelly/pocketcasts/settings/settings/AutoDownloadSettingsPageTest.kt
++++ b/modules/features/settings/src/androidTest/java/au/com/shiftyjelly/pocketcasts/settings/settings/AutoDownloadSettingsPageTest.kt
 @@ -1,23 +1,43 @@
  package au.com.shiftyjelly.pocketcasts.settings.settings
-
+ 
  import android.content.Context
 +import androidx.activity.ComponentActivity
 +import androidx.compose.runtime.collectAsState
@@ -62,20 +62,20 @@ index 4d95ca17e205c55c69515a534750e8928efedd90..3e9376b87223476959468b0d205c4ad7
 @@ -31,8 +51,7 @@ class AutoDownloadSettingsPageTest {
      @get:Rule
      val composeTestRule = createComposeRule()
-
+ 
 -    @Mock
 -    private var context: Context = mock()
 +    private lateinit var db: AppDatabase
-
+ 
      @Mock
      private var settings: Settings = mock()
 @@ -47,20 +66,29 @@ class AutoDownloadSettingsPageTest {
      private var downloadManager: DownloadManager = mock()
-
+ 
      @Mock
 -    private var tracker: AnalyticsTracker = mock()
 +    private var tracker: AnalyticsTracker = AnalyticsTracker(emptyList(), { false })
-
+ 
      @Before
      fun setup() {
 +        val context = ApplicationProvider.getApplicationContext<Context>()
@@ -109,14 +109,14 @@ index 4d95ca17e205c55c69515a534750e8928efedd90..3e9376b87223476959468b0d205c4ad7
          whenever(podcastManager.findSubscribedFlow()).thenReturn(flowOf(emptyList()))
 @@ -78,7 +106,7 @@ class AutoDownloadSettingsPageTest {
          )
-
+ 
          composeTestRule.setContent {
 -            val uiState = viewModel.uiState.value
 +            val uiState = viewModel.uiState.collectAsState().value
              AutoDownloadSettingsPage(
                  uiState = uiState,
                  onChangeUpNextDownload = { _ -> },
-@@ -93,10 +121,65 @@ class AutoDownloadSettingsPageTest {
+@@ -93,10 +121,66 @@ class AutoDownloadSettingsPageTest {
                  onChangeAllPodcasts = { _ -> },
                  onChangePlaylist = { _, _ -> },
                  onChangeAllPlaylists = { _ -> },
@@ -124,7 +124,7 @@ index 4d95ca17e205c55c69515a534750e8928efedd90..3e9376b87223476959468b0d205c4ad7
 +                onDismiss = { },
              )
          }
-
+ 
          composeTestRule.onNodeWithText("Episodes added to Up Next").assertExists()
      }
 +
@@ -173,7 +173,8 @@ index 4d95ca17e205c55c69515a534750e8928efedd90..3e9376b87223476959468b0d205c4ad7
 +        composeTestRule.waitUntilAtLeastOneExists(hasText("Playlists"))
 +        composeTestRule.onNodeWithText("Playlists").assertExists()
 +        composeTestRule.onNodeWithText("0 playlists selected").performClick()
-+        composeTestRule.onNodeWithText("Select all").performClick()
++        composeTestRule.onNodeWithText("New Releases").performClick()
++        composeTestRule.onNodeWithText("In Progress").performClick()
 +
 +        composeTestRule.waitForIdle()
 +
@@ -184,3 +185,4 @@ index 4d95ca17e205c55c69515a534750e8928efedd90..3e9376b87223476959468b0d205c4ad7
 +    }
  }
 \ No newline at end of file
+

@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import re
 from datetime import datetime
 from pydantic import BaseModel, Field, field_validator
 
@@ -84,10 +83,6 @@ class Task(BaseModel):
     category_ids: list[str] = Field(
         description="A list of category identifiers associated with the task."
     )
-    app_category: str | None = Field(
-        default=None,
-        description="The category of the application (e.g., 'Library', 'Communication').",
-    )
     description: str = Field(
         description="A detailed description of the task, used as context for the agent."
     )
@@ -137,36 +132,3 @@ class Task(BaseModel):
         default="validate.sh",
         description="Name of the validation script in the task folder used post tests to validate an agent patch.",
     )
-
-    @property
-    def repo_name(self) -> str:
-        """
-        Extracts the repository name (owner/name) from a task.
-        """
-        repo_name = "Unknown"
-
-        owner = self.repository.owner
-        name = self.repository.name
-
-        if owner and name and owner != "null" and name != "null":
-            repo_name = f"{owner}/{name}"
-        else:
-            # Fallback to URLs
-            url = self.repository.url or (
-                self.pull_request.url if self.pull_request else ""
-            )
-            if url:
-                if "github.com" in url:
-                    match = re.search(r"github\.com/([^/]+)/([^/?#]+)", url)
-                    if match:
-                        repo_name = f"{match.group(1)}/{match.group(2)}".replace(
-                            ".git", ""
-                        )
-                elif "corp.google.com" in url or "sso://" in url:
-                    match = re.search(
-                        r"(?:sso://android-bench/|corp\.google\.com/c/)([^/]+/[^/]+)",
-                        url,
-                    )
-                    if match:
-                        repo_name = match.group(1)
-        return repo_name

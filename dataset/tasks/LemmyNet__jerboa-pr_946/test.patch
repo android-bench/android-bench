@@ -28,8 +28,8 @@ new file mode 100644
 +
 +    private val capturedLogs = mutableListOf<String>()
 +    private lateinit var logHandler: Handler
-+    private val sensitivePassword = "qwerty"
-+    private val sensitiveJwt = "asdfgh"
++    private val sensitivePassword = "123"
++    private val sensitiveJwt = "12345"
 +
 +    @Before
 +    fun setUp() {

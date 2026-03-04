@@ -22,7 +22,6 @@ from common.models import eval_data_classes
 import logging
 from typing import Any, List
 import os
-import stat
 import time
 import re
 from common.constants import CONFIG_PROPERTIES_FILE
@@ -585,28 +584,6 @@ def _remove_empty_dirs(path: Path) -> None:
         pass
 
 
-def _copy_tree_writable(src: Path, dst: Path, ignore_func=None) -> None:
-    """
-    Recursively copies a directory tree without preserving permissions/metadata.
-    This ensures the destination is writable by the current user even if the
-    source (e.g., from a Docker volume) is read-only or owned by root.
-    """
-    if src.is_dir():
-        dst.mkdir(parents=True, exist_ok=True)
-
-        # Get list of items, respecting the ignore function
-        names = [item.name for item in src.iterdir()]
-        if ignore_func:
-            ignored_names = ignore_func(str(src), names)
-            names = [n for n in names if n not in ignored_names]
-
-        for name in names:
-            _copy_tree_writable(src / name, dst / name, ignore_func)
-    else:
-        # shutil.copyfile copies the file content but NOT permissions or metadata
-        shutil.copyfile(src, dst)
-
-
 def copy_build_outputs(work_dir: Path, output_dir: Path) -> None:
     """
     Finds all 'build/outputs' directories within work_dir and copies them
@@ -647,7 +624,12 @@ def copy_build_outputs(work_dir: Path, output_dir: Path) -> None:
                 shutil.rmtree(dest_path)
 
             logging.info(f"Copying {source_path} -> {dest_path}")
-            _copy_tree_writable(source_path, dest_path, ignore_func)
+            shutil.copytree(
+                source_path,
+                dest_path,
+                dirs_exist_ok=True,
+                ignore=ignore_func,
+            )
 
         except Exception as e:
             logging.error(f"Failed to copy {source_path}: {e}")
