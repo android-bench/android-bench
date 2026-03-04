@@ -29,7 +29,7 @@ uv venv
 source .venv/bin/activate
 
 # Run the setup script
-setup_env
+uv run setup_env
 ```
 
 The `setup_env` takes care of the following:

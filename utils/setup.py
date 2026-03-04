@@ -147,25 +147,6 @@ def analyze_docker(auto_confirm: bool) -> None:
         logger.info("[bold green]Docker images are already built and available.[/]")
         return
 
-    confirm = auto_confirm
-    if not confirm:
-        confirm_str = input(
-            "Docker images not found.\n"
-            "Note: This is only required to run the full benchmark and is an intensive operation taking multiple hours.\n"
-            "You do not need to do this to try individual tasks.\n"
-            "Do you want to build the Docker images now? (y/n): "
-        )
-        confirm = confirm_str.lower() in ["y", "yes"]
-
-    if confirm:
-        build_cmd = [
-            "uv",
-            "run",
-            "build_images",
-            "--build",
-        ]
-        run_command(build_cmd, "Building Docker images")
-
 
 def parse_args() -> argparse.Namespace:
     """Parses command line arguments."""

@@ -133,6 +133,8 @@ acceptance_criteria:
   - testGreenDebugUnitTest#Test multipleHiddenDomainsAreMarkedUp(com.keylesspalace.tusky.util.LinkHelperTest)
   - testBlueDebugUnitTest#Test multipleHiddenDomainsAreMarkedUp(com.keylesspalace.tusky.util.LinkHelperTest)
   - testBlueDebugUnitTest#Test hiddenDomainsAreMarkedUp(com.keylesspalace.tusky.util.LinkHelperTest)
+  - testGreenDebugUnitTest#Test markupHiddenUrls_emojiAndEmoteTest(com.keylesspalace.tusky.util.LinkHelperTest)
+  - testBlueDebugUnitTest#Test markupHiddenUrls_emojiAndEmoteTest(com.keylesspalace.tusky.util.LinkHelperTest)
   pass_to_pass:
   - testBlueDebugUnitTest#Test whenMaximumTootCharsIsNull_defaultLimitIsUsed(com.keylesspalace.tusky.components.compose.ComposeActivityTest)
   - testBlueDebugUnitTest#Test startingVisibility initially set to defaultPostPrivacy

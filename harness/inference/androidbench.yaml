@@ -226,7 +226,7 @@ agent:
     ```
     </response_example>
   step_limit: 250
-  cost_limit: 3.
+  cost_limit: 10.
 
 # Reasoning level is configured as high by default for all models.For models which support xhigh or any other highest effort level we are adding to the yaml.
 reasoning_config:

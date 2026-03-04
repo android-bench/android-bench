@@ -29,11 +29,14 @@ category_ids:
 app_category: Tools
 task_type: feature
 description: |-
-  # 601: [FEATURE] - New feature request
+  # 601: [FEATURE] - Add from URL
 
-  Would be nice if you can add a URL for server configs when using on tv box. So you
-  can add url and it will load all servers available for your vpn would be nice add
-  on
+  We have a new feature request to Add from URL. To do this, we should add an "Add from URL" option to our tunnel import options. 
+  
+  It should pop up a dialog for the user to enter their URL.
+  When they confirm, grab the filename from the end of the URL and make sure it has the `.conf` extension.
+  If it's valid, download it and save it using the existing save tunnel from stream logic.
+  If it's not a `.conf` file, or there are other errors, pop up a Snackbar with a message.
 image_urls: []
 video_urls: []
 before_commit:

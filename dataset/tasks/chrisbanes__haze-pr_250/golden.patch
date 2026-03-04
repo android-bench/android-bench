@@ -1,0 +1,2981 @@
+diff --git a/.gitignore b/.gitignore
+--- a/.gitignore
++++ b/.gitignore
+@@ -88,6 +88,7 @@ playground.xcworkspace
+ # .swiftpm
+ 
+ .build/
++.kotlin/
+ 
+ # fastlane
+ #
+diff --git a/.idea/kotlinc.xml b/.idea/kotlinc.xml
+--- a/.idea/kotlinc.xml
++++ b/.idea/kotlinc.xml
+@@ -1,6 +1,6 @@
+ <?xml version="1.0" encoding="UTF-8"?>
+ <project version="4">
+   <component name="KotlinJpsPluginSettings">
+-    <option name="version" value="1.9.24" />
++    <option name="version" value="2.0.0" />
+   </component>
+ </project>
+\ No newline at end of file
+diff --git a/build.gradle.kts b/build.gradle.kts
+--- a/build.gradle.kts
++++ b/build.gradle.kts
+@@ -13,7 +13,8 @@ plugins {
+   alias(libs.plugins.android.test) apply false
+   alias(libs.plugins.kotlin.android) apply false
+   alias(libs.plugins.spotless) apply false
+-  alias(libs.plugins.composeMultiplatform) apply false
++  alias(libs.plugins.compose.multiplatform) apply false
++  alias(libs.plugins.compose.compiler) apply false
+   alias(libs.plugins.mavenpublish) apply false
+   alias(libs.plugins.metalava) apply false
+   alias(libs.plugins.roborazzi) apply false
+diff --git a/gradle/build-logic/convention/src/main/kotlin/dev/chrisbanes/gradle/ComposeMultiplatformConventionPlugin.kt b/gradle/build-logic/convention/src/main/kotlin/dev/chrisbanes/gradle/ComposeMultiplatformConventionPlugin.kt
+--- a/gradle/build-logic/convention/src/main/kotlin/dev/chrisbanes/gradle/ComposeMultiplatformConventionPlugin.kt
++++ b/gradle/build-logic/convention/src/main/kotlin/dev/chrisbanes/gradle/ComposeMultiplatformConventionPlugin.kt
+@@ -9,6 +9,7 @@ import org.gradle.api.Project
+ class ComposeMultiplatformConventionPlugin : Plugin<Project> {
+   override fun apply(target: Project) = with(target) {
+     pluginManager.apply("org.jetbrains.compose")
++    pluginManager.apply("org.jetbrains.kotlin.plugin.compose")
+     configureCompose()
+   }
+ }
+diff --git a/gradle/libs.versions.toml b/gradle/libs.versions.toml
+--- a/gradle/libs.versions.toml
++++ b/gradle/libs.versions.toml
+@@ -3,10 +3,10 @@ agp = "8.5.1"
+ androidx-benchmark = "1.2.4"
+ androidx-test-ext-junit = "1.2.1"
+ coil = "3.0.0-alpha08"
+-compose-multiplatform = "1.6.11"
++compose-multiplatform = "1.7.0-alpha01"
+ kotlinx-coroutines-swing = "1.8.1"
+ ktlint = "1.0.1"
+-kotlin = "1.9.24"
++kotlin = "2.0.0"
+ ktor = "3.0.0-wasm2"
+ metalava = "0.3.5"
+ robolectric = "4.13"
+@@ -20,7 +20,8 @@ android-lint = { id = "com.android.lint", version.ref = "agp" }
+ android-test = { id = "com.android.test", version.ref = "agp" }
+ baselineprofile = { id = "androidx.baselineprofile", version.ref = "androidx-benchmark" }
+ cacheFixPlugin = { id = "org.gradle.android.cache-fix", version = "3.0.1" }
+-composeMultiplatform = { id = "org.jetbrains.compose", version.ref = "compose-multiplatform" }
++compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
++compose-multiplatform = { id = "org.jetbrains.compose", version.ref = "compose-multiplatform" }
+ dokka = { id = "org.jetbrains.dokka", version = "1.9.20" }
+ kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+ metalava = { id = "me.tylerbwong.gradle.metalava", version = "0.3.5" }
+diff --git a/haze/build.gradle.kts b/haze/build.gradle.kts
+--- a/haze/build.gradle.kts
++++ b/haze/build.gradle.kts
+@@ -19,7 +19,13 @@ android {
+     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+   }
+   testOptions {
+-    unitTests.isIncludeAndroidResources = true
++    unitTests {
++      isIncludeAndroidResources = true
++
++      all {
++        it.systemProperties["robolectric.pixelCopyRenderMode"] = "hardware"
++      }
++    }
+   }
+ }
+ 
+@@ -60,6 +66,8 @@ kotlin {
+     }
+ 
+     val screenshotTest by creating {
++      dependsOn(commonTest.get())
++
+       dependencies {
+         implementation(kotlin("test"))
+         implementation(projects.internal.screenshotTest)
+@@ -77,8 +85,8 @@ kotlin {
+ }
+ 
+ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+-  kotlinOptions {
+-    freeCompilerArgs += "-Xcontext-receivers"
++  compilerOptions {
++    freeCompilerArgs.add("-Xcontext-receivers")
+   }
+ }
+ 
+diff --git a/haze/src/androidMain/kotlin/dev/chrisbanes/haze/AndroidHazeNode.kt b/haze/src/androidMain/kotlin/dev/chrisbanes/haze/AndroidHazeNode.kt
+--- a/haze/src/androidMain/kotlin/dev/chrisbanes/haze/AndroidHazeNode.kt
++++ b/a/haze/src/androidMain/kotlin/dev/chrisbanes/haze/AndroidHazeNode.kt
+@@ -1,543 +0,2 @@
+ // Copyright 2023, Christopher Banes and the Haze project contributors
+ // SPDX-License-Identifier: Apache-2.0
+-
+-package dev.chrisbanes.haze
+-
+-import android.content.Context
+-import android.graphics.Bitmap
+-import android.graphics.BitmapFactory
+-import android.graphics.BitmapShader
+-import android.graphics.BlendMode
+-import android.graphics.BlendModeColorFilter
+-import android.graphics.RecordingCanvas
+-import android.graphics.RenderEffect
+-import android.graphics.RenderNode
+-import android.graphics.Shader
+-import android.graphics.Shader.TileMode.REPEAT
+-import android.os.Build
+-import androidx.annotation.RequiresApi
+-import androidx.collection.lruCache
+-import androidx.compose.runtime.getValue
+-import androidx.compose.runtime.mutableStateOf
+-import androidx.compose.runtime.setValue
+-import androidx.compose.ui.geometry.Offset
+-import androidx.compose.ui.geometry.Rect
+-import androidx.compose.ui.geometry.Size
+-import androidx.compose.ui.graphics.Canvas
+-import androidx.compose.ui.graphics.ClipOp
+-import androidx.compose.ui.graphics.Color
+-import androidx.compose.ui.graphics.Path
+-import androidx.compose.ui.graphics.RectangleShape
+-import androidx.compose.ui.graphics.Shape
+-import androidx.compose.ui.graphics.addOutline
+-import androidx.compose.ui.graphics.asAndroidPath
+-import androidx.compose.ui.graphics.drawscope.ContentDrawScope
+-import androidx.compose.ui.graphics.drawscope.draw
+-import androidx.compose.ui.graphics.drawscope.translate
+-import androidx.compose.ui.graphics.nativeCanvas
+-import androidx.compose.ui.graphics.toArgb
+-import androidx.compose.ui.graphics.withSave
+-import androidx.compose.ui.layout.LayoutCoordinates
+-import androidx.compose.ui.layout.positionInWindow
+-import androidx.compose.ui.node.CompositionLocalConsumerModifierNode
+-import androidx.compose.ui.node.DrawModifierNode
+-import androidx.compose.ui.node.GlobalPositionAwareModifierNode
+-import androidx.compose.ui.node.LayoutAwareModifierNode
+-import androidx.compose.ui.node.ObserverModifierNode
+-import androidx.compose.ui.node.currentValueOf
+-import androidx.compose.ui.node.invalidateDraw
+-import androidx.compose.ui.node.observeReads
+-import androidx.compose.ui.platform.LocalContext
+-import androidx.compose.ui.platform.LocalDensity
+-import androidx.compose.ui.platform.LocalInspectionMode
+-import androidx.compose.ui.platform.LocalLayoutDirection
+-import androidx.compose.ui.unit.Density
+-import androidx.compose.ui.unit.Dp
+-import androidx.compose.ui.unit.IntSize
+-import androidx.compose.ui.unit.LayoutDirection
+-import androidx.compose.ui.unit.toSize
+-import androidx.core.util.Pools
+-import kotlin.math.roundToInt
+-
+-/**
+- * A simple object path for [Path]s. They're fairly expensive so it makes sense to
+- * re-use instances.
+- */
+-private val pathPool by lazy { Pools.SimplePool<Path>(10) }
+-
+-internal class AndroidHazeNode(
+-  state: HazeState,
+-  style: HazeStyle,
+-) : HazeNode(state = state, style = style),
+-  DrawModifierNode,
+-  CompositionLocalConsumerModifierNode,
+-  LayoutAwareModifierNode,
+-  GlobalPositionAwareModifierNode,
+-  ObserverModifierNode {
+-
+-  private var impl: Impl = ScrimImpl()
+-
+-  private var position by mutableStateOf(Offset.Unspecified)
+-  private var size by mutableStateOf(Size.Unspecified)
+-  private var isCanvasHardwareAccelerated by mutableStateOf(false)
+-
+-  override fun onUpdate() {
+-    updateImpl()
+-  }
+-
+-  override fun onAttach() {
+-    onObservedReadsChanged()
+-  }
+-
+-  override fun onObservedReadsChanged() {
+-    observeReads { updateImpl() }
+-  }
+-
+-  private fun updateImpl() {
+-    // If LocalInspectionMode is true, we're likely running in a preview/screenshot test
+-    // and therefore don't have full access to Android drawing APIs. To avoid crashing we
+-    // force the the scrim impl
+-    var changed = updateImplIfRequired(
+-      forceScrim = !isCanvasHardwareAccelerated || currentValueOf(LocalInspectionMode),
+-    )
+-
+-    changed = impl.update(
+-      state = state,
+-      defaultStyle = style,
+-      position = position,
+-      density = currentValueOf(LocalDensity),
+-      layoutDirection = currentValueOf(LocalLayoutDirection),
+-    ) || changed
+-
+-    if (changed) {
+-      invalidateDraw()
+-    }
+-  }
+-
+-  override fun onPlaced(coordinates: LayoutCoordinates) {
+-    position = coordinates.positionInWindow() + calculateWindowOffset()
+-    size = coordinates.size.toSize()
+-  }
+-
+-  override fun onGloballyPositioned(coordinates: LayoutCoordinates) {
+-    onPlaced(coordinates)
+-  }
+-
+-  override fun onRemeasured(size: IntSize) {
+-    this.size = size.toSize()
+-  }
+-
+-  override fun ContentDrawScope.draw() {
+-    // Similar to above, drawRenderNode is only available on hw-accelerated canvases.
+-    // To avoid crashing we just draw the content and return early.
+-    val canvasHardwareAccelerated = drawContext.canvas.nativeCanvas.isHardwareAccelerated
+-    if (canvasHardwareAccelerated != isCanvasHardwareAccelerated) {
+-      isCanvasHardwareAccelerated = canvasHardwareAccelerated
+-      updateImpl()
+-    }
+-
+-    with(impl) {
+-      draw()
+-    }
+-  }
+-
+-  private fun updateImplIfRequired(forceScrim: Boolean): Boolean {
+-    // We can't currently use RenderNode impl on API 31 due to
+-    // https://github.com/chrisbanes/haze/issues/77
+-    if (Build.VERSION.SDK_INT >= 32) {
+-      if (forceScrim && impl !is ScrimImpl) {
+-        impl = ScrimImpl()
+-        return true
+-      } else if (!forceScrim && impl is ScrimImpl) {
+-        impl = RenderNodeImpl(currentValueOf(LocalContext))
+-        return true
+-      }
+-    } else {
+-      // This shouldn't happen, but adding it for completeness
+-      if (impl !is ScrimImpl) {
+-        impl = ScrimImpl()
+-        return true
+-      }
+-    }
+-    return false
+-  }
+-
+-  internal interface Impl {
+-    fun ContentDrawScope.draw()
+-    fun update(
+-      state: HazeState,
+-      defaultStyle: HazeStyle,
+-      position: Offset,
+-      density: Density,
+-      layoutDirection: LayoutDirection,
+-    ): Boolean
+-  }
+-}
+-
+-/**
+- * Returns a copy of the current [Bitmap], drawn with the given [alpha] value.
+- *
+- * There might be a better way to do this via a [BlendMode], but none of the results looked as
+- * good.
+- */
+-private fun Bitmap.withAlpha(alpha: Float): Bitmap {
+-  val paint = android.graphics.Paint().apply {
+-    this.alpha = (alpha * 255).roundToInt().coerceIn(0, 255)
+-  }
+-
+-  return Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).also {
+-    android.graphics.Canvas(it).apply {
+-      drawBitmap(this@withAlpha, 0f, 0f, paint)
+-    }
+-  }
+-}
+-
+-private class ScrimImpl : AndroidHazeNode.Impl {
+-  private var effects: List<Effect> = emptyList()
+-
+-  override fun ContentDrawScope.draw() {
+-    drawContent()
+-
+-    for (effect in effects) {
+-      val offset = effect.bounds.topLeft
+-      translate(offset.x, offset.y) {
+-        drawPath(path = effect.path, color = effect.tint)
+-      }
+-    }
+-  }
+-
+-  override fun update(
+-    state: HazeState,
+-    defaultStyle: HazeStyle,
+-    position: Offset,
+-    density: Density,
+-    layoutDirection: LayoutDirection,
+-  ): Boolean {
+-    // Release all of the paths back into the pool
+-    effects.asSequence()
+-      .map(Effect::path)
+-      .forEach { pathPool.releasePath(it) }
+-
+-    effects = state.areas.asSequence()
+-      .filter { it.isValid }
+-      .mapNotNull { area ->
+-        val bounds = area.boundsInLocal(position) ?: return@mapNotNull null
+-
+-        val resolvedStyle = resolveStyle(defaultStyle, area.style)
+-
+-        val path = pathPool.acquireOrCreate().apply {
+-          addOutline(area.shape.createOutline(bounds.size, layoutDirection, density))
+-        }
+-
+-        Effect(
+-          path = path,
+-          tint = resolvedStyle.tint.boostAlphaForBlurRadius(resolvedStyle.blurRadius),
+-          bounds = bounds,
+-        )
+-      }.toList()
+-
+-    return true
+-  }
+-
+-  /**
+-   * In this implementation, the only tool we have is translucency.
+-   */
+-  private fun Color.boostAlphaForBlurRadius(blurRadius: Dp): Color {
+-    // We treat a blur radius of 72.dp as near 'opaque', and linearly boost using that
+-    val factor = 1 + (blurRadius.value / 72f)
+-    return copy(alpha = (alpha * factor).coerceAtMost(1f))
+-  }
+-
+-  private data class Effect(
+-    val tint: Color,
+-    val bounds: Rect,
+-    val path: Path,
+-  )
+-}
+-
+-@RequiresApi(31)
+-private class RenderNodeImpl(private val context: Context) : AndroidHazeNode.Impl {
+-  private var effects: List<Effect> = emptyList()
+-
+-  val contentNode = RenderNode("content")
+-
+-  val noiseTextureCache = lruCache<Float, Bitmap>(3)
+-
+-  override fun ContentDrawScope.draw() {
+-    if (effects.isEmpty()) {
+-      // If we don't have any effects, just call drawContent and return early
+-      drawContent()
+-      return
+-    }
+-
+-    // First we draw the composable content into `contentNode`
+-    contentNode.setPosition(0, 0, size.width.toInt(), size.height.toInt())
+-    contentNode.record { canvas ->
+-      val scope = this@draw
+-      draw(scope, layoutDirection, Canvas(canvas), size) {
+-        scope.drawContent()
+-      }
+-    }
+-
+-    for (effect in effects) {
+-      // First we need to make sure that the effects are updated (if necessary)
+-      effect.update()
+-    }
+-
+-    // Now we draw `contentNode` into the window canvas, clipping any effect areas which
+-    // will be drawn below
+-    with(drawContext.canvas) {
+-      withSave {
+-        // We add all of the clip outs to the canvas (to combine them)
+-        for (effect in effects) {
+-          clipShape(effect.shape, effect.contentClipBounds, ClipOp.Difference) {
+-            effect.getUpdatedContentClipPath(layoutDirection, drawContext.density)
+-          }
+-        }
+-        // Then we draw the render node
+-        nativeCanvas.drawRenderNode(contentNode)
+-      }
+-    }
+-
+-    // Now we need to draw `contentNode` into each of our 'effect' RenderNodes, allowing
+-    // their RenderEffect to be applied to the composable content.
+-    for (effect in effects) {
+-      effect.renderNode.record { canvas ->
+-        canvas.translate(-effect.bounds.left, -effect.bounds.top)
+-        // We need to inflate the bounds by the blur radius, so that the effect
+-        // has access to the pixels it needs in the clipRect
+-        val (l, t, r, b) = effect.bounds
+-        val inflate = effect.blurRadiusPx
+-        canvas.clipRect(l - inflate, t - inflate, r + inflate, b + inflate)
+-        // Finally draw the content into our effect RN
+-        canvas.drawRenderNode(contentNode)
+-      }
+-
+-      // Finally we draw the 'effect' RenderNode to the window canvas, drawing on top
+-      // of the original content
+-      with(drawContext.canvas) {
+-        withSave {
+-          clipShape(effect.shape, effect.bounds) {
+-            effect.getUpdatedPath(layoutDirection, drawContext.density)
+-          }
+-          nativeCanvas.drawRenderNode(effect.renderNode)
+-        }
+-      }
+-    }
+-  }
+-
+-  override fun update(
+-    state: HazeState,
+-    defaultStyle: HazeStyle,
+-    position: Offset,
+-    density: Density,
+-    layoutDirection: LayoutDirection,
+-  ): Boolean {
+-    val currentEffectsIsEmpty = effects.isEmpty()
+-    val currentEffects = effects.associateByTo(HashMap(), Effect::area)
+-
+-    // We create a RenderNode for each of the areas we need to apply our effect to
+-    effects = state.areas.asSequence()
+-      .filter { it.isValid }
+-      .map { area ->
+-        currentEffects.remove(area) ?: Effect(
+-          area = area,
+-          path = pathPool.acquireOrCreate(),
+-          contentClipPath = pathPool.acquireOrCreate(),
+-        )
+-      }
+-      .toList()
+-
+-    // Any effects left in the currentEffects are no longer used, lets recycle them
+-    currentEffects.forEach { (_, effect) -> effect.recycle() }
+-    currentEffects.clear()
+-
+-    val invalidateCount = effects.count { effect ->
+-      val bounds = effect.area.boundsInLocal(position) ?: Rect.Zero
+-      val resolvedStyle = resolveStyle(defaultStyle, effect.area.style)
+-
+-      effect.updateParameters(
+-        bounds = bounds,
+-        blurRadiusPx = with(density) { resolvedStyle.blurRadius.toPx() },
+-        noiseFactor = resolvedStyle.noiseFactor,
+-        tint = resolvedStyle.tint,
+-        shape = effect.area.shape,
+-      )
+-    }
+-
+-    // Invalidate if any of the effects triggered an invalidation, or we now have zero
+-    // effects but were previously showing some
+-    return invalidateCount > 0 || (effects.isEmpty() != currentEffectsIsEmpty)
+-  }
+-
+-  private fun getNoiseTexture(noiseFactor: Float): Bitmap {
+-    val cached = noiseTextureCache[noiseFactor]
+-    if (cached != null) return cached
+-
+-    // We draw the noise with the given opacity
+-    return BitmapFactory.decodeResource(context.resources, R.drawable.haze_noise)
+-      .withAlpha(noiseFactor)
+-      .also { noiseTextureCache.put(noiseFactor, it) }
+-  }
+-
+-  private fun Effect.updateParameters(
+-    bounds: Rect,
+-    blurRadiusPx: Float,
+-    noiseFactor: Float,
+-    tint: Color,
+-    shape: Shape,
+-  ): Boolean {
+-    if (!renderEffectDirty) {
+-      renderEffectDirty = this.blurRadiusPx != blurRadiusPx ||
+-        this.tint != tint ||
+-        this.noiseFactor != noiseFactor
+-    }
+-    if (!renderNodeDirty) {
+-      renderNodeDirty = this.bounds != bounds || !renderNode.hasDisplayList()
+-    }
+-    if (!pathsDirty) {
+-      pathsDirty = this.bounds.size != bounds.size || this.shape != shape || path.isEmpty
+-    }
+-
+-    // Finally update all of the properties
+-    this.bounds = bounds
+-    this.contentClipBounds = when {
+-      bounds.isEmpty -> bounds
+-      // We clip the content to a slightly smaller rect than the blur bounds, to reduce the
+-      // chance of rounding + anti-aliasing causing visually problems
+-      else -> bounds.deflate(2f).takeIf { it.width >= 0 && it.height >= 0 } ?: Rect.Zero
+-    }
+-    this.blurRadiusPx = blurRadiusPx
+-    this.noiseFactor = noiseFactor
+-    this.shape = shape
+-    this.tint = tint
+-
+-    return renderEffectDirty || renderNodeDirty || pathsDirty
+-  }
+-
+-  private fun Effect.update() {
+-    if (renderNodeDirty) updateRenderNodePosition()
+-    if (renderEffectDirty) updateRenderEffect()
+-    // We don't update the path here as we may not need it. Let draw request it
+-    // via getUpdatedPath if it needs it
+-  }
+-
+-  private fun Effect.updateRenderEffect() {
+-    renderNode.setRenderEffect(
+-      RenderEffect.createBlurEffect(blurRadiusPx, blurRadiusPx, Shader.TileMode.CLAMP)
+-        .withNoise(noiseFactor)
+-        .withTint(tint),
+-    )
+-    renderEffectDirty = false
+-  }
+-
+-  private fun Effect.updateRenderNodePosition() {
+-    renderNode.apply {
+-      renderNode.setPosition(0, 0, bounds.width.toInt(), bounds.height.toInt())
+-      renderNode.translationX = bounds.left
+-      renderNode.translationY = bounds.top
+-    }
+-    renderNodeDirty = false
+-  }
+-
+-  private fun Effect.getUpdatedPath(layoutDirection: LayoutDirection, density: Density): Path {
+-    if (pathsDirty) updatePaths(layoutDirection, density)
+-    return path
+-  }
+-
+-  private fun Effect.getUpdatedContentClipPath(
+-    layoutDirection: LayoutDirection,
+-    density: Density,
+-  ): Path {
+-    if (pathsDirty) updatePaths(layoutDirection, density)
+-    return contentClipPath
+-  }
+-
+-  private fun Effect.updatePaths(layoutDirection: LayoutDirection, density: Density) {
+-    path.rewind()
+-    if (!bounds.isEmpty) {
+-      path.addOutline(shape.createOutline(bounds.size, layoutDirection, density))
+-    }
+-
+-    contentClipPath.rewind()
+-    if (!contentClipBounds.isEmpty) {
+-      contentClipPath.addOutline(shape.createOutline(contentClipBounds.size, layoutDirection, density))
+-    }
+-
+-    pathsDirty = false
+-  }
+-
+-  private fun Effect.recycle() {
+-    pathPool.releasePath(path)
+-    pathPool.releasePath(contentClipPath)
+-  }
+-
+-  private class Effect(
+-    val area: HazeArea,
+-    val path: Path,
+-    val contentClipPath: Path,
+-    val renderNode: RenderNode = RenderNode(null),
+-    var bounds: Rect = Rect.Zero,
+-    var contentClipBounds: Rect = Rect.Zero,
+-    var blurRadiusPx: Float = 0f,
+-    var noiseFactor: Float = 0f,
+-    var tint: Color = Color.Unspecified,
+-    var shape: Shape = RectangleShape,
+-    var renderEffectDirty: Boolean = true,
+-    var pathsDirty: Boolean = true,
+-    var renderNodeDirty: Boolean = true,
+-  )
+-
+-  private fun RenderEffect.withNoise(noiseFactor: Float): RenderEffect = when {
+-    noiseFactor >= 0.005f -> {
+-      val noiseShader = BitmapShader(getNoiseTexture(noiseFactor), REPEAT, REPEAT)
+-      RenderEffect.createBlendModeEffect(
+-        RenderEffect.createShaderEffect(noiseShader), // dst
+-        this, // src
+-        BlendMode.DST_ATOP, // blendMode
+-      )
+-    }
+-
+-    else -> this
+-  }
+-
+-  private fun RenderEffect.withTint(tint: Color): RenderEffect = when {
+-    tint.alpha >= 0.005f -> {
+-      // If we have an tint with a non-zero alpha value, wrap the effect with a color filter
+-      RenderEffect.createColorFilterEffect(
+-        BlendModeColorFilter(tint.toArgb(), BlendMode.SRC_OVER),
+-        this,
+-      )
+-    }
+-
+-    else -> this
+-  }
+-}
+-
+-@RequiresApi(31)
+-private inline fun RenderNode.record(block: (RecordingCanvas) -> Unit) {
+-  try {
+-    beginRecording().apply(block)
+-  } finally {
+-    endRecording()
+-  }
+-}
+-
+-private fun Canvas.clipShape(
+-  shape: Shape,
+-  bounds: Rect,
+-  clipOp: ClipOp = ClipOp.Intersect,
+-  path: () -> Path,
+-) {
+-  if (shape == RectangleShape) {
+-    clipRect(bounds, clipOp)
+-  } else {
+-    pathPool.usePath { tmpPath ->
+-      tmpPath.asAndroidPath().apply {
+-        set(path().asAndroidPath())
+-        offset(bounds.left, bounds.top)
+-      }
+-      clipPath(tmpPath, clipOp)
+-    }
+-  }
+-}
+diff --git a/haze/src/androidMain/kotlin/dev/chrisbanes/haze/HazeNode.android.kt b/haze/src/androidMain/kotlin/dev/chrisbanes/haze/HazeNode.android.kt
+new file mode 100644
+--- /dev/null
++++ b/haze/src/androidMain/kotlin/dev/chrisbanes/haze/HazeNode.android.kt
+@@ -0,0 +1,110 @@
++
++package dev.chrisbanes.haze
++
++import android.graphics.Bitmap
++import android.graphics.BitmapFactory
++import android.graphics.BitmapShader
++import android.graphics.BlendMode
++import android.graphics.RenderEffect as AndroidRenderEffect
++import android.graphics.Shader
++import android.graphics.Shader.TileMode.REPEAT
++import android.os.Build
++import androidx.annotation.RequiresApi
++import androidx.collection.lruCache
++import androidx.compose.ui.graphics.Color
++import androidx.compose.ui.graphics.RenderEffect
++import androidx.compose.ui.graphics.asComposeRenderEffect
++import androidx.compose.ui.graphics.drawscope.DrawScope
++import androidx.compose.ui.graphics.layer.GraphicsLayer
++import androidx.compose.ui.graphics.layer.drawLayer
++import androidx.compose.ui.graphics.nativeCanvas
++import androidx.compose.ui.node.CompositionLocalConsumerModifierNode
++import androidx.compose.ui.node.currentValueOf
++import androidx.compose.ui.platform.LocalContext
++import androidx.compose.ui.unit.Density
++import androidx.compose.ui.unit.Dp
++import kotlin.math.roundToInt
++
++internal actual fun HazeNode.createRenderEffect(effect: Effect, density: Density): RenderEffect? =
++  with(effect) {
++    if (Build.VERSION.SDK_INT >= 32) {
++      val blurRadiusPx = with(density) { blurRadius.toPx() }
++      return AndroidRenderEffect.createBlurEffect(blurRadiusPx, blurRadiusPx, Shader.TileMode.CLAMP)
++        .withNoise(noiseFactor)
++        .asComposeRenderEffect()
++    }
++    return null
++  }
++
++internal actual fun HazeNode.useGraphicsLayers(): Boolean = Build.VERSION.SDK_INT >= 32
++
++internal actual fun HazeNode.drawEffect(
++  drawScope: DrawScope,
++  effect: Effect,
++  graphicsLayer: GraphicsLayer?,
++) = with(drawScope) {
++  if (graphicsLayer != null && drawContext.canvas.nativeCanvas.isHardwareAccelerated) {
++    drawLayer(graphicsLayer)
++  } else {
++    drawRect(effect.tint.boostAlphaForBlurRadius(effect.blurRadius))
++  }
++}
++
++private val noiseTextureCache = lruCache<Int, Bitmap>(3)
++
++context(CompositionLocalConsumerModifierNode)
++private fun getNoiseTexture(noiseFactor: Float): Bitmap {
++  val cacheKey = (noiseFactor * 255).roundToInt()
++  val cached = noiseTextureCache[cacheKey]
++  if (cached != null && !cached.isRecycled) {
++    return cached
++  }
++
++  // We draw the noise with the given opacity
++  val resources = currentValueOf(LocalContext).resources
++  return BitmapFactory.decodeResource(resources, R.drawable.haze_noise)
++    .withAlpha(noiseFactor)
++    .also { noiseTextureCache.put(cacheKey, it) }
++}
++
++/**
++ * In this implementation, the only tool we have is translucency.
++ */
++private fun Color.boostAlphaForBlurRadius(blurRadius: Dp): Color {
++  // We treat a blur radius of 72.dp as near 'opaque', and linearly boost using that
++  val factor = 1 + (blurRadius.value / 72f)
++  return copy(alpha = (alpha * factor).coerceAtMost(1f))
++}
++
++context(CompositionLocalConsumerModifierNode)
++@RequiresApi(31)
++private fun AndroidRenderEffect.withNoise(noiseFactor: Float): AndroidRenderEffect = when {
++  noiseFactor >= 0.005f -> {
++    val noiseShader = BitmapShader(getNoiseTexture(noiseFactor), REPEAT, REPEAT)
++    AndroidRenderEffect.createBlendModeEffect(
++      AndroidRenderEffect.createShaderEffect(noiseShader), // dst
++      this, // src
++      BlendMode.DST_ATOP, // blendMode
++    )
++  }
++
++  else -> this
++}
++
++/**
++ * Returns a copy of the current [Bitmap], drawn with the given [alpha] value.
++ *
++ * There might be a better way to do this via a [BlendMode], but none of the results looked as
++ * good.
++ */
++private fun Bitmap.withAlpha(alpha: Float): Bitmap {
++  val paint = android.graphics.Paint().apply {
++    this.alpha = (alpha * 255).roundToInt().coerceIn(0, 255)
++  }
++
++  return Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).also {
++    android.graphics.Canvas(it).apply {
++      drawBitmap(this@withAlpha, 0f, 0f, paint)
++    }
++  }
++}
+diff --git a/haze/src/androidMain/kotlin/dev/chrisbanes/haze/Pool.kt b/haze/src/androidMain/kotlin/dev/chrisbanes/haze/Pool.kt
+--- a/haze/src/androidMain/kotlin/dev/chrisbanes/haze/Pool.kt
++++ b/a/haze/src/androidMain/kotlin/dev/chrisbanes/haze/Pool.kt
+@@ -1,25 +0,2 @@
+ // Copyright 2024, Christopher Banes and the Haze project contributors
+ // SPDX-License-Identifier: Apache-2.0
+-
+-package dev.chrisbanes.haze
+-
+-import androidx.compose.ui.graphics.Path
+-import androidx.core.util.Pools
+-
+-internal inline fun <T : Any> Pools.Pool<T>.acquireOrCreate(block: () -> T): T = acquire() ?: block()
+-
+-internal fun Pools.Pool<Path>.acquireOrCreate(): Path = acquireOrCreate(::Path)
+-
+-internal fun Pools.Pool<Path>.releasePath(path: Path) {
+-  path.rewind()
+-  release(path)
+-}
+-
+-internal inline fun Pools.Pool<Path>.usePath(block: (Path) -> Unit) {
+-  val path = acquireOrCreate()
+-  try {
+-    block(path)
+-  } finally {
+-    releasePath(path)
+-  }
+-}
+diff --git a/haze/src/androidMain/kotlin/dev/chrisbanes/haze/Platform.kt b/haze/src/androidMain/kotlin/dev/chrisbanes/haze/Window.android.kt
+similarity index 84%
+rename from haze/src/androidMain/kotlin/dev/chrisbanes/haze/Platform.kt
+rename to haze/src/androidMain/kotlin/dev/chrisbanes/haze/Window.android.kt
+--- a/haze/src/androidMain/kotlin/dev/chrisbanes/haze/Platform.kt
++++ b/haze/src/androidMain/kotlin/dev/chrisbanes/haze/Window.android.kt
+@@ -9,11 +9,6 @@ import androidx.compose.ui.node.currentValueOf
+ import androidx.compose.ui.platform.LocalView
+ import kotlin.concurrent.getOrSet
+ 
+-internal actual fun createHazeNode(
+-  state: HazeState,
+-  style: HazeStyle,
+-): HazeNode = AndroidHazeNode(state, style)
+-
+ internal actual fun CompositionLocalConsumerModifierNode.calculateWindowOffset(): Offset {
+   val loc = tmpArray.getOrSet { IntArray(2) }
+   currentValueOf(LocalView).rootView.getLocationOnScreen(loc)
+diff --git a/haze/src/commonMain/kotlin/dev/chrisbanes/haze/Haze.kt b/haze/src/commonMain/kotlin/dev/chrisbanes/haze/Haze.kt
+--- a/haze/src/commonMain/kotlin/dev/chrisbanes/haze/Haze.kt
++++ b/haze/src/commonMain/kotlin/dev/chrisbanes/haze/Haze.kt
+@@ -164,7 +164,7 @@ internal data class HazeNodeElement(
+   val state: HazeState,
+   val style: HazeStyle,
+ ) : ModifierNodeElement<HazeNode>() {
+-  override fun create(): HazeNode = createHazeNode(state = state, style = style)
++  override fun create(): HazeNode = HazeNode(state = state, style = style)
+ 
+   override fun update(node: HazeNode) {
+     node.state = state
+@@ -178,13 +178,6 @@ internal data class HazeNodeElement(
+   }
+ }
+ 
+-internal abstract class HazeNode(
+-  var state: HazeState,
+-  var style: HazeStyle,
+-) : Modifier.Node() {
+-  open fun onUpdate() {}
+-}
+-
+ /**
+  * A holder for the style properties used by Haze.
+  *
+diff --git a/haze/src/commonMain/kotlin/dev/chrisbanes/haze/HazeNode.kt b/haze/src/commonMain/kotlin/dev/chrisbanes/haze/HazeNode.kt
+new file mode 100644
+--- /dev/null
++++ b/haze/src/commonMain/kotlin/dev/chrisbanes/haze/HazeNode.kt
+@@ -0,0 +1,404 @@
++
++package dev.chrisbanes.haze
++
++import androidx.compose.runtime.getValue
++import androidx.compose.runtime.mutableStateOf
++import androidx.compose.runtime.setValue
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.geometry.Offset
++import androidx.compose.ui.geometry.Rect
++import androidx.compose.ui.graphics.BlendMode
++import androidx.compose.ui.graphics.Canvas
++import androidx.compose.ui.graphics.ClipOp
++import androidx.compose.ui.graphics.Color
++import androidx.compose.ui.graphics.ColorFilter
++import androidx.compose.ui.graphics.Path
++import androidx.compose.ui.graphics.RectangleShape
++import androidx.compose.ui.graphics.RenderEffect
++import androidx.compose.ui.graphics.Shape
++import androidx.compose.ui.graphics.addOutline
++import androidx.compose.ui.graphics.drawscope.ContentDrawScope
++import androidx.compose.ui.graphics.drawscope.DrawScope
++import androidx.compose.ui.graphics.drawscope.clipPath
++import androidx.compose.ui.graphics.drawscope.clipRect
++import androidx.compose.ui.graphics.drawscope.translate
++import androidx.compose.ui.graphics.layer.GraphicsLayer
++import androidx.compose.ui.graphics.layer.drawLayer
++import androidx.compose.ui.graphics.layer.setOutline
++import androidx.compose.ui.graphics.withSave
++import androidx.compose.ui.layout.LayoutCoordinates
++import androidx.compose.ui.layout.positionInWindow
++import androidx.compose.ui.node.CompositionLocalConsumerModifierNode
++import androidx.compose.ui.node.DrawModifierNode
++import androidx.compose.ui.node.GlobalPositionAwareModifierNode
++import androidx.compose.ui.node.LayoutAwareModifierNode
++import androidx.compose.ui.node.ObserverModifierNode
++import androidx.compose.ui.node.currentValueOf
++import androidx.compose.ui.node.invalidateDraw
++import androidx.compose.ui.node.observeReads
++import androidx.compose.ui.platform.LocalGraphicsContext
++import androidx.compose.ui.unit.Density
++import androidx.compose.ui.unit.Dp
++import androidx.compose.ui.unit.IntSize
++import androidx.compose.ui.unit.LayoutDirection
++import androidx.compose.ui.unit.roundToIntSize
++
++/**
++ * A simple object path for [Path]s. They're fairly expensive so it makes sense to
++ * re-use instances.
++ */
++private val pathPool by lazy { Pool(Path::rewind) }
++
++internal class HazeNode(
++  var state: HazeState,
++  var style: HazeStyle,
++) : Modifier.Node(),
++  DrawModifierNode,
++  CompositionLocalConsumerModifierNode,
++  LayoutAwareModifierNode,
++  GlobalPositionAwareModifierNode,
++  ObserverModifierNode {
++
++  private var position by mutableStateOf(Offset.Unspecified)
++  private var size by mutableStateOf(IntSize.Zero)
++  private var effects: List<Effect> = emptyList()
++
++  private val contentLayer by lazy { currentValueOf(LocalGraphicsContext).createGraphicsLayer() }
++
++  fun onUpdate() {
++    updateAndInvalidate()
++  }
++
++  override fun onAttach() {
++    onObservedReadsChanged()
++  }
++
++  override fun onObservedReadsChanged() {
++    observeReads { updateAndInvalidate() }
++  }
++
++  private fun updateAndInvalidate() {
++    if (update()) {
++      invalidateDraw()
++    }
++  }
++
++  override fun onPlaced(coordinates: LayoutCoordinates) {
++    position = coordinates.positionInWindow() + calculateWindowOffset()
++    size = coordinates.size
++  }
++
++  override fun onGloballyPositioned(coordinates: LayoutCoordinates) {
++    onPlaced(coordinates)
++  }
++
++  override fun onRemeasured(size: IntSize) {
++    this.size = size
++  }
++
++  override fun ContentDrawScope.draw() {
++    if (effects.isEmpty()) {
++      // If we don't have any effects, just call drawContent and return early
++      drawContent()
++      return
++    }
++
++    // First we need to make sure that the effects are updated (if necessary)
++    for (effect in effects) {
++      effect.update(layoutDirection, drawContext.density)
++    }
++
++    if (!useGraphicsLayers()) {
++      // If we're not using graphics layers, our code path is much simpler.
++      // We just draw the content directly to the canvas, and then draw each effect over it
++      drawContent()
++
++      for (effect in effects) {
++        clipShape(
++          shape = effect.shape,
++          bounds = effect.bounds,
++          path = { effect.getUpdatedPath(layoutDirection, drawContext.density) },
++          block = { drawEffect(this, effect) },
++        )
++      }
++      return
++    }
++
++    // First we draw the composable content into a graphics layer
++    contentLayer.record(size = size.roundToIntSize()) {
++      this@draw.drawContent()
++    }
++
++    // Now we draw `contentNode` into the window canvas, clipping any effect areas
++    // (they will be drawn on top)
++    with(drawContext.canvas) {
++      withSave {
++        // We add all the clip outs to the canvas (Canvas will combine them)
++        for (effect in effects) {
++          clipShape(effect.shape, effect.contentClipBounds, ClipOp.Difference) {
++            effect.getUpdatedContentClipPath(layoutDirection, drawContext.density)
++          }
++        }
++        // Then we draw the content layer
++        drawLayer(contentLayer)
++      }
++    }
++
++    // Now we draw each effect over the content
++    for (effect in effects) {
++      // Now we need to draw `contentNode` into each of an 'effect' graphic layers.
++      // The RenderEffect applied will provide the blurring effect.
++      val effectLayer = requireNotNull(effect.layer)
++
++      // We need to inflate the bounds by the blur radius, so that the effect
++      // has access to the pixels it needs in the clipRect
++      val inflatedBounds = effect.bounds.inflate(effect.blurRadius.toPx())
++      effectLayer.record(size = inflatedBounds.size.roundToIntSize()) {
++        translate(-effect.bounds.left, -effect.bounds.top) {
++          // Finally draw the content into our effect layer
++          drawLayer(contentLayer)
++        }
++      }
++
++      // Draw the effect's graphic layer, translated to the correct position
++      translate(effect.bounds.left, effect.bounds.top) {
++        drawEffect(this, effect, effectLayer)
++      }
++    }
++  }
++
++  override fun onDetach() {
++    val graphicsContext = currentValueOf(LocalGraphicsContext)
++    graphicsContext.releaseGraphicsLayer(contentLayer)
++    effects.asSequence()
++      .mapNotNull { it.layer }
++      .forEach { graphicsContext.releaseGraphicsLayer(it) }
++  }
++
++  private fun update(
++    state: HazeState = this.state,
++    defaultStyle: HazeStyle = this.style,
++    position: Offset = this.position,
++  ): Boolean {
++    val currentEffectsIsEmpty = effects.isEmpty()
++    val currentEffects = effects.associateByTo(HashMap(), Effect::area)
++
++    // We create a RenderNode for each of the areas we need to apply our effect to
++    effects = state.areas.asSequence()
++      .filter { it.isValid }
++      .map { area ->
++        // We re-use any current effects, otherwise we need to create a new one
++        currentEffects.remove(area) ?: Effect(
++          area = area,
++          layer = when {
++            useGraphicsLayers() -> currentValueOf(LocalGraphicsContext).createGraphicsLayer()
++            else -> null
++          },
++          path = pathPool.acquireOrCreate(::Path),
++          contentClipPath = pathPool.acquireOrCreate(::Path),
++        )
++      }
++      .toList()
++
++    // Any effects left in the currentEffects are no longer used, lets recycle them
++    currentEffects.forEach { (_, effect) -> effect.recycle() }
++    currentEffects.clear()
++
++    val invalidateCount = effects.count { effect ->
++      val bounds = effect.area.boundsInLocal(position) ?: Rect.Zero
++      val resolvedStyle = resolveStyle(defaultStyle, effect.area.style)
++
++      effect.updateParameters(
++        bounds = bounds,
++        blurRadius = resolvedStyle.blurRadius,
++        noiseFactor = resolvedStyle.noiseFactor,
++        tint = resolvedStyle.tint,
++        shape = effect.area.shape,
++      )
++    }
++
++    // Invalidate if any of the effects triggered an invalidation, or we now have zero
++    // effects but were previously showing some
++    return invalidateCount > 0 || (effects.isEmpty() != currentEffectsIsEmpty)
++  }
++
++  private fun Effect.updateLayer(
++    layoutDirection: LayoutDirection,
++    density: Density,
++  ) {
++    layer?.apply {
++      colorFilter = when {
++        tint.alpha >= 0.005f -> ColorFilter.tint(tint, BlendMode.SrcOver)
++        else -> null
++      }
++      clip = true
++      setOutline(shape.createOutline(bounds.size, layoutDirection, density))
++      renderEffect = createRenderEffect(this@updateLayer, density)
++    }
++    layerDirty = false
++  }
++
++  private fun Effect.update(layoutDirection: LayoutDirection, density: Density) {
++    if (layerDirty) updateLayer(layoutDirection, density)
++
++    // We don't update the path here as we may not need it. Let draw request it
++    // via getUpdatedPath if it needs it
++  }
++
++  private fun Effect.recycle() {
++    pathPool.release(path)
++    pathPool.release(contentClipPath)
++    layer?.let { currentValueOf(LocalGraphicsContext).releaseGraphicsLayer(it) }
++  }
++}
++
++internal expect fun HazeNode.createRenderEffect(effect: Effect, density: Density): RenderEffect?
++internal expect fun HazeNode.useGraphicsLayers(): Boolean
++internal expect fun HazeNode.drawEffect(
++  drawScope: DrawScope,
++  effect: Effect,
++  graphicsLayer: GraphicsLayer? = null,
++)
++
++internal fun Effect.updateParameters(
++  bounds: Rect,
++  blurRadius: Dp,
++  noiseFactor: Float,
++  tint: Color,
++  shape: Shape,
++): Boolean {
++  this.bounds = bounds
++  this.blurRadius = blurRadius
++  this.noiseFactor = noiseFactor
++  this.shape = shape
++  this.tint = tint
++  return layerDirty || layerDirty || pathsDirty
++}
++
++private fun Effect.getUpdatedPath(layoutDirection: LayoutDirection, density: Density): Path {
++  if (pathsDirty) {
++    updatePaths(layoutDirection, density)
++  }
++  return path
++}
++
++private fun Effect.getUpdatedContentClipPath(
++  layoutDirection: LayoutDirection,
++  density: Density,
++): Path {
++  if (pathsDirty) {
++    updatePaths(layoutDirection, density)
++  }
++  return contentClipPath
++}
++
++private fun Effect.updatePaths(layoutDirection: LayoutDirection, density: Density) {
++  path.rewind()
++  if (!bounds.isEmpty) {
++    path.addOutline(shape.createOutline(bounds.size, layoutDirection, density))
++  }
++
++  contentClipPath.rewind()
++  val bounds = contentClipBounds
++  if (!bounds.isEmpty) {
++    contentClipPath.addOutline(
++      shape.createOutline(bounds.size, layoutDirection, density),
++    )
++  }
++
++  pathsDirty = false
++}
++
++internal class Effect(
++  val area: HazeArea,
++  val path: Path,
++  val contentClipPath: Path,
++  var layer: GraphicsLayer? = null,
++  var pathsDirty: Boolean = true,
++  var layerDirty: Boolean = true,
++) {
++
++  val contentClipBounds: Rect
++    get() = when {
++      bounds.isEmpty -> bounds
++      // We clip the content to a slightly smaller rect than the blur bounds, to reduce the
++      // chance of rounding + anti-aliasing causing visually problems
++      else -> bounds.deflate(2f).takeIf { it.width >= 0 && it.height >= 0 } ?: Rect.Zero
++    }
++
++  var bounds: Rect = Rect.Zero
++    set(value) {
++      if (value != field) {
++        layerDirty = true
++        if (value.size != field.size) {
++          pathsDirty = true
++        }
++        field = value
++      }
++    }
++
++  var blurRadius: Dp = Dp.Unspecified
++    set(value) {
++      if (value != field) {
++        layerDirty = true
++        field = value
++      }
++    }
++
++  var noiseFactor: Float = 0f
++    set(value) {
++      if (value != field) {
++        layerDirty = true
++        field = value
++      }
++    }
++
++  var tint: Color = Color.Unspecified
++    set(value) {
++      if (value != field) {
++        layerDirty = true
++        field = value
++      }
++    }
++
++  var shape: Shape = RectangleShape
++    set(value) {
++      if (value != field) {
++        pathsDirty = true
++      }
++      field = value
++    }
++}
++
++private fun Canvas.clipShape(
++  shape: Shape,
++  bounds: Rect,
++  clipOp: ClipOp = ClipOp.Intersect,
++  path: () -> Path,
++) {
++  if (shape == RectangleShape) {
++    clipRect(bounds, clipOp)
++  } else {
++    pathPool.usePath { tmpPath ->
++      tmpPath.addPath(path(), bounds.topLeft)
++      clipPath(tmpPath, clipOp)
++    }
++  }
++}
++
++private fun DrawScope.clipShape(
++  shape: Shape,
++  bounds: Rect,
++  clipOp: ClipOp = ClipOp.Intersect,
++  path: () -> Path,
++  block: DrawScope.() -> Unit,
++) {
++  if (shape == RectangleShape) {
++    clipRect(bounds.left, bounds.top, bounds.right, bounds.bottom, clipOp, block)
++  } else {
++    pathPool.usePath { tmpPath ->
++      tmpPath.addPath(path(), bounds.topLeft)
++      clipPath(tmpPath, clipOp, block)
++    }
++  }
++}
+diff --git a/haze/src/commonMain/kotlin/dev/chrisbanes/haze/Pool.kt b/haze/src/commonMain/kotlin/dev/chrisbanes/haze/Pool.kt
+new file mode 100644
+--- /dev/null
++++ b/haze/src/commonMain/kotlin/dev/chrisbanes/haze/Pool.kt
+@@ -0,0 +1,44 @@
++
++package dev.chrisbanes.haze
++
++import androidx.compose.ui.graphics.Path
++
++internal inline fun <T : Any> Pool<T>.acquireOrCreate(block: () -> T): T = acquire() ?: block()
++
++internal class Pool<T>(
++  private val onAcquire: (T) -> Unit = {},
++  private val onRelease: (T) -> Unit = {},
++) {
++  private val items = mutableSetOf<T>()
++
++  fun pooled(): Set<T> = items.toSet()
++
++  fun acquire(): T? {
++    return items.firstOrNull()
++      ?.also(onAcquire)
++      ?.also(items::remove)
++  }
++
++  fun release(item: T) {
++    onRelease(item)
++    items.add(item)
++  }
++
++  fun destroy() {
++    items.clear()
++  }
++}
++
++internal inline fun <T : Any> Pool<T>.use(
++  factory: () -> T,
++  block: (T) -> Unit,
++) {
++  val item = acquireOrCreate(factory)
++  try {
++    block(item)
++  } finally {
++    release(item)
++  }
++}
++
++internal inline fun Pool<Path>.usePath(block: (Path) -> Unit) = use(::Path, block)
+diff --git a/haze/src/commonMain/kotlin/dev/chrisbanes/haze/Platform.kt b/haze/src/commonMain/kotlin/dev/chrisbanes/haze/Window.kt
+similarity index 79%
+rename from haze/src/commonMain/kotlin/dev/chrisbanes/haze/Platform.kt
+rename to haze/src/commonMain/kotlin/dev/chrisbanes/haze/Window.kt
+--- a/haze/src/commonMain/kotlin/dev/chrisbanes/haze/Platform.kt
++++ b/haze/src/commonMain/kotlin/dev/chrisbanes/haze/Window.kt
+@@ -6,9 +6,4 @@ package dev.chrisbanes.haze
+ import androidx.compose.ui.geometry.Offset
+ import androidx.compose.ui.node.CompositionLocalConsumerModifierNode
+ 
+-internal expect fun createHazeNode(
+-  state: HazeState,
+-  style: HazeStyle,
+-): HazeNode
+-
+ internal expect fun CompositionLocalConsumerModifierNode.calculateWindowOffset(): Offset
+diff --git a/haze/src/skikoMain/kotlin/dev/chrisbanes/haze/HazeNode.kt b/haze/src/skikoMain/kotlin/dev/chrisbanes/haze/HazeNode.kt
+--- a/haze/src/skikoMain/kotlin/dev/chrisbanes/haze/HazeNode.kt
++++ b/a/haze/src/skikoMain/kotlin/dev/chrisbanes/haze/HazeNode.kt
+@@ -1,248 +0,2 @@
+ // Copyright 2023, Christopher Banes and the Haze project contributors
+ // SPDX-License-Identifier: Apache-2.0
+-
+-package dev.chrisbanes.haze
+-
+-import androidx.compose.foundation.shape.CornerBasedShape
+-import androidx.compose.ui.geometry.Offset
+-import androidx.compose.ui.geometry.Rect
+-import androidx.compose.ui.graphics.BlurEffect
+-import androidx.compose.ui.graphics.RenderEffect
+-import androidx.compose.ui.graphics.asComposeRenderEffect
+-import androidx.compose.ui.layout.LayoutCoordinates
+-import androidx.compose.ui.layout.Measurable
+-import androidx.compose.ui.layout.MeasureResult
+-import androidx.compose.ui.layout.MeasureScope
+-import androidx.compose.ui.layout.positionInWindow
+-import androidx.compose.ui.node.CompositionLocalConsumerModifierNode
+-import androidx.compose.ui.node.GlobalPositionAwareModifierNode
+-import androidx.compose.ui.node.LayoutModifierNode
+-import androidx.compose.ui.node.ObserverModifierNode
+-import androidx.compose.ui.node.currentValueOf
+-import androidx.compose.ui.node.invalidatePlacement
+-import androidx.compose.ui.node.observeReads
+-import androidx.compose.ui.platform.LocalDensity
+-import androidx.compose.ui.unit.Constraints
+-import org.jetbrains.skia.FilterTileMode
+-import org.jetbrains.skia.IRect
+-import org.jetbrains.skia.ImageFilter
+-import org.jetbrains.skia.RuntimeEffect
+-import org.jetbrains.skia.RuntimeShaderBuilder
+-import org.jetbrains.skia.Shader
+-
+-/**
+- * Heavily influenced by
+- * https://www.pushing-pixels.org/2022/04/09/shader-based-render-effects-in-compose-desktop-with-skia.html
+- */
+-private val RUNTIME_SHADER by lazy {
+-  RuntimeEffect.makeForShader(
+-    SHADER_SKSL,
+-  )
+-}
+-private val CLIPPING_SHADER by lazy {
+-  RuntimeEffect.makeForShader(
+-    CLIPPING_SHADER_SKSL,
+-  )
+-}
+-private val NOISE_SHADER by lazy {
+-  Shader.makeFractalNoise(
+-    baseFrequencyX = 0.45f,
+-    baseFrequencyY = 0.45f,
+-    numOctaves = 4,
+-    seed = 2.0f,
+-  )
+-}
+-
+-internal actual fun createHazeNode(
+-  state: HazeState,
+-  style: HazeStyle,
+-): HazeNode = SkiaHazeNode(state, style)
+-
+-internal actual fun CompositionLocalConsumerModifierNode.calculateWindowOffset(): Offset {
+-  // The Skiko-backed platforms don't use native windows for dialogs, etc
+-  return Offset.Zero
+-}
+-
+-private class SkiaHazeNode(
+-  state: HazeState,
+-  style: HazeStyle,
+-) : HazeNode(state, style),
+-  LayoutModifierNode,
+-  GlobalPositionAwareModifierNode,
+-  CompositionLocalConsumerModifierNode,
+-  ObserverModifierNode {
+-
+-  private var renderEffectDirty = true
+-  private var hazeRenderEffect: RenderEffect? = null
+-  private var lastPositionInWindow: Offset = Offset.Unspecified
+-
+-  override fun onUpdate() {
+-    renderEffectDirty = true
+-    invalidatePlacement()
+-  }
+-
+-  override fun onObservedReadsChanged() {
+-    renderEffectDirty = true
+-    invalidatePlacement()
+-  }
+-
+-  override fun onGloballyPositioned(coordinates: LayoutCoordinates) {
+-    if (lastPositionInWindow != coordinates.calculatePositionInWindow()) {
+-      renderEffectDirty = true
+-      invalidatePlacement()
+-    }
+-  }
+-
+-  private fun LayoutCoordinates.calculatePositionInWindow(): Offset {
+-    return positionInWindow() + calculateWindowOffset()
+-  }
+-
+-  override fun MeasureScope.measure(
+-    measurable: Measurable,
+-    constraints: Constraints,
+-  ): MeasureResult {
+-    val placeable = measurable.measure(constraints)
+-    return layout(placeable.width, placeable.height) {
+-      placeable.placeWithLayer(x = 0, y = 0) {
+-        val position = coordinates?.calculatePositionInWindow() ?: Offset.Zero
+-        renderEffect = getOrCreateRenderEffect(position)
+-        lastPositionInWindow = position
+-      }
+-    }
+-  }
+-
+-  private fun getOrCreateRenderEffect(position: Offset): RenderEffect? {
+-    if (renderEffectDirty) {
+-      observeReads {
+-        hazeRenderEffect = createHazeRenderEffect(position)
+-      }
+-      renderEffectDirty = false
+-    }
+-    return hazeRenderEffect
+-  }
+-
+-  private fun createHazeRenderEffect(position: Offset): RenderEffect? {
+-    if (state.areas.isEmpty()) {
+-      return null
+-    }
+-    val density = currentValueOf(LocalDensity)
+-    var clippingFilter: ImageFilter? = null
+-
+-    state.areas.forEach { area ->
+-      val areaLocalBounds =
+-        area.boundsInLocal(position) ?: return null
+-      val compositeShaderBuilder =
+-        RuntimeShaderBuilder(CLIPPING_SHADER).apply {
+-          uniform(
+-            "rectangle",
+-            areaLocalBounds.left,
+-            areaLocalBounds.top,
+-            areaLocalBounds.right,
+-            areaLocalBounds.bottom,
+-          )
+-
+-          when (val shape = area.shape) {
+-            is CornerBasedShape -> {
+-              uniform(
+-                "radius",
+-                shape.bottomEnd.toPx(area.size, density),
+-                shape.topEnd.toPx(area.size, density),
+-                shape.bottomStart.toPx(area.size, density),
+-                shape.topStart.toPx(area.size, density),
+-              )
+-            }
+-
+-            else -> {
+-              uniform("radius", 0f, 0f, 0f, 0f)
+-            }
+-          }
+-        }
+-
+-      clippingFilter = ImageFilter.makeRuntimeShader(
+-        runtimeShaderBuilder = compositeShaderBuilder,
+-        shaderNames = arrayOf("content"),
+-        inputs = arrayOf(clippingFilter),
+-      )
+-    }
+-    val filters = state.areas.asSequence().mapNotNull { area ->
+-      val areaLocalBounds =
+-        area.boundsInLocal(position) ?: return@mapNotNull null
+-      val resolvedStyle = resolveStyle(style, area.style)
+-      val compositeShaderBuilder =
+-        RuntimeShaderBuilder(RUNTIME_SHADER).apply {
+-          uniform(
+-            "rectangle",
+-            areaLocalBounds.left,
+-            areaLocalBounds.top,
+-            areaLocalBounds.right,
+-            areaLocalBounds.bottom,
+-          )
+-
+-          when (val shape = area.shape) {
+-            is CornerBasedShape -> {
+-              uniform(
+-                "radius",
+-                shape.bottomEnd.toPx(area.size, density),
+-                shape.topEnd.toPx(area.size, density),
+-                shape.bottomStart.toPx(area.size, density),
+-                shape.topStart.toPx(area.size, density),
+-              )
+-            }
+-
+-            else -> {
+-              uniform("radius", 0f, 0f, 0f, 0f)
+-            }
+-          }
+-          val tint = resolvedStyle.tint
+-          uniform("color", tint.red, tint.green, tint.blue, 1f)
+-          uniform("colorShift", tint.alpha)
+-
+-          uniform("noiseFactor", resolvedStyle.noiseFactor)
+-
+-          child("noise", NOISE_SHADER)
+-        }
+-      // For CLAMP to work, we need to provide the crop rect
+-      val blurFilter = createBlurImageFilter(
+-        blurRadiusPx = with(density) { resolvedStyle.blurRadius.toPx() },
+-        cropRect = areaLocalBounds,
+-      )
+-
+-      ImageFilter.makeRuntimeShader(
+-        runtimeShaderBuilder = compositeShaderBuilder,
+-        shaderNames = arrayOf("content", "blur"),
+-        inputs = arrayOf(null, blurFilter),
+-      )
+-    }
+-    return ImageFilter.makeMerge(
+-      buildList {
+-        // We need null as the first item, which tells Skia to draw the content without any filter.
+-        // The filters then draw on top, clipped to their respective areas.
+-        add(clippingFilter)
+-        addAll(filters)
+-      }.toTypedArray(),
+-      null,
+-    ).asComposeRenderEffect()
+-  }
+-}
+-
+-private fun createBlurImageFilter(
+-  blurRadiusPx: Float,
+-  cropRect: Rect? = null,
+-): ImageFilter {
+-  val sigma = BlurEffect.convertRadiusToSigma(blurRadiusPx)
+-  return ImageFilter.makeBlur(
+-    sigmaX = sigma,
+-    sigmaY = sigma,
+-    mode = FilterTileMode.CLAMP,
+-    crop = cropRect?.toIRect(),
+-  )
+-}
+-
+-private fun Rect.toIRect(): IRect {
+-  return IRect.makeLTRB(
+-    left.toInt(),
+-    top.toInt(),
+-    right.toInt(),
+-    bottom.toInt(),
+-  )
+-}
+diff --git a/haze/src/skikoMain/kotlin/dev/chrisbanes/haze/HazeNode.skiko.kt b/haze/src/skikoMain/kotlin/dev/chrisbanes/haze/HazeNode.skiko.kt
+new file mode 100644
+index 0000000..2da1775
+--- /dev/null
++++ b/haze/src/skikoMain/kotlin/dev/chrisbanes/haze/HazeNode.skiko.kt
+@@ -0,0 +1,57 @@
++
++package dev.chrisbanes.haze
++
++import androidx.compose.ui.geometry.Rect
++import androidx.compose.ui.geometry.toRect
++import androidx.compose.ui.graphics.BlurEffect
++import androidx.compose.ui.graphics.RenderEffect
++import androidx.compose.ui.graphics.asComposeRenderEffect
++import androidx.compose.ui.graphics.drawscope.DrawScope
++import androidx.compose.ui.graphics.layer.GraphicsLayer
++import androidx.compose.ui.graphics.layer.drawLayer
++import androidx.compose.ui.unit.Density
++import org.jetbrains.skia.FilterTileMode
++import org.jetbrains.skia.IRect
++import org.jetbrains.skia.ImageFilter
++import org.jetbrains.skia.RuntimeShaderBuilder
++
++internal actual fun HazeNode.drawEffect(
++  drawScope: DrawScope,
++  effect: Effect,
++  graphicsLayer: GraphicsLayer?,
++) = with(drawScope) {
++  drawLayer(requireNotNull(graphicsLayer))
++}
++
++internal actual fun HazeNode.useGraphicsLayers(): Boolean = true
++
++internal actual fun HazeNode.createRenderEffect(effect: Effect, density: Density): RenderEffect? {
++  val compositeShaderBuilder = RuntimeShaderBuilder(RUNTIME_SHADER).apply {
++    uniform("noiseFactor", effect.noiseFactor)
++    child("noise", NOISE_SHADER)
++  }
++  // For CLAMP to work, we need to provide the crop rect
++  val blurRadiusPx = with(density) { effect.blurRadius.toPx() }
++  val blurFilter = createBlurImageFilter(blurRadiusPx, effect.bounds.size.toRect())
++
++  val filter = ImageFilter.makeRuntimeShader(
++    runtimeShaderBuilder = compositeShaderBuilder,
++    shaderNames = arrayOf("content", "blur"),
++    inputs = arrayOf(null, blurFilter),
++  )
++
++  return filter.asComposeRenderEffect()
++}
++
++private fun createBlurImageFilter(blurRadiusPx: Float, cropRect: Rect? = null): ImageFilter {
++  val sigma = BlurEffect.convertRadiusToSigma(blurRadiusPx)
++  return ImageFilter.makeBlur(
++    sigmaX = sigma,
++    sigmaY = sigma,
++    mode = FilterTileMode.CLAMP,
++    crop = cropRect?.toIRect(),
++  )
++}
++
++private fun Rect.toIRect(): IRect =
++  IRect.makeLTRB(left.toInt(), top.toInt(), right.toInt(), bottom.toInt())
+diff --git a/haze/src/skikoMain/kotlin/dev/chrisbanes/haze/HazeShaders.kt b/haze/src/skikoMain/kotlin/dev/chrisbanes/haze/HazeShaders.kt
+index 2f55d7b..d3afa94 100644
+--- a/haze/src/skikoMain/kotlin/dev/chrisbanes/haze/HazeShaders.kt
++++ b/haze/src/skikoMain/kotlin/dev/chrisbanes/haze/HazeShaders.kt
+@@ -3,78 +3,45 @@
+ 
+ package dev.chrisbanes.haze
+ 
+-internal const val CLIPPING_SHADER_SKSL = """
+-  uniform shader content;
+-
+-  uniform vec4 rectangle;
+-  uniform vec4 radius;
+-
+-  // https://www.iquilezles.org/www/articles/distfunctions2d/distfunctions2d.htm
+-  float sdRoundedBox(vec2 position, vec2 box, vec4 radius) {
+-    radius.xy = (position.x > 0.0) ? radius.xy : radius.zw;
+-    radius.x = (position.y > 0.0) ? radius.x : radius.y;
+-    vec2 q = abs(position) - box + radius.x;
+-    return min(max(q.x,q.y),0.0) + length(max(q,0.0)) - radius.x;
+-  }
+-
+-  bool rectContains(vec4 rectangle, vec2 coord) {
+-      vec2 shiftRect = (rectangle.zw - rectangle.xy) / 2.0;
+-      vec2 shiftCoord = coord - rectangle.xy;
+-      return sdRoundedBox(shiftCoord - shiftRect, shiftRect, radius) <= 0.0;
+-  }
+-
+-  vec4 main(vec2 coord) {
++import org.jetbrains.skia.RuntimeEffect
++import org.jetbrains.skia.Shader
+ 
+-    if (rectContains(rectangle, coord)) {
+-        // If we're not drawing in the rectangle, return transparent
+-        return vec4(0.0, 0.0, 0.0, 0.0);
+-    }
++/**
++ * Heavily influenced by
++ * https://www.pushing-pixels.org/2022/04/09/shader-based-render-effects-in-compose-desktop-with-skia.html
++ */
+ 
+-    return content.eval(coord);
+-  }
+-"""
++internal val RUNTIME_SHADER by lazy {
++  RuntimeEffect.makeForShader(SHADER_SKSL)
++}
+ 
+-internal const val SHADER_SKSL = """
++private const val SHADER_SKSL = """
+   uniform shader content;
+   uniform shader blur;
+   uniform shader noise;
+ 
+-  uniform vec4 rectangle;
+-  uniform vec4 radius;
+-  uniform vec4 color;
+-  uniform float colorShift;
+   uniform float noiseFactor;
+ 
+-  // https://www.iquilezles.org/www/articles/distfunctions2d/distfunctions2d.htm
+-  float sdRoundedBox(vec2 position, vec2 box, vec4 radius) {
+-    radius.xy = (position.x > 0.0) ? radius.xy : radius.zw;
+-    radius.x = (position.y > 0.0) ? radius.x : radius.y;
+-    vec2 q = abs(position) - box + radius.x;
+-    return min(max(q.x,q.y),0.0) + length(max(q,0.0)) - radius.x;
+-  }
+-
+-  bool rectContains(vec4 rectangle, vec2 coord) {
+-      vec2 shiftRect = (rectangle.zw - rectangle.xy) / 2.0;
+-      vec2 shiftCoord = coord - rectangle.xy;
+-      return sdRoundedBox(shiftCoord - shiftRect, shiftRect, radius) <= 0.0;
+-  }
+-
+   vec4 main(vec2 coord) {
+-    if (!rectContains(rectangle, coord)) {
+-        // If we're not drawing in the rectangle, return transparent
+-        return vec4(0.0, 0.0, 0.0, 0.0);
+-    }
+-
+     vec4 b = blur.eval(coord);
+     vec4 n = noise.eval(coord);
+ 
+     // Add noise for extra texture
+     float noiseLuma = dot(n.rgb, vec3(0.2126, 0.7152, 0.0722));
+ 
+-    // Calculate our overlay (tint + noise)
+-    float overlay = min(1.0, colorShift + (noiseLuma * noiseFactor));
++    // Calculate our overlay (noise)
++    float overlay = min(1.0, noiseLuma * noiseFactor);
+ 
+-    // Apply the overlay (noise + tint)
+-    return b + ((color - b) * overlay);
++    // Apply the overlay (noise)
++    return b + ((vec4(1.0) - b) * overlay);
+   }
+ """
++
++internal val NOISE_SHADER by lazy {
++  Shader.makeFractalNoise(
++    baseFrequencyX = 0.45f,
++    baseFrequencyY = 0.45f,
++    numOctaves = 4,
++    seed = 2.0f,
++  )
++}
+diff --git a/haze/src/skikoMain/kotlin/dev/chrisbanes/haze/Window.skiko.kt b/haze/src/skikoMain/kotlin/dev/chrisbanes/haze/Window.skiko.kt
+new file mode 100644
+index 0000000..0d33805
+--- /dev/null
++++ b/haze/src/skikoMain/kotlin/dev/chrisbanes/haze/Window.skiko.kt
+@@ -0,0 +1,10 @@
++
++package dev.chrisbanes.haze
++
++import androidx.compose.ui.geometry.Offset
++import androidx.compose.ui.node.CompositionLocalConsumerModifierNode
++
++internal actual fun CompositionLocalConsumerModifierNode.calculateWindowOffset(): Offset {
++  // The Skiko-backed platforms don't use native windows for dialogs, etc
++  return Offset.Zero
++}
+diff --git a/kotlin-js-store/yarn.lock b/kotlin-js-store/yarn.lock
+index b15a52b..ca83c11 100644
+--- a/kotlin-js-store/yarn.lock
++++ b/kotlin-js-store/yarn.lock
+@@ -12,6 +12,18 @@
+   resolved "https://registry.yarnpkg.com/@discoveryjs/json-ext/-/json-ext-0.5.7.tgz#1d572bfbbe14b7704e0ba0f39b74815b84870d70"
+   integrity sha512-dBVuXR082gk3jsFp7Rd/JI4kytwGHecnCoTtXFb7DB6CNHp4rg5k1bhg0nWdLGLnOV71lmDzGQaLMy8iPLY0pw==
+ 
++"@isaacs/cliui@^8.0.2":
++  version "8.0.2"
++  resolved "https://registry.yarnpkg.com/@isaacs/cliui/-/cliui-8.0.2.tgz#b37667b7bc181c168782259bab42474fbf52b550"
++  integrity sha512-O8jcjabXaleOG9DQ0+ARXWZBTfnP4WNAqzuiJK7ll44AmxGKv/J2M4TPjxjY3znBCfvBXFzucm1twdyFybFqEA==
++  dependencies:
++    string-width "^5.1.2"
++    string-width-cjs "npm:string-width@^4.2.0"
++    strip-ansi "^7.0.1"
++    strip-ansi-cjs "npm:strip-ansi@^6.0.1"
++    wrap-ansi "^8.1.0"
++    wrap-ansi-cjs "npm:wrap-ansi@^7.0.0"
++
+ "@jridgewell/gen-mapping@^0.3.5":
+   version "0.3.5"
+   resolved "https://registry.yarnpkg.com/@jridgewell/gen-mapping/-/gen-mapping-0.3.5.tgz#dcce6aff74bdf6dad1a95802b69b04a2fcb1fb36"
+@@ -57,11 +69,36 @@
+   resolved "https://registry.yarnpkg.com/@js-joda/core/-/core-3.2.0.tgz#3e61e21b7b2b8a6be746df1335cf91d70db2a273"
+   integrity sha512-PMqgJ0sw5B7FKb2d5bWYIoxjri+QlW/Pys7+Rw82jSH0QN3rB05jZ/VrrsUdh1w4+i2kw9JOejXGq/KhDOX7Kg==
+ 
++"@jsonjoy.com/base64@^1.1.1":
++  version "1.1.2"
++  resolved "https://registry.yarnpkg.com/@jsonjoy.com/base64/-/base64-1.1.2.tgz#cf8ea9dcb849b81c95f14fc0aaa151c6b54d2578"
++  integrity sha512-q6XAnWQDIMA3+FTiOYajoYqySkO+JSat0ytXGSuRdq9uXE7o92gzuQwQM14xaCRlBLGq3v5miDGC4vkVTn54xA==
++
++"@jsonjoy.com/json-pack@^1.0.3":
++  version "1.0.4"
++  resolved "https://registry.yarnpkg.com/@jsonjoy.com/json-pack/-/json-pack-1.0.4.tgz#ab59c642a2e5368e8bcfd815d817143d4f3035d0"
++  integrity sha512-aOcSN4MeAtFROysrbqG137b7gaDDSmVrl5mpo6sT/w+kcXpWnzhMjmY/Fh/sDx26NBxyIE7MB1seqLeCAzy9Sg==
++  dependencies:
++    "@jsonjoy.com/base64" "^1.1.1"
++    "@jsonjoy.com/util" "^1.1.2"
++    hyperdyperid "^1.2.0"
++    thingies "^1.20.0"
++
++"@jsonjoy.com/util@^1.1.2":
++  version "1.2.0"
++  resolved "https://registry.yarnpkg.com/@jsonjoy.com/util/-/util-1.2.0.tgz#0fe9a92de72308c566ebcebe8b5a3f01d3149df2"
++  integrity sha512-4B8B+3vFsY4eo33DMKyJPlQ3sBMpPFUZK2dr3O3rXrOGKKbYG44J0XSFkDo1VOQiri5HFEhIeVvItjR2xcazmg==
++
+ "@leichtgewicht/ip-codec@^2.0.1":
+   version "2.0.5"
+   resolved "https://registry.yarnpkg.com/@leichtgewicht/ip-codec/-/ip-codec-2.0.5.tgz#4fc56c15c580b9adb7dc3c333a134e540b44bfb1"
+   integrity sha512-Vo+PSpZG2/fmgmiNzYK9qWRh8h/CHrwD0mo1h1DzL4yzHNSfWYujGTYsWGreD000gcgmZ7K4Ys6Tx9TxtsKdDw==
+ 
++"@pkgjs/parseargs@^0.11.0":
++  version "0.11.0"
++  resolved "https://registry.yarnpkg.com/@pkgjs/parseargs/-/parseargs-0.11.0.tgz#a77ea742fab25775145434eb1d2328cf5013ac33"
++  integrity sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==
++
+ "@socket.io/component-emitter@~3.1.0":
+   version "3.1.2"
+   resolved "https://registry.yarnpkg.com/@socket.io/component-emitter/-/component-emitter-3.1.2.tgz#821f8442f4175d8f0467b9daf26e3a18e2d02af2"
+@@ -75,14 +112,14 @@
+     "@types/connect" "*"
+     "@types/node" "*"
+ 
+-"@types/bonjour@^3.5.9":
++"@types/bonjour@^3.5.13":
+   version "3.5.13"
+   resolved "https://registry.yarnpkg.com/@types/bonjour/-/bonjour-3.5.13.tgz#adf90ce1a105e81dd1f9c61fdc5afda1bfb92956"
+   integrity sha512-z9fJ5Im06zvUL548KvYNecEVlA7cVDkGUi6kZusb04mpyEFKCIZJvloCcmpmLaIahDpOQGHaHmG6imtPMmPXGQ==
+   dependencies:
+     "@types/node" "*"
+ 
+-"@types/connect-history-api-fallback@^1.3.5":
++"@types/connect-history-api-fallback@^1.5.4":
+   version "1.5.4"
+   resolved "https://registry.yarnpkg.com/@types/connect-history-api-fallback/-/connect-history-api-fallback-1.5.4.tgz#7de71645a103056b48ac3ce07b3520b819c1d5b3"
+   integrity sha512-n6Cr2xS1h4uAulPRdlw6Jl6s1oG8KrVilPN2yUITEs+K48EzMJJ3W1xy8K5eWuFvjp3R74AOIGSmp2UfBJ8HFw==
+@@ -125,7 +162,7 @@
+     "@types/estree" "*"
+     "@types/json-schema" "*"
+ 
+-"@types/estree@*", "@types/estree@^1.0.0":
++"@types/estree@*", "@types/estree@^1.0.5":
+   version "1.0.5"
+   resolved "https://registry.yarnpkg.com/@types/estree/-/estree-1.0.5.tgz#a6ce3e556e00fd9895dd872dd172ad0d4bd687f4"
+   integrity sha512-/kYRxGDLWzHOB7q+wtSUQlFrtcdUccpfy+X+9iMBpHK8QLLhx2wIPYuS5DYtR9Wa/YlZAbIovy7qVdB1Aq6Lyw==
+@@ -140,7 +177,7 @@
+     "@types/range-parser" "*"
+     "@types/send" "*"
+ 
+-"@types/express@*", "@types/express@^4.17.13":
++"@types/express@*", "@types/express@^4.17.21":
+   version "4.17.21"
+   resolved "https://registry.yarnpkg.com/@types/express/-/express-4.17.21.tgz#c26d4a151e60efe0084b23dc3369ebc631ed192d"
+   integrity sha512-ejlPM315qwLpaQlQDTjPdsUFSc6ZsP4AN6AlWnogPjQ7CVi7PYF3YVz+CY3jE2pwYf7E/7HlDAN0rV2GxTG0HQ==
+@@ -196,10 +233,10 @@
+   resolved "https://registry.yarnpkg.com/@types/range-parser/-/range-parser-1.2.7.tgz#50ae4353eaaddc04044279812f52c8c65857dbcb"
+   integrity sha512-hKormJbkJqzQGhziax5PItDUTMAM9uE2XXQmM37dyd4hVM+5aVl7oVxMVUiVQn2oCQFN/LKCZdvSM0pFRqbSmQ==
+ 
+-"@types/retry@0.12.0":
+-  version "0.12.0"
+-  resolved "https://registry.yarnpkg.com/@types/retry/-/retry-0.12.0.tgz#2b35eccfcee7d38cd72ad99232fbd58bffb3c84d"
+-  integrity sha512-wWKOClTTiizcZhXnPY4wikVAwmdYHp8q6DmC+EJUzAMsycb7HB32Kh9RN4+0gExjmPmZSAQjgURXIGATPegAvA==
++"@types/retry@0.12.2":
++  version "0.12.2"
++  resolved "https://registry.yarnpkg.com/@types/retry/-/retry-0.12.2.tgz#ed279a64fa438bb69f2480eda44937912bb7480a"
++  integrity sha512-XISRgDJ2Tc5q4TRqvgJtzsRkFYNJzZrhTdtMoGVBttwzzQJkPnS3WWTFc7kuDRoPtPakl+T+OfdEUjYJj7Jbow==
+ 
+ "@types/send@*":
+   version "0.17.4"
+@@ -209,14 +246,14 @@
+     "@types/mime" "^1"
+     "@types/node" "*"
+ 
+-"@types/serve-index@^1.9.1":
++"@types/serve-index@^1.9.4":
+   version "1.9.4"
+   resolved "https://registry.yarnpkg.com/@types/serve-index/-/serve-index-1.9.4.tgz#e6ae13d5053cb06ed36392110b4f9a49ac4ec898"
+   integrity sha512-qLpGZ/c2fhSs5gnYsQxtDEq3Oy8SXPClIXkW5ghvAvsNuVSA8k+gCONcUCS/UjLEYvYps+e8uBtfgXgvhwfNug==
+   dependencies:
+     "@types/express" "*"
+ 
+-"@types/serve-static@*", "@types/serve-static@^1.13.10":
++"@types/serve-static@*", "@types/serve-static@^1.15.5":
+   version "1.15.7"
+   resolved "https://registry.yarnpkg.com/@types/serve-static/-/serve-static-1.15.7.tgz#22174bbd74fb97fe303109738e9b5c2f3064f714"
+   integrity sha512-W8Ym+h8nhuRwaKPaDw34QUkwsGi6Rc4yYqvKFo5rm2FUEhCFbzVWrxXUxuKK8TASjWsysJY0nsmNCGhCOIsrOw==
+@@ -225,21 +262,21 @@
+     "@types/node" "*"
+     "@types/send" "*"
+ 
+-"@types/sockjs@^0.3.33":
++"@types/sockjs@^0.3.36":
+   version "0.3.36"
+   resolved "https://registry.yarnpkg.com/@types/sockjs/-/sockjs-0.3.36.tgz#ce322cf07bcc119d4cbf7f88954f3a3bd0f67535"
+   integrity sha512-MK9V6NzAS1+Ud7JV9lJLFqW85VbC9dq3LmwZCuBe4wBDgKC0Kj/jd8Xl+nSviU+Qc3+m7umHHyHg//2KSa0a0Q==
+   dependencies:
+     "@types/node" "*"
+ 
+-"@types/ws@^8.5.1":
+-  version "8.5.10"
+-  resolved "https://registry.yarnpkg.com/@types/ws/-/ws-8.5.10.tgz#4acfb517970853fa6574a3a6886791d04a396787"
+-  integrity sha512-vmQSUcfalpIq0R9q7uTo2lXs6eGIpt9wtnLdMv9LVpIjCA/+ufZRozlVoVelIYixx1ugCBKDhn89vnsEGOCx9A==
++"@types/ws@^8.5.10":
++  version "8.5.11"
++  resolved "https://registry.yarnpkg.com/@types/ws/-/ws-8.5.11.tgz#90ad17b3df7719ce3e6bc32f83ff954d38656508"
++  integrity sha512-4+q7P5h3SpJxaBft0Dzpbr6lmMaqh0Jr2tbhJZ/luAwvD7ohSCniYkwz/pLxuT2h0EOa6QADgJj1Ko+TzRfZ+w==
+   dependencies:
+     "@types/node" "*"
+ 
+-"@webassemblyjs/ast@1.12.1", "@webassemblyjs/ast@^1.11.5":
++"@webassemblyjs/ast@1.12.1", "@webassemblyjs/ast@^1.12.1":
+   version "1.12.1"
+   resolved "https://registry.yarnpkg.com/@webassemblyjs/ast/-/ast-1.12.1.tgz#bb16a0e8b1914f979f45864c23819cc3e3f0d4bb"
+   integrity sha512-EKfMUOPRRUTy5UII4qJDGPpqfwjOmZ5jeGFwid9mnoqIFK+e0vqoi1qH56JpmZSzEL53jKnNzScdmftJyG5xWg==
+@@ -305,7 +342,7 @@
+   resolved "https://registry.yarnpkg.com/@webassemblyjs/utf8/-/utf8-1.11.6.tgz#90f8bc34c561595fe156603be7253cdbcd0fab5a"
+   integrity sha512-vtXf2wTQ3+up9Zsg8sa2yWiQpzSsMyXj0qViVP6xKGCUT8p8YJ6HqI7l5eCnWx1T/FYdsv07HQs2wTFbbof/RA==
+ 
+-"@webassemblyjs/wasm-edit@^1.11.5":
++"@webassemblyjs/wasm-edit@^1.12.1":
+   version "1.12.1"
+   resolved "https://registry.yarnpkg.com/@webassemblyjs/wasm-edit/-/wasm-edit-1.12.1.tgz#9f9f3ff52a14c980939be0ef9d5df9ebc678ae3b"
+   integrity sha512-1DuwbVvADvS5mGnXbE+c9NfA8QRcZ6iKquqjjmR10k6o+zzsRVesil54DKexiowcFCPdr/Q0qaMgB01+SQ1u6g==
+@@ -340,7 +377,7 @@
+     "@webassemblyjs/wasm-gen" "1.12.1"
+     "@webassemblyjs/wasm-parser" "1.12.1"
+ 
+-"@webassemblyjs/wasm-parser@1.12.1", "@webassemblyjs/wasm-parser@^1.11.5":
++"@webassemblyjs/wasm-parser@1.12.1", "@webassemblyjs/wasm-parser@^1.12.1":
+   version "1.12.1"
+   resolved "https://registry.yarnpkg.com/@webassemblyjs/wasm-parser/-/wasm-parser-1.12.1.tgz#c47acb90e6f083391e3fa61d113650eea1e95937"
+   integrity sha512-xikIi7c2FHXysxXe3COrVUPSheuBtpcfhbpFj4gmu7KRLYOzANztwUU0IbsqvMqzuNK2+glRGWCEqZo1WCLyAQ==
+@@ -360,17 +397,17 @@
+     "@webassemblyjs/ast" "1.12.1"
+     "@xtuc/long" "4.2.2"
+ 
+-"@webpack-cli/configtest@^2.1.0":
++"@webpack-cli/configtest@^2.1.1":
+   version "2.1.1"
+   resolved "https://registry.yarnpkg.com/@webpack-cli/configtest/-/configtest-2.1.1.tgz#3b2f852e91dac6e3b85fb2a314fb8bef46d94646"
+   integrity sha512-wy0mglZpDSiSS0XHrVR+BAdId2+yxPSoJW8fsna3ZpYSlufjvxnP4YbKTCBZnNIcGN4r6ZPXV55X4mYExOfLmw==
+ 
+-"@webpack-cli/info@^2.0.1":
++"@webpack-cli/info@^2.0.2":
+   version "2.0.2"
+   resolved "https://registry.yarnpkg.com/@webpack-cli/info/-/info-2.0.2.tgz#cc3fbf22efeb88ff62310cf885c5b09f44ae0fdd"
+   integrity sha512-zLHQdI/Qs1UyT5UBdWNqsARasIA+AaF8t+4u2aS2nEpBQh2mWIVb8qAklq0eUENnC5mOItrIB4LiS9xMtph18A==
+ 
+-"@webpack-cli/serve@^2.0.3":
++"@webpack-cli/serve@^2.0.5":
+   version "2.0.5"
+   resolved "https://registry.yarnpkg.com/@webpack-cli/serve/-/serve-2.0.5.tgz#325db42395cd49fe6c14057f9a900e427df8810e"
+   integrity sha512-lqaoKnRYBdo1UgDX8uF24AfGMifWK19TxPmM5FHc2vAGxrJ/qtyUyFBWoY1tISZdelsQ5fBcOusifo5o5wSJxQ==
+@@ -385,11 +422,6 @@
+   resolved "https://registry.yarnpkg.com/@xtuc/long/-/long-4.2.2.tgz#d291c6a4e97989b5c61d9acf396ae4fe133a718d"
+   integrity sha512-NuHqBY1PB/D8xU6s/thBgOAiAP7HOYDQ32+BFZILJ8ivkUkAHQnWfn6WhL79Owj1qmUnoN/YPhktdIoucipkAQ==
+ 
+-abab@^2.0.6:
+-  version "2.0.6"
+-  resolved "https://registry.yarnpkg.com/abab/-/abab-2.0.6.tgz#41b80f2c871d19686216b82309231cfd3cb3d291"
+-  integrity sha512-j2afSsaIENvHZN2B8GOpF566vZ5WVk5opAiMTvWgaQT8DkbOqsTfvNAvHoRGU2zzP8cPoqys+xHTRDWW8L+/BA==
+-
+ abort-controller@3.0.0, abort-controller@^3.0.0:
+   version "3.0.0"
+   resolved "https://registry.yarnpkg.com/abort-controller/-/abort-controller-3.0.0.tgz#eaf54d53b62bae4138e809ca225c8439a6efb392"
+@@ -405,7 +437,7 @@ accepts@~1.3.4, accepts@~1.3.5, accepts@~1.3.8:
+     mime-types "~2.1.34"
+     negotiator "0.6.3"
+ 
+-acorn-import-assertions@^1.7.6:
++acorn-import-assertions@^1.9.0:
+   version "1.9.0"
+   resolved "https://registry.yarnpkg.com/acorn-import-assertions/-/acorn-import-assertions-1.9.0.tgz#507276249d684797c84e0734ef84860334cfb1ac"
+   integrity sha512-cmMwop9x+8KFhxvKrKfPYmN6/pKTYYHBqLa0DfvVZcKMJWNyWLnaqND7dx/qn66R7ewM1UX5XMaDVP5wlVTaVA==
+@@ -469,6 +501,11 @@ ansi-regex@^5.0.1:
+   resolved "https://registry.yarnpkg.com/ansi-regex/-/ansi-regex-5.0.1.tgz#082cb2c89c9fe8659a311a53bd6a4dc5301db304"
+   integrity sha512-quJQXlTSUGL2LH9SUXo8VwsY4soanhgo6LNSm84E1LBcE8s3O0wpdiRzyR9z/ZZJMlMWv37qOOb9pdJlMUEKFQ==
+ 
++ansi-regex@^6.0.1:
++  version "6.0.1"
++  resolved "https://registry.yarnpkg.com/ansi-regex/-/ansi-regex-6.0.1.tgz#3183e38fae9a65d7cb5e53945cd5897d0260a06a"
++  integrity sha512-n5M855fKb2SsfMIiFFoVrABHJC8QtHwVx+mHWP3QcEqBHYienj5dHSgjbxtC0WEZXYt4wcD6zrQElDPhFuZgfA==
++
+ ansi-styles@^4.0.0, ansi-styles@^4.1.0:
+   version "4.3.0"
+   resolved "https://registry.yarnpkg.com/ansi-styles/-/ansi-styles-4.3.0.tgz#edd803628ae71c04c85ae7a0906edad34b648937"
+@@ -476,6 +513,11 @@ ansi-styles@^4.0.0, ansi-styles@^4.1.0:
+   dependencies:
+     color-convert "^2.0.1"
+ 
++ansi-styles@^6.1.0:
++  version "6.2.1"
++  resolved "https://registry.yarnpkg.com/ansi-styles/-/ansi-styles-6.2.1.tgz#0e62320cf99c21afff3b3012192546aacbfb05c5"
++  integrity sha512-bN798gFfQX+viw3R7yrGWRqnrN2oRkEkUjjl4JNn4E8GxxbjtG3FbrEIIY3l8/hrwUwIeCZvi4QuOTP4MErVug==
++
+ anymatch@~3.1.2:
+   version "3.1.3"
+   resolved "https://registry.yarnpkg.com/anymatch/-/anymatch-3.1.3.tgz#790c58b19ba1720a84205b57c618d5ad8524973e"
+@@ -574,7 +616,7 @@ body-parser@1.20.2, body-parser@^1.19.0:
+     type-is "~1.6.18"
+     unpipe "1.0.0"
+ 
+-bonjour-service@^1.0.11:
++bonjour-service@^1.2.1:
+   version "1.2.1"
+   resolved "https://registry.yarnpkg.com/bonjour-service/-/bonjour-service-1.2.1.tgz#eb41b3085183df3321da1264719fbada12478d02"
+   integrity sha512-oSzCS2zV14bh2kji6vNe7vrpJYCHGvcZnlffFQ1MEoX/WOeQ/teD8SYWKR942OI3INjq8OMNJlbPK5LLLUxFDw==
+@@ -676,15 +718,15 @@ browserify-zlib@^0.2.0:
+   dependencies:
+     pako "~1.0.5"
+ 
+-browserslist@^4.14.5:
+-  version "4.23.1"
+-  resolved "https://registry.yarnpkg.com/browserslist/-/browserslist-4.23.1.tgz#ce4af0534b3d37db5c1a4ca98b9080f985041e96"
+-  integrity sha512-TUfofFo/KsK/bWZ9TWQ5O26tsWW4Uhmt8IYklbnUa70udB6P2wA7w7o4PY4muaEPBQaAX+CEnmmIA41NVHtPVw==
++browserslist@^4.21.10:
++  version "4.23.2"
++  resolved "https://registry.yarnpkg.com/browserslist/-/browserslist-4.23.2.tgz#244fe803641f1c19c28c48c4b6ec9736eb3d32ed"
++  integrity sha512-qkqSyistMYdxAcw+CzbZwlBy8AGmS/eEWs+sEV5TnLRGDOL+C5M2EnH6tlZyg0YoAxGJAFKh61En9BR941GnHA==
+   dependencies:
+-    caniuse-lite "^1.0.30001629"
+-    electron-to-chromium "^1.4.796"
++    caniuse-lite "^1.0.30001640"
++    electron-to-chromium "^1.4.820"
+     node-releases "^2.0.14"
+-    update-browserslist-db "^1.0.16"
++    update-browserslist-db "^1.1.0"
+ 
+ buffer-from@^1.0.0:
+   version "1.1.2"
+@@ -709,6 +751,13 @@ builtin-status-codes@^3.0.0:
+   resolved "https://registry.yarnpkg.com/builtin-status-codes/-/builtin-status-codes-3.0.0.tgz#85982878e21b98e1c66425e03d0174788f569ee8"
+   integrity sha512-HpGFw18DgFWlncDfjTa2rcQ4W88O1mC8e8yZ2AvQY5KDaktSTwo+KRf6nHK6FRI5FyRyb/5T6+TSxfP7QyGsmQ==
+ 
++bundle-name@^4.1.0:
++  version "4.1.0"
++  resolved "https://registry.yarnpkg.com/bundle-name/-/bundle-name-4.1.0.tgz#f3b96b34160d6431a19d7688135af7cfb8797889"
++  integrity sha512-tjwM5exMg6BGRI+kNmTntNsvdZS1X8BFYS6tnJ2hdH0kVxM6/eVZ2xy+FqStSWvYmtfFMDLIxurorHwDKfDz5Q==
++  dependencies:
++    run-applescript "^7.0.0"
++
+ bytes@3.0.0:
+   version "3.0.0"
+   resolved "https://registry.yarnpkg.com/bytes/-/bytes-3.0.0.tgz#d32815404d689699f85a4ea4fa8755dd13a96048"
+@@ -735,10 +784,10 @@ camelcase@^6.0.0:
+   resolved "https://registry.yarnpkg.com/camelcase/-/camelcase-6.3.0.tgz#5685b95eb209ac9c0c177467778c9c84df58ba9a"
+   integrity sha512-Gmy6FhYlCY7uOElZUSbxo2UCDH8owEk996gkbrpsgGtrJLM3J7jGxl9Ic7Qwwj4ivOE5AWZWRMecDdF7hqGjFA==
+ 
+-caniuse-lite@^1.0.30001629:
+-  version "1.0.30001634"
+-  resolved "https://registry.yarnpkg.com/caniuse-lite/-/caniuse-lite-1.0.30001634.tgz#aa563c8e7aeaf552f7ead60371bc8d803425deaa"
+-  integrity sha512-fbBYXQ9q3+yp1q1gBk86tOFs4pyn/yxFm5ZNP18OXJDfA3txImOY9PhfxVggZ4vRHDqoU8NrKU81eN0OtzOgRA==
++caniuse-lite@^1.0.30001640:
++  version "1.0.30001641"
++  resolved "https://registry.yarnpkg.com/caniuse-lite/-/caniuse-lite-1.0.30001641.tgz#3572862cd18befae3f637f2a1101cc033c6782ac"
++  integrity sha512-Phv5thgl67bHYo1TtMY/MurjkHhV4EDaCosezRXgZ8jzA/Ub+wjxAvbGvjoFENStinwi5kCyOYV3mi5tOGykwA==
+ 
+ chalk@^4.1.0:
+   version "4.1.2"
+@@ -763,7 +812,7 @@ chokidar@3.5.3:
+   optionalDependencies:
+     fsevents "~2.3.2"
+ 
+-chokidar@^3.5.1, chokidar@^3.5.3:
++chokidar@^3.5.1, chokidar@^3.6.0:
+   version "3.6.0"
+   resolved "https://registry.yarnpkg.com/chokidar/-/chokidar-3.6.0.tgz#197c6cc669ef2a8dc5e7b4d97ee4e092c3eb0d5b"
+   integrity sha512-7VT13fmjotKpGipCW9JEQAusEPE+Ei8nl6/g4FBAmIm0GOOLMua9NDDo/DWp0ZAxCr3cPq5ZpBqmPAQgDda2Pw==
+@@ -957,7 +1006,7 @@ create-hmac@^1.1.0, create-hmac@^1.1.4, create-hmac@^1.1.7:
+     safe-buffer "^5.0.1"
+     sha.js "^2.4.8"
+ 
+-cross-spawn@^7.0.3:
++cross-spawn@^7.0.0, cross-spawn@^7.0.3:
+   version "7.0.3"
+   resolved "https://registry.yarnpkg.com/cross-spawn/-/cross-spawn-7.0.3.tgz#f73a85b9d5d41d045551c177e2882d4ac85728a6"
+   integrity sha512-iRDPJKUPVEND7dHPO8rkbOnPpyDygcDFtWjpeWNCgy8WP2rXcxXL8TskReQl6OrB2G7+UJrags1q15Fudc7G6w==
+@@ -1019,6 +1068,19 @@ decamelize@^4.0.0:
+   resolved "https://registry.yarnpkg.com/decamelize/-/decamelize-4.0.0.tgz#aa472d7bf660eb15f3494efd531cab7f2a709837"
+   integrity sha512-9iE1PgSik9HeIIw2JO94IidnE3eBoQrFJ3w7sFuzSX4DpmZ3v5sZpUiV5Swcf6mQEF+Y0ru8Neo+p+nyh2J+hQ==
+ 
++default-browser-id@^5.0.0:
++  version "5.0.0"
++  resolved "https://registry.yarnpkg.com/default-browser-id/-/default-browser-id-5.0.0.tgz#a1d98bf960c15082d8a3fa69e83150ccccc3af26"
++  integrity sha512-A6p/pu/6fyBcA1TRz/GqWYPViplrftcW2gZC9q79ngNCKAeR/X3gcEdXQHl4KNXV+3wgIJ1CPkJQ3IHM6lcsyA==
++
++default-browser@^5.2.1:
++  version "5.2.1"
++  resolved "https://registry.yarnpkg.com/default-browser/-/default-browser-5.2.1.tgz#7b7ba61204ff3e425b556869ae6d3e9d9f1712cf"
++  integrity sha512-WY/3TUME0x3KPYdRRxEJJvXRHV4PyPoUsxtZa78lwItwRQRHhd2U9xOscaT/YTf8uCXIAjeJOFBVEh/7FtD8Xg==
++  dependencies:
++    bundle-name "^4.1.0"
++    default-browser-id "^5.0.0"
++
+ default-gateway@^6.0.3:
+   version "6.0.3"
+   resolved "https://registry.yarnpkg.com/default-gateway/-/default-gateway-6.0.3.tgz#819494c888053bdb743edbf343d6cdf7f2943a71"
+@@ -1035,10 +1097,10 @@ define-data-property@^1.0.1, define-data-property@^1.1.4:
+     es-errors "^1.3.0"
+     gopd "^1.0.1"
+ 
+-define-lazy-prop@^2.0.0:
+-  version "2.0.0"
+-  resolved "https://registry.yarnpkg.com/define-lazy-prop/-/define-lazy-prop-2.0.0.tgz#3f7ae421129bcaaac9bc74905c98a0009ec9ee7f"
+-  integrity sha512-Ds09qNh8yw3khSjiJjiUInaGX9xlqZDY7JVryGxdxV7NPeuqQfplOpQ66yJFZut3jLa5zOwkXw1g9EI2uKh4Og==
++define-lazy-prop@^3.0.0:
++  version "3.0.0"
++  resolved "https://registry.yarnpkg.com/define-lazy-prop/-/define-lazy-prop-3.0.0.tgz#dbb19adfb746d7fc6d734a06b72f4a00d021255f"
++  integrity sha512-N+MeXYoqr3pOgn8xfyRPREN7gHakLYjhsHhWGT3fWAiL4IkAt0iDw14QiiEm2bE30c5XX5q0FtAA3CK5f9/BUg==
+ 
+ define-properties@^1.1.3, define-properties@^1.2.1:
+   version "1.2.1"
+@@ -1118,15 +1180,20 @@ domain-browser@^5.7.0:
+   resolved "https://registry.yarnpkg.com/domain-browser/-/domain-browser-5.7.0.tgz#81b942459672e3c7ed8f721fe31135a5628f31cf"
+   integrity sha512-edTFu0M/7wO1pXY6GDxVNVW086uqwWYIHP98txhcPyV995X21JIH2DtYp33sQJOupYoXKe9RwTw2Ya2vWaquTQ==
+ 
++eastasianwidth@^0.2.0:
++  version "0.2.0"
++  resolved "https://registry.yarnpkg.com/eastasianwidth/-/eastasianwidth-0.2.0.tgz#696ce2ec0aa0e6ea93a397ffcf24aa7840c827cb"
++  integrity sha512-I88TYZWc9XiYHRQ4/3c5rjjfgkjhLyW2luGIheGERbNQ6OY7yTybanSpDXZa8y7VUP9YmDcYa+eyq4ca7iLqWA==
++
+ ee-first@1.1.1:
+   version "1.1.1"
+   resolved "https://registry.yarnpkg.com/ee-first/-/ee-first-1.1.1.tgz#590c61156b0ae2f4f0255732a158b266bc56b21d"
+   integrity sha512-WMwm9LhRUo+WUaRN+vRuETqG89IgZphVSNkdFgeb6sS/E4OrDIN7t48CAewSHXc6C8lefD8KKfr5vY61brQlow==
+ 
+-electron-to-chromium@^1.4.796:
+-  version "1.4.803"
+-  resolved "https://registry.yarnpkg.com/electron-to-chromium/-/electron-to-chromium-1.4.803.tgz#cf55808a5ee12e2a2778bbe8cdc941ef87c2093b"
+-  integrity sha512-61H9mLzGOCLLVsnLiRzCbc63uldP0AniRYPV3hbGVtONA1pI7qSGILdbofR7A8TMbOypDocEAjH/e+9k1QIe3g==
++electron-to-chromium@^1.4.820:
++  version "1.4.827"
++  resolved "https://registry.yarnpkg.com/electron-to-chromium/-/electron-to-chromium-1.4.827.tgz#76068ed1c71dd3963e1befc8ae815004b2da6a02"
++  integrity sha512-VY+J0e4SFcNfQy19MEoMdaIcZLmDCprqvBtkii1WTCTQHpRvf5N8+3kTYCgL/PcntvwQvmMJWTuDPsq+IlhWKQ==
+ 
+ elliptic@^6.5.3, elliptic@^6.5.5:
+   version "6.5.5"
+@@ -1146,6 +1213,11 @@ emoji-regex@^8.0.0:
+   resolved "https://registry.yarnpkg.com/emoji-regex/-/emoji-regex-8.0.0.tgz#e818fd69ce5ccfcb404594f842963bf53164cc37"
+   integrity sha512-MSjYzcWNOA0ewAHpz0MxpYFvwg6yjy1NG3xteoqz644VCo/RPgnr1/GGt+ic3iJTzQ8Eu3TdM14SawnVUmGE6A==
+ 
++emoji-regex@^9.2.2:
++  version "9.2.2"
++  resolved "https://registry.yarnpkg.com/emoji-regex/-/emoji-regex-9.2.2.tgz#840c8803b0d8047f4ff0cf963176b32d4ef3ed72"
++  integrity sha512-L18DaJsXSUk2+42pv8mLs5jJT2hqFkFE4j21wOmgbUqsZ2hL72NsUU785g9RXgo3s0ZNgVl42TiHp3ZtOv/Vyg==
++
+ encodeurl@~1.0.2:
+   version "1.0.2"
+   resolved "https://registry.yarnpkg.com/encodeurl/-/encodeurl-1.0.2.tgz#ad3ff4c86ec2d029322f5a02c3a9a606c95b3f59"
+@@ -1172,7 +1244,7 @@ engine.io@~6.5.2:
+     engine.io-parser "~5.2.1"
+     ws "~8.11.0"
+ 
+-enhanced-resolve@^5.13.0:
++enhanced-resolve@^5.16.0:
+   version "5.17.0"
+   resolved "https://registry.yarnpkg.com/enhanced-resolve/-/enhanced-resolve-5.17.0.tgz#d037603789dd9555b89aaec7eb78845c49089bc5"
+   integrity sha512-dwDPwZL0dmye8Txp2gzFmA6sxALaSvdRDjPH0viLcKrtlOL3tw62nWWweVD1SdILDTJrbrL6tdWVN58Wo6U3eA==
+@@ -1425,6 +1497,14 @@ for-each@^0.3.3:
+   dependencies:
+     is-callable "^1.1.3"
+ 
++foreground-child@^3.1.0:
++  version "3.2.1"
++  resolved "https://registry.yarnpkg.com/foreground-child/-/foreground-child-3.2.1.tgz#767004ccf3a5b30df39bed90718bab43fe0a59f7"
++  integrity sha512-PXUUyLqrR2XCWICfv6ukppP96sdFwWbNEnfEMt7jNsISjMsvaLNinAHNDYyvkyU+SZG2BTSbT5NjG+vZslfGTA==
++  dependencies:
++    cross-spawn "^7.0.0"
++    signal-exit "^4.0.1"
++
+ format-util@^1.0.5:
+   version "1.0.5"
+   resolved "https://registry.yarnpkg.com/format-util/-/format-util-1.0.5.tgz#1ffb450c8a03e7bccffe40643180918cc297d271"
+@@ -1449,11 +1529,6 @@ fs-extra@^8.1.0:
+     jsonfile "^4.0.0"
+     universalify "^0.1.0"
+ 
+-fs-monkey@^1.0.4:
+-  version "1.0.6"
+-  resolved "https://registry.yarnpkg.com/fs-monkey/-/fs-monkey-1.0.6.tgz#8ead082953e88d992cf3ff844faa907b26756da2"
+-  integrity sha512-b1FMfwetIKymC0eioW7mTywihSQE4oLzQn1dB6rZB5fx/3NpNEdAWeCSMB+60/AeT0TCXsxzAlcYVEFCTAksWg==
+-
+ fs.realpath@^1.0.0:
+   version "1.0.0"
+   resolved "https://registry.yarnpkg.com/fs.realpath/-/fs.realpath-1.0.0.tgz#1504ad2523158caa40db4a2787cb01411994ea4f"
+@@ -1502,17 +1577,28 @@ glob-to-regexp@^0.4.1:
+   resolved "https://registry.yarnpkg.com/glob-to-regexp/-/glob-to-regexp-0.4.1.tgz#c75297087c851b9a578bd217dd59a92f59fe546e"
+   integrity sha512-lkX1HJXwyMcprw/5YUZc2s7DrpAiHB21/V+E1rHUrVNokkvB6bqMzT0VfV6/86ZNabt1k14YOIaT7nDvOX3Iiw==
+ 
+-glob@7.2.0:
+-  version "7.2.0"
+-  resolved "https://registry.yarnpkg.com/glob/-/glob-7.2.0.tgz#d15535af7732e02e948f4c41628bd910293f6023"
+-  integrity sha512-lmLf6gtyrPq8tTjSmrO94wBeQbFR3HbLHbuyD69wuyQkImp2hWqMGB47OX65FBkPffO641IP9jWa1z4ivqG26Q==
++glob@8.1.0:
++  version "8.1.0"
++  resolved "https://registry.yarnpkg.com/glob/-/glob-8.1.0.tgz#d388f656593ef708ee3e34640fdfb99a9fd1c33e"
++  integrity sha512-r8hpEjiQEYlF2QU0df3dS+nxxSIreXQS1qRhMJM0Q5NDdR386C7jb7Hwwod8Fgiuex+k0GFjgft18yvxm5XoCQ==
+   dependencies:
+     fs.realpath "^1.0.0"
+     inflight "^1.0.4"
+     inherits "2"
+-    minimatch "^3.0.4"
++    minimatch "^5.0.1"
+     once "^1.3.0"
+-    path-is-absolute "^1.0.0"
++
++glob@^10.3.7:
++  version "10.4.5"
++  resolved "https://registry.yarnpkg.com/glob/-/glob-10.4.5.tgz#f4d9f0b90ffdbab09c9d77f5f29b4262517b0956"
++  integrity sha512-7Bv8RF0k6xjo7d4A/PxYLbUCfb6c+Vpd2/mB2yRDlew7Jb5hEXiCD9ibfO7wpk8i4sevK6DFny9h7EYbM3/sHg==
++  dependencies:
++    foreground-child "^3.1.0"
++    jackspeak "^3.1.2"
++    minimatch "^9.0.4"
++    minipass "^7.1.2"
++    package-json-from-dist "^1.0.0"
++    path-scurry "^1.11.1"
+ 
+ glob@^7.1.3, glob@^7.1.7:
+   version "7.2.3"
+@@ -1533,7 +1619,7 @@ gopd@^1.0.1:
+   dependencies:
+     get-intrinsic "^1.1.3"
+ 
+-graceful-fs@^4.1.2, graceful-fs@^4.1.6, graceful-fs@^4.2.0, graceful-fs@^4.2.10, graceful-fs@^4.2.4, graceful-fs@^4.2.6, graceful-fs@^4.2.9:
++graceful-fs@^4.1.2, graceful-fs@^4.1.6, graceful-fs@^4.2.0, graceful-fs@^4.2.10, graceful-fs@^4.2.11, graceful-fs@^4.2.4, graceful-fs@^4.2.6:
+   version "4.2.11"
+   resolved "https://registry.yarnpkg.com/graceful-fs/-/graceful-fs-4.2.11.tgz#4183e4e8bf08bb6e05bbb2f7d2e0c8f712ca40e3"
+   integrity sha512-RbJ5/jmFcNNCcDV5o9eTnBLJ/HszWV0P73bc+Ff4nS/rJj+YaS6IGyiOL0VoBYX+l1Wrl3k63h/KrH+nhJ0XvQ==
+@@ -1628,7 +1714,7 @@ hpack.js@^2.1.6:
+     readable-stream "^2.0.1"
+     wbuf "^1.1.0"
+ 
+-html-entities@^2.3.2:
++html-entities@^2.4.0:
+   version "2.5.2"
+   resolved "https://registry.yarnpkg.com/html-entities/-/html-entities-2.5.2.tgz#201a3cf95d3a15be7099521620d19dfb4f65359f"
+   integrity sha512-K//PSRMQk4FZ78Kyau+mZurHn3FH0Vwr+H36eE0rPbeYkRRi9YxceYPhuN60UwWorxyKHhqoAJl2OFKa4BVtaA==
+@@ -1694,6 +1780,11 @@ human-signals@^2.1.0:
+   resolved "https://registry.yarnpkg.com/human-signals/-/human-signals-2.1.0.tgz#dc91fcba42e4d06e4abaed33b3e7a3c02f514ea0"
+   integrity sha512-B4FFZ6q/T2jhhksgkbEW3HBvWIfDW85snkQgawt07S7J5QXTk6BkNV+0yAeZrM5QpMAdYlocGoljn0sJ/WQkFw==
+ 
++hyperdyperid@^1.2.0:
++  version "1.2.0"
++  resolved "https://registry.yarnpkg.com/hyperdyperid/-/hyperdyperid-1.2.0.tgz#59668d323ada92228d2a869d3e474d5a33b69e6b"
++  integrity sha512-Y93lCzHYgGWdrJ66yIktxiaGULYc6oGiABxhcO5AufBeOyoIdZF7bIfLaOrbM0iGIOXQQgxxRrFEnb+Y6w1n4A==
++
+ iconv-lite@0.4.24:
+   version "0.4.24"
+   resolved "https://registry.yarnpkg.com/iconv-lite/-/iconv-lite-0.4.24.tgz#2022b4b25fbddc21d2f524974a474aafe733908b"
+@@ -1749,7 +1840,7 @@ ipaddr.js@1.9.1:
+   resolved "https://registry.yarnpkg.com/ipaddr.js/-/ipaddr.js-1.9.1.tgz#bff38543eeb8984825079ff3a2a8e6cbd46781b3"
+   integrity sha512-0KI/607xoxSToH7GjN1FfSbLoU0+btTicjsQSWQlh/hZykN8KpmMf7uYwPW3R+akZ6R/w18ZlXSHBYXiYUPO3g==
+ 
+-ipaddr.js@^2.0.1:
++ipaddr.js@^2.1.0:
+   version "2.2.0"
+   resolved "https://registry.yarnpkg.com/ipaddr.js/-/ipaddr.js-2.2.0.tgz#d33fa7bac284f4de7af949638c9d68157c6b92e8"
+   integrity sha512-Ag3wB2o37wslZS19hZqorUnrnzSkpOVy+IiiDEiTqNubEYpYuHWIf6K4psgN2ZWKExS4xhVCrRVfb/wfW8fWJA==
+@@ -1781,10 +1872,10 @@ is-core-module@^2.13.0:
+   dependencies:
+     hasown "^2.0.0"
+ 
+-is-docker@^2.0.0, is-docker@^2.1.1:
+-  version "2.2.1"
+-  resolved "https://registry.yarnpkg.com/is-docker/-/is-docker-2.2.1.tgz#33eeabe23cfe86f14bde4408a02c0cfb853acdaa"
+-  integrity sha512-F+i2BKsFrH66iaUFc0woD8sLy8getkwTwtOBjvs56Cx4CgJDeKQeqfz8wAYiSb8JOprWhHH5p77PbmYCvvUuXQ==
++is-docker@^3.0.0:
++  version "3.0.0"
++  resolved "https://registry.yarnpkg.com/is-docker/-/is-docker-3.0.0.tgz#90093aa3106277d8a77a5910dbae71747e15a200"
++  integrity sha512-eljcgEDlEns/7AXFosB5K/2nCM4P7FQPkGc/DWLy5rmFEWvZayGrik1d9/QIY5nJ4f9YsVvBkA6kJpHn9rISdQ==
+ 
+ is-extglob@^2.1.1:
+   version "2.1.1"
+@@ -1810,6 +1901,13 @@ is-glob@^4.0.1, is-glob@~4.0.1:
+   dependencies:
+     is-extglob "^2.1.1"
+ 
++is-inside-container@^1.0.0:
++  version "1.0.0"
++  resolved "https://registry.yarnpkg.com/is-inside-container/-/is-inside-container-1.0.0.tgz#e81fba699662eb31dbdaf26766a61d4814717ea4"
++  integrity sha512-KIYLCCJghfHZxqjYBE7rEy0OBuTd5xCHS7tHVgvCLkx7StIoaxwNW3hCALgEUjFfeRk+MG/Qxmp/vtETEF3tRA==
++  dependencies:
++    is-docker "^3.0.0"
++
+ is-nan@^1.3.2:
+   version "1.3.2"
+   resolved "https://registry.yarnpkg.com/is-nan/-/is-nan-1.3.2.tgz#043a54adea31748b55b6cd4e09aadafa69bd9e1d"
+@@ -1818,6 +1916,11 @@ is-nan@^1.3.2:
+     call-bind "^1.0.0"
+     define-properties "^1.1.3"
+ 
++is-network-error@^1.0.0:
++  version "1.1.0"
++  resolved "https://registry.yarnpkg.com/is-network-error/-/is-network-error-1.1.0.tgz#d26a760e3770226d11c169052f266a4803d9c997"
++  integrity sha512-tUdRRAnhT+OtCZR/LxZelH/C7QtjtFrTu5tXCA8pl55eTUElUHT+GPYV8MBMBvea/j+NxQqVt3LbWMRir7Gx9g==
++
+ is-number@^7.0.0:
+   version "7.0.0"
+   resolved "https://registry.yarnpkg.com/is-number/-/is-number-7.0.0.tgz#7535345b896734d5f80c4d06c50955527a14f12b"
+@@ -1857,12 +1960,12 @@ is-unicode-supported@^0.1.0:
+   resolved "https://registry.yarnpkg.com/is-unicode-supported/-/is-unicode-supported-0.1.0.tgz#3f26c76a809593b52bfa2ecb5710ed2779b522a7"
+   integrity sha512-knxG2q4UC3u8stRGyAVJCOdxFmv5DZiRcdlIaAQXAbSfJya+OhopNotLQrstBhququ4ZpuKbDc/8S6mgXgPFPw==
+ 
+-is-wsl@^2.2.0:
+-  version "2.2.0"
+-  resolved "https://registry.yarnpkg.com/is-wsl/-/is-wsl-2.2.0.tgz#74a4c76e77ca9fd3f932f290c17ea326cd157271"
+-  integrity sha512-fKzAra0rGJUUBwGBgNkHZuToZcn+TtXHpeCgmkMJMMYx1sQDYaCSyjJBSCa2nH1DGm7s3n1oBnohoVTBaN7Lww==
++is-wsl@^3.1.0:
++  version "3.1.0"
++  resolved "https://registry.yarnpkg.com/is-wsl/-/is-wsl-3.1.0.tgz#e1c657e39c10090afcbedec61720f6b924c3cbd2"
++  integrity sha512-UcVfVfaK4Sc4m7X3dUSoHoozQGBEFeDC+zVo06t98xe8CzHSZZBekNXH+tu0NalHolcJ/QAGqS46Hef7QXBIMw==
+   dependencies:
+-    is-docker "^2.0.0"
++    is-inside-container "^1.0.0"
+ 
+ isarray@~1.0.0:
+   version "1.0.0"
+@@ -1884,6 +1987,15 @@ isobject@^3.0.1:
+   resolved "https://registry.yarnpkg.com/isobject/-/isobject-3.0.1.tgz#4e431e92b11a9731636aa1f9c8d1ccbcfdab78df"
+   integrity sha512-WhB9zCku7EGTj/HQQRz5aUQEUeoQZH2bWcltRErOpymJ4boYE6wL9Tbr23krRPSZ+C5zqNSrSw+Cc7sZZ4b7vg==
+ 
++jackspeak@^3.1.2:
++  version "3.4.3"
++  resolved "https://registry.yarnpkg.com/jackspeak/-/jackspeak-3.4.3.tgz#8833a9d89ab4acde6188942bd1c53b6390ed5a8a"
++  integrity sha512-OGlZQpz2yfahA/Rd1Y8Cd9SIEsqvXkLVoSw/cgwhnhFMDbsQFeZYoJJ7bIZBS9BcamUW96asq/npPWugM+RQBw==
++  dependencies:
++    "@isaacs/cliui" "^8.0.2"
++  optionalDependencies:
++    "@pkgjs/parseargs" "^0.11.0"
++
+ jest-worker@^27.4.5:
+   version "27.5.1"
+   resolved "https://registry.yarnpkg.com/jest-worker/-/jest-worker-27.5.1.tgz#8d146f0900e8973b106b6f73cc1e9a8cb86f8db0"
+@@ -1943,19 +2055,19 @@ karma-sourcemap-loader@0.4.0:
+   dependencies:
+     graceful-fs "^4.2.10"
+ 
+-karma-webpack@5.0.0:
+-  version "5.0.0"
+-  resolved "https://registry.yarnpkg.com/karma-webpack/-/karma-webpack-5.0.0.tgz#2a2c7b80163fe7ffd1010f83f5507f95ef39f840"
+-  integrity sha512-+54i/cd3/piZuP3dr54+NcFeKOPnys5QeM1IY+0SPASwrtHsliXUiCL50iW+K9WWA7RvamC4macvvQ86l3KtaA==
++karma-webpack@5.0.1:
++  version "5.0.1"
++  resolved "https://registry.yarnpkg.com/karma-webpack/-/karma-webpack-5.0.1.tgz#4eafd31bbe684a747a6e8f3e4ad373e53979ced4"
++  integrity sha512-oo38O+P3W2mSPCSUrQdySSPv1LvPpXP+f+bBimNomS5sW+1V4SuhCuW8TfJzV+rDv921w2fDSDw0xJbPe6U+kQ==
+   dependencies:
+     glob "^7.1.3"
+-    minimatch "^3.0.4"
++    minimatch "^9.0.3"
+     webpack-merge "^4.1.5"
+ 
+-karma@6.4.2:
+-  version "6.4.2"
+-  resolved "https://registry.yarnpkg.com/karma/-/karma-6.4.2.tgz#a983f874cee6f35990c4b2dcc3d274653714de8e"
+-  integrity sha512-C6SU/53LB31BEgRg+omznBEMY4SjHU3ricV6zBcAe1EeILKkeScr+fZXtaI5WyDbkVowJxxAI6h73NcFPmXolQ==
++karma@6.4.3:
++  version "6.4.3"
++  resolved "https://registry.yarnpkg.com/karma/-/karma-6.4.3.tgz#763e500f99597218bbb536de1a14acc4ceea7ce8"
++  integrity sha512-LuucC/RE92tJ8mlCwqEoRWXP38UMAqpnq98vktmS9SznSoUPPUJQbc91dHcxcunROvfQjdORVA/YFviH+Xci9Q==
+   dependencies:
+     "@colors/colors" "1.5.0"
+     body-parser "^1.19.0"
+@@ -1976,7 +2088,7 @@ karma@6.4.2:
+     qjobs "^1.2.0"
+     range-parser "^1.2.1"
+     rimraf "^3.0.2"
+-    socket.io "^4.4.1"
++    socket.io "^4.7.2"
+     source-map "^0.6.1"
+     tmp "^0.2.1"
+     ua-parser-js "^0.7.30"
+@@ -1987,10 +2099,10 @@ kind-of@^6.0.2:
+   resolved "https://registry.yarnpkg.com/kind-of/-/kind-of-6.0.3.tgz#07c05034a6c349fa06e24fa35aa76db4580ce4dd"
+   integrity sha512-dcS1ul+9tmeD95T+x28/ehLgd9mENa3LsvDTtzm3vyBEO7RPptvAD+t44WVXaUjTBRcrpFeFlC8WCruUR456hw==
+ 
+-launch-editor@^2.6.0:
+-  version "2.7.0"
+-  resolved "https://registry.yarnpkg.com/launch-editor/-/launch-editor-2.7.0.tgz#53ba12b3eb131edefee99acaef7850c40272273f"
+-  integrity sha512-KAc66u6LxWL8MifQ94oG3YGKYWDwz/Gi0T15lN//GaQoZe08vQGFJxrXkPAeu50UXgvJPPaRKVGuP1TRUm/aHQ==
++launch-editor@^2.6.1:
++  version "2.8.0"
++  resolved "https://registry.yarnpkg.com/launch-editor/-/launch-editor-2.8.0.tgz#7255d90bdba414448e2138faa770a74f28451305"
++  integrity sha512-vJranOAJrI/llyWGRQqiDM+adrw+k83fvmmx3+nV47g3+36xM15jE+zyZ6Ffel02+xSvuM0b2GDRosXZkbb6wA==
+   dependencies:
+     picocolors "^1.0.0"
+     shell-quote "^1.8.1"
+@@ -2038,6 +2150,11 @@ log4js@^6.4.1:
+     rfdc "^1.3.0"
+     streamroller "^3.1.5"
+ 
++lru-cache@^10.2.0:
++  version "10.4.3"
++  resolved "https://registry.yarnpkg.com/lru-cache/-/lru-cache-10.4.3.tgz#410fc8a17b70e598013df257c2446b7f3383f119"
++  integrity sha512-JNAzZcXrCt42VGLuYz0zfAzDfAvJWW6AfYlDBQyDV5DClI2m5sAmK+OIO7s59XfsRsWHp02jAJrRadPRGTt6SQ==
++
+ md5.js@^1.3.4:
+   version "1.3.5"
+   resolved "https://registry.yarnpkg.com/md5.js/-/md5.js-1.3.5.tgz#b5d07b8e3216e3e27cd728d72f70d1e6a342005f"
+@@ -2052,12 +2169,15 @@ media-typer@0.3.0:
+   resolved "https://registry.yarnpkg.com/media-typer/-/media-typer-0.3.0.tgz#8710d7af0aa626f8fffa1ce00168545263255748"
+   integrity sha512-dq+qelQ9akHpcOl/gUVRTxVIOkAJ1wR3QAvb4RsVjS8oVoFjDGTc679wJYmUmknUF5HwMLOgb5O+a3KxfWapPQ==
+ 
+-memfs@^3.4.3:
+-  version "3.6.0"
+-  resolved "https://registry.yarnpkg.com/memfs/-/memfs-3.6.0.tgz#d7a2110f86f79dd950a8b6df6d57bc984aa185f6"
+-  integrity sha512-EGowvkkgbMcIChjMTMkESFDbZeSh8xZ7kNSF0hAiAN4Jh6jgHCRS0Ga/+C8y6Au+oqpezRHCfPsmJ2+DwAgiwQ==
++memfs@^4.6.0:
++  version "4.9.3"
++  resolved "https://registry.yarnpkg.com/memfs/-/memfs-4.9.3.tgz#41a3218065fe3911d9eba836250c8f4e43f816bc"
++  integrity sha512-bsYSSnirtYTWi1+OPMFb0M048evMKyUYe0EbtuGQgq6BVQM1g1W8/KIUJCCvjgI/El0j6Q4WsmMiBwLUBSw8LA==
+   dependencies:
+-    fs-monkey "^1.0.4"
++    "@jsonjoy.com/json-pack" "^1.0.3"
++    "@jsonjoy.com/util" "^1.1.2"
++    tree-dump "^1.0.1"
++    tslib "^2.0.0"
+ 
+ merge-descriptors@1.0.1:
+   version "1.0.1"
+@@ -2141,11 +2261,30 @@ minimatch@^3.0.4, minimatch@^3.1.1:
+   dependencies:
+     brace-expansion "^1.1.7"
+ 
++minimatch@^5.0.1:
++  version "5.1.6"
++  resolved "https://registry.yarnpkg.com/minimatch/-/minimatch-5.1.6.tgz#1cfcb8cf5522ea69952cd2af95ae09477f122a96"
++  integrity sha512-lKwV/1brpG6mBUFHtb7NUmtABCb2WZZmm2wNiOA5hAb8VdCS4B3dtMWyvcoViccwAW/COERjXLt0zP1zXUN26g==
++  dependencies:
++    brace-expansion "^2.0.1"
++
++minimatch@^9.0.3, minimatch@^9.0.4:
++  version "9.0.5"
++  resolved "https://registry.yarnpkg.com/minimatch/-/minimatch-9.0.5.tgz#d74f9dd6b57d83d8e98cfb82133b03978bc929e5"
++  integrity sha512-G6T0ZX48xgozx7587koeX9Ys2NYy6Gmv//P89sEte9V9whIapMNF4idKxnW2QtCcLiTWlb/wfCabAtAFWhhBow==
++  dependencies:
++    brace-expansion "^2.0.1"
++
+ minimist@^1.2.3, minimist@^1.2.6:
+   version "1.2.8"
+   resolved "https://registry.yarnpkg.com/minimist/-/minimist-1.2.8.tgz#c1a464e7693302e082a075cee0c057741ac4772c"
+   integrity sha512-2yyAR8qBkN3YuheJanUpWC5U3bb5osDywNB8RzDVlDwDHbocAJveqqj1u8+SVD7jkWT4yvsHCpWqqWqAxb0zCA==
+ 
++"minipass@^5.0.0 || ^6.0.2 || ^7.0.0", minipass@^7.1.2:
++  version "7.1.2"
++  resolved "https://registry.yarnpkg.com/minipass/-/minipass-7.1.2.tgz#93a9626ce5e5e66bd4db86849e7515e92340a707"
++  integrity sha512-qOOzS1cBTWYF4BH8fVePDBOO9iptMnGUEZwNc/cMWnTV2nVLZ7VoNWEPHkYczZA0pdoA7dl6e7FL659nX9S2aw==
++
+ mkdirp@^0.5.5:
+   version "0.5.6"
+   resolved "https://registry.yarnpkg.com/mkdirp/-/mkdirp-0.5.6.tgz#7def03d2432dcae4ba1d611445c48396062255f6"
+@@ -2153,10 +2292,10 @@ mkdirp@^0.5.5:
+   dependencies:
+     minimist "^1.2.6"
+ 
+-mocha@10.2.0:
+-  version "10.2.0"
+-  resolved "https://registry.yarnpkg.com/mocha/-/mocha-10.2.0.tgz#1fd4a7c32ba5ac372e03a17eef435bd00e5c68b8"
+-  integrity sha512-IDY7fl/BecMwFHzoqF2sg/SHHANeBoMMXFlS9r0OXKDssYE1M5O43wUY/9BVPeIvfH2zmEbBfseqN9gBQZzXkg==
++mocha@10.3.0:
++  version "10.3.0"
++  resolved "https://registry.yarnpkg.com/mocha/-/mocha-10.3.0.tgz#0e185c49e6dccf582035c05fa91084a4ff6e3fe9"
++  integrity sha512-uF2XJs+7xSLsrmIvn37i/wnc91nw7XjOQB8ccyx5aEgdnohr7n+rEiZP23WkCYHjilR6+EboEnbq/ZQDz4LSbg==
+   dependencies:
+     ansi-colors "4.1.1"
+     browser-stdout "1.3.1"
+@@ -2165,13 +2304,12 @@ mocha@10.2.0:
+     diff "5.0.0"
+     escape-string-regexp "4.0.0"
+     find-up "5.0.0"
+-    glob "7.2.0"
++    glob "8.1.0"
+     he "1.2.0"
+     js-yaml "4.1.0"
+     log-symbols "4.1.0"
+     minimatch "5.0.1"
+     ms "2.1.3"
+-    nanoid "3.3.3"
+     serialize-javascript "6.0.0"
+     strip-json-comments "3.1.1"
+     supports-color "8.1.1"
+@@ -2203,11 +2341,6 @@ multicast-dns@^7.2.5:
+     dns-packet "^5.2.2"
+     thunky "^1.0.2"
+ 
+-nanoid@3.3.3:
+-  version "3.3.3"
+-  resolved "https://registry.yarnpkg.com/nanoid/-/nanoid-3.3.3.tgz#fd8e8b7aa761fe807dba2d1b98fb7241bb724a25"
+-  integrity sha512-p1sjXuopFs0xg+fPASzQ28agW1oHD7xDsd9Xkf3T15H3c/cifrFHVwrh74PdoklAPi+i7MdRsE47vm2r6JoB+w==
+-
+ negotiator@0.6.3:
+   version "0.6.3"
+   resolved "https://registry.yarnpkg.com/negotiator/-/negotiator-0.6.3.tgz#58e323a72fedc0d6f9cd4d31fe49f51479590ccd"
+@@ -2315,7 +2448,7 @@ obuf@^1.0.0, obuf@^1.1.2:
+   resolved "https://registry.yarnpkg.com/obuf/-/obuf-1.1.2.tgz#09bea3343d41859ebd446292d11c9d4db619084e"
+   integrity sha512-PX1wu0AmAdPqOL1mWhqmlOd8kOIZQwGZw6rh7uby9fTc5lhaOWFLX3I6R1hrF9k3zUY40e6igsLGkDXK92LJNg==
+ 
+-on-finished@2.4.1:
++on-finished@2.4.1, on-finished@^2.4.1:
+   version "2.4.1"
+   resolved "https://registry.yarnpkg.com/on-finished/-/on-finished-2.4.1.tgz#58c8c44116e54845ad57f14ab10b03533184ac3f"
+   integrity sha512-oVlzkg3ENAhCk2zdv7IJwd/QUD4z2RxRwpkcGY8psCVcCYZNq4wYnVWALHM+brtuJjePWiYF/ClmuDr8Ch5+kg==
+@@ -2348,14 +2481,15 @@ onetime@^5.1.2:
+   dependencies:
+     mimic-fn "^2.1.0"
+ 
+-open@^8.0.9:
+-  version "8.4.2"
+-  resolved "https://registry.yarnpkg.com/open/-/open-8.4.2.tgz#5b5ffe2a8f793dcd2aad73e550cb87b59cb084f9"
+-  integrity sha512-7x81NCL719oNbsq/3mh+hVrAWmFuEYUqrq/Iw3kUzH8ReypT9QQ0BLoJS7/G9k6N81XjW4qHWtjWwe/9eLy1EQ==
++open@^10.0.3:
++  version "10.1.0"
++  resolved "https://registry.yarnpkg.com/open/-/open-10.1.0.tgz#a7795e6e5d519abe4286d9937bb24b51122598e1"
++  integrity sha512-mnkeQ1qP5Ue2wd+aivTD3NHd/lZ96Lu0jgf0pwktLPtx6cTZiH7tyeGRRHs0zX0rbrahXPnXlUnbeXyaBBuIaw==
+   dependencies:
+-    define-lazy-prop "^2.0.0"
+-    is-docker "^2.1.1"
+-    is-wsl "^2.2.0"
++    default-browser "^5.2.1"
++    define-lazy-prop "^3.0.0"
++    is-inside-container "^1.0.0"
++    is-wsl "^3.1.0"
+ 
+ os-browserify@^0.3.0:
+   version "0.3.0"
+@@ -2390,12 +2524,13 @@ p-locate@^5.0.0:
+   dependencies:
+     p-limit "^3.0.2"
+ 
+-p-retry@^4.5.0:
+-  version "4.6.2"
+-  resolved "https://registry.yarnpkg.com/p-retry/-/p-retry-4.6.2.tgz#9baae7184057edd4e17231cee04264106e092a16"
+-  integrity sha512-312Id396EbJdvRONlngUx0NydfrIQ5lsYu0znKVUzVvArzEIt08V1qhtyESbGVd1FGX7UKtiFp5uwKZdM8wIuQ==
++p-retry@^6.2.0:
++  version "6.2.0"
++  resolved "https://registry.yarnpkg.com/p-retry/-/p-retry-6.2.0.tgz#8d6df01af298750009691ce2f9b3ad2d5968f3bd"
++  integrity sha512-JA6nkq6hKyWLLasXQXUrO4z8BUZGUt/LjlJxx8Gb2+2ntodU/SS63YZ8b0LUTbQ8ZB9iwOfhEPhg4ykKnn2KsA==
+   dependencies:
+-    "@types/retry" "0.12.0"
++    "@types/retry" "0.12.2"
++    is-network-error "^1.0.0"
+     retry "^0.13.1"
+ 
+ p-try@^2.0.0:
+@@ -2403,6 +2538,11 @@ p-try@^2.0.0:
+   resolved "https://registry.yarnpkg.com/p-try/-/p-try-2.2.0.tgz#cb2868540e313d61de58fafbe35ce9004d5540e6"
+   integrity sha512-R4nPAVTAU0B9D35/Gk3uJf/7XYbQcyohSKdvAxIRSNghFl4e71hVoGnBNQz9cWaXxO2I10KTC+3jMdvvoKw6dQ==
+ 
++package-json-from-dist@^1.0.0:
++  version "1.0.0"
++  resolved "https://registry.yarnpkg.com/package-json-from-dist/-/package-json-from-dist-1.0.0.tgz#e501cd3094b278495eb4258d4c9f6d5ac3019f00"
++  integrity sha512-dATvCeZN/8wQsGywez1mzHtTlP22H8OEfPrVMLNr4/eGa+ijtLn/6M5f0dY8UKNrC2O9UCU6SSoG3qRKnt7STw==
++
+ pako@~1.0.5:
+   version "1.0.11"
+   resolved "https://registry.yarnpkg.com/pako/-/pako-1.0.11.tgz#6c9599d340d54dfd3946380252a35705a6b992bf"
+@@ -2450,6 +2590,14 @@ path-parse@^1.0.7:
+   resolved "https://registry.yarnpkg.com/path-parse/-/path-parse-1.0.7.tgz#fbc114b60ca42b30d9daf5858e4bd68bbedb6735"
+   integrity sha512-LDJzPVEEEPR+y48z93A0Ed0yXb8pAByGWo/k5YYdYgpY2/2EsOsksJrq7lOHxryrVOn1ejG6oAp8ahvOIQD8sw==
+ 
++path-scurry@^1.11.1:
++  version "1.11.1"
++  resolved "https://registry.yarnpkg.com/path-scurry/-/path-scurry-1.11.1.tgz#7960a668888594a0720b12a911d1a742ab9f11d2"
++  integrity sha512-Xa4Nw17FS9ApQFJ9umLiJS4orGjm7ZzwUrwamcGQuHSzDyth9boKDaycYdDcZDuqYATXw4HFXgaqWTctW/v1HA==
++  dependencies:
++    lru-cache "^10.2.0"
++    minipass "^5.0.0 || ^6.0.2 || ^7.0.0"
++
+ path-to-regexp@0.1.7:
+   version "0.1.7"
+   resolved "https://registry.yarnpkg.com/path-to-regexp/-/path-to-regexp-0.1.7.tgz#df604178005f522f15eb4490e7247a1bfaa67f8c"
+@@ -2682,6 +2830,13 @@ rimraf@^3.0.2:
+   dependencies:
+     glob "^7.1.3"
+ 
++rimraf@^5.0.5:
++  version "5.0.9"
++  resolved "https://registry.yarnpkg.com/rimraf/-/rimraf-5.0.9.tgz#c3baa1b886eadc2ec7981a06a593c3d01134ffe9"
++  integrity sha512-3i7b8OcswU6CpU8Ej89quJD4O98id7TtVM5U4Mybh84zQXdrFmDLouWBEEaD/QfO3gDDfH+AGFCGsR7kngzQnA==
++  dependencies:
++    glob "^10.3.7"
++
+ ripemd160@^2.0.0, ripemd160@^2.0.1:
+   version "2.0.2"
+   resolved "https://registry.yarnpkg.com/ripemd160/-/ripemd160-2.0.2.tgz#a1c1a6f624751577ba5d07914cbc92850585890c"
+@@ -2690,6 +2845,11 @@ ripemd160@^2.0.0, ripemd160@^2.0.1:
+     hash-base "^3.0.0"
+     inherits "^2.0.1"
+ 
++run-applescript@^7.0.0:
++  version "7.0.0"
++  resolved "https://registry.yarnpkg.com/run-applescript/-/run-applescript-7.0.0.tgz#e5a553c2bffd620e169d276c1cd8f1b64778fbeb"
++  integrity sha512-9by4Ij99JUr/MCFBUkDKLWK3G9HVXmabKz9U5MlIAIuvuzkiOicRYs8XJLxX+xahD+mLiiCYDqF9dKAgtzKP1A==
++
+ safe-buffer@5.1.2, safe-buffer@~5.1.0, safe-buffer@~5.1.1:
+   version "5.1.2"
+   resolved "https://registry.yarnpkg.com/safe-buffer/-/safe-buffer-5.1.2.tgz#991ec69d296e0313747d59bdfd2b745c35f8828d"
+@@ -2705,7 +2865,7 @@ safe-buffer@5.2.1, safe-buffer@>=5.1.0, safe-buffer@^5.0.1, safe-buffer@^5.1.0,
+   resolved "https://registry.yarnpkg.com/safer-buffer/-/safer-buffer-2.1.2.tgz#44fa161b0187b9549dd84bb91802f9bd8385cd6a"
+   integrity sha512-YZo3K82SD7Riyi0E1EQPojLz7kpepnSQI9IyPbHHg1XXXevb5dJI7tpyN2ADxGcQbHG7vcyRHk0cbwqcQriUtg==
+ 
+-schema-utils@^3.1.1, schema-utils@^3.1.2:
++schema-utils@^3.1.1, schema-utils@^3.2.0:
+   version "3.3.0"
+   resolved "https://registry.yarnpkg.com/schema-utils/-/schema-utils-3.3.0.tgz#f50a88877c3c01652a15b622ae9e9795df7a60fe"
+   integrity sha512-pN/yOAvcC+5rQ5nERGuwrjLlYvLTbCibnZ1I7B1LaiAz9BRBlE9GMgE/eqV30P7aJQUf7Ddimy/RsbYO/GrVGg==
+@@ -2714,7 +2874,7 @@ schema-utils@^3.1.1, schema-utils@^3.1.2:
+     ajv "^6.12.5"
+     ajv-keywords "^3.5.2"
+ 
+-schema-utils@^4.0.0:
++schema-utils@^4.0.0, schema-utils@^4.2.0:
+   version "4.2.0"
+   resolved "https://registry.yarnpkg.com/schema-utils/-/schema-utils-4.2.0.tgz#70d7c93e153a273a805801882ebd3bff20d89c8b"
+   integrity sha512-L0jRsrPpjdckP3oPug3/VxNKt2trR8TcabrM6FOAAlvC/9Phcmm+cuAgTlxBqdBR1WJx7Naj9WHw+aOmheSVbw==
+@@ -2729,7 +2889,7 @@ select-hose@^2.0.0:
+   resolved "https://registry.yarnpkg.com/select-hose/-/select-hose-2.0.0.tgz#625d8658f865af43ec962bfc376a37359a4994ca"
+   integrity sha512-mEugaLK+YfkijB4fx0e6kImuJdCIt2LxCRcbEYPqRGCs4F2ogyfZU5IAZRdjCP8JPq2AtdNoC/Dux63d9Kiryg==
+ 
+-selfsigned@^2.1.1:
++selfsigned@^2.4.1:
+   version "2.4.1"
+   resolved "https://registry.yarnpkg.com/selfsigned/-/selfsigned-2.4.1.tgz#560d90565442a3ed35b674034cec4e95dceb4ae0"
+   integrity sha512-th5B4L2U+eGLq1TVh7zNRGBapioSORUeymIydxgFpwww9d2qyKvtuPU2jJuHvYAwwqi2Y596QBL3eEqcPEYL8Q==
+@@ -2867,6 +3027,11 @@ signal-exit@^3.0.3:
+   resolved "https://registry.yarnpkg.com/signal-exit/-/signal-exit-3.0.7.tgz#a9a1767f8af84155114eaabd73f99273c8f59ad9"
+   integrity sha512-wnD2ZE+l+SPC/uoS0vXeE9L1+0wuaMqKlfz9AMUo38JsyLSBWSFcHR1Rri62LZc12vLr1gb3jl7iwQhgwpAbGQ==
+ 
++signal-exit@^4.0.1:
++  version "4.1.0"
++  resolved "https://registry.yarnpkg.com/signal-exit/-/signal-exit-4.1.0.tgz#952188c1cbd546070e2dd20d0f41c0ae0530cb04"
++  integrity sha512-bzyZ1e88w9O1iNJbKnOlvYTrWPDl46O1bG0D3XInv+9tkPrxrN8jUUTiFlDkkmKWgn1M6CfIA13SuGqOa9Korw==
++
+ socket.io-adapter@~2.5.2:
+   version "2.5.4"
+   resolved "https://registry.yarnpkg.com/socket.io-adapter/-/socket.io-adapter-2.5.4.tgz#4fdb1358667f6d68f25343353bd99bd11ee41006"
+@@ -2883,7 +3048,7 @@ socket.io-parser@~4.2.4:
+     "@socket.io/component-emitter" "~3.1.0"
+     debug "~4.3.1"
+ 
+-socket.io@^4.4.1:
++socket.io@^4.7.2:
+   version "4.7.5"
+   resolved "https://registry.yarnpkg.com/socket.io/-/socket.io-4.7.5.tgz#56eb2d976aef9d1445f373a62d781a41c7add8f8"
+   integrity sha512-DmeAkF6cwM9jSfmp6Dr/5/mfMwb5Z5qRrSXLpo3Fq5SqyU8CMF15jIN4ZhfSwu35ksM1qmHZDQ/DK5XTccSTvA==
+@@ -2910,12 +3075,11 @@ source-map-js@^1.0.2:
+   resolved "https://registry.yarnpkg.com/source-map-js/-/source-map-js-1.2.0.tgz#16b809c162517b5b8c3e7dcd315a2a5c2612b2af"
+   integrity sha512-itJW8lvSA0TXEphiRoawsCksnlf8SyvmFzIhltqAHluXd88pkCd+cXJVHTDwdCr0IzwptSm035IHQktUu1QUMg==
+ 
+-source-map-loader@4.0.1:
+-  version "4.0.1"
+-  resolved "https://registry.yarnpkg.com/source-map-loader/-/source-map-loader-4.0.1.tgz#72f00d05f5d1f90f80974eda781cbd7107c125f2"
+-  integrity sha512-oqXpzDIByKONVY8g1NUPOTQhe0UTU5bWUl32GSkqK2LjJj0HmwTMVKxcUip0RgAYhY1mqgOxjbQM48a0mmeNfA==
++source-map-loader@5.0.0:
++  version "5.0.0"
++  resolved "https://registry.yarnpkg.com/source-map-loader/-/source-map-loader-5.0.0.tgz#f593a916e1cc54471cfc8851b905c8a845fc7e38"
++  integrity sha512-k2Dur7CbSLcAH73sBcIkV5xjPV4SzqO1NJ7+XaQl8if3VODDUj3FNchNGpqgJSKbvUfJuhVdv8K2Eu8/TNl2eA==
+   dependencies:
+-    abab "^2.0.6"
+     iconv-lite "^0.6.3"
+     source-map-js "^1.0.2"
+ 
+@@ -2992,7 +3156,7 @@ streamroller@^3.1.5:
+     debug "^4.3.4"
+     fs-extra "^8.1.0"
+ 
+-string-width@^4.1.0, string-width@^4.2.0:
++"string-width-cjs@npm:string-width@^4.2.0", string-width@^4.1.0, string-width@^4.2.0:
+   version "4.2.3"
+   resolved "https://registry.yarnpkg.com/string-width/-/string-width-4.2.3.tgz#269c7117d27b05ad2e536830a8ec895ef9c6d010"
+   integrity sha512-wKyQRQpjJ0sIp62ErSZdGsjMJWsap5oRNihHhu6G7JVO/9jIB6UyevL+tXuOqrng8j/cxKTWyWUwvSTriiZz/g==
+@@ -3001,6 +3165,15 @@ string-width@^4.1.0, string-width@^4.2.0:
+     is-fullwidth-code-point "^3.0.0"
+     strip-ansi "^6.0.1"
+ 
++string-width@^5.0.1, string-width@^5.1.2:
++  version "5.1.2"
++  resolved "https://registry.yarnpkg.com/string-width/-/string-width-5.1.2.tgz#14f8daec6d81e7221d2a357e668cab73bdbca794"
++  integrity sha512-HnLOCR3vjcY8beoNLtcjZ5/nxn2afmME6lhrDrebokqMap+XbeW8n9TXpPDOqdGK5qcI3oT0GKTW6wC7EMiVqA==
++  dependencies:
++    eastasianwidth "^0.2.0"
++    emoji-regex "^9.2.2"
++    strip-ansi "^7.0.1"
++
+ string_decoder@^1.1.1, string_decoder@^1.3.0:
+   version "1.3.0"
+   resolved "https://registry.yarnpkg.com/string_decoder/-/string_decoder-1.3.0.tgz#42f114594a46cf1a8e30b0a84f56c78c3edac21e"
+@@ -3015,13 +3188,20 @@ string_decoder@~1.1.1:
+   dependencies:
+     safe-buffer "~5.1.0"
+ 
+-strip-ansi@^6.0.0, strip-ansi@^6.0.1:
++"strip-ansi-cjs@npm:strip-ansi@^6.0.1", strip-ansi@^6.0.0, strip-ansi@^6.0.1:
+   version "6.0.1"
+   resolved "https://registry.yarnpkg.com/strip-ansi/-/strip-ansi-6.0.1.tgz#9e26c63d30f53443e9489495b2105d37b67a85d9"
+   integrity sha512-Y38VPSHcqkFrCpFnQ9vuSXmquuv5oXOKpGeT6aGrr3o3Gc9AlVa6JBfUSOCnbxGGZF+/0ooI7KrPuUSztUdU5A==
+   dependencies:
+     ansi-regex "^5.0.1"
+ 
++strip-ansi@^7.0.1:
++  version "7.1.0"
++  resolved "https://registry.yarnpkg.com/strip-ansi/-/strip-ansi-7.1.0.tgz#d5b6568ca689d8561370b0707685d22434faff45"
++  integrity sha512-iq6eVVI64nQQTRYq2KtEg2d2uU7LElhTJwsH4YzIHZshxlgZms/wIc4VoDQTlG/IvVIrBKG06CrZnp0qv7hkcQ==
++  dependencies:
++    ansi-regex "^6.0.1"
++
+ strip-final-newline@^2.0.0:
+   version "2.0.0"
+   resolved "https://registry.yarnpkg.com/strip-final-newline/-/strip-final-newline-2.0.0.tgz#89b852fb2fcbe936f6f4b3187afb0a12c1ab58ad"
+@@ -3056,7 +3236,7 @@ tapable@^2.1.1, tapable@^2.2.0:
+   resolved "https://registry.yarnpkg.com/tapable/-/tapable-2.2.1.tgz#1967a73ef4060a82f12ab96af86d52fdb76eeca0"
+   integrity sha512-GNzQvQTOIP6RyTfE2Qxb8ZVlNmw0n88vp1szwWRimP02mnTsx3Wtn5qRdqY9w2XduFNUgvOwhNnQsjwCp+kqaQ==
+ 
+-terser-webpack-plugin@^5.3.7:
++terser-webpack-plugin@^5.3.10:
+   version "5.3.10"
+   resolved "https://registry.yarnpkg.com/terser-webpack-plugin/-/terser-webpack-plugin-5.3.10.tgz#904f4c9193c6fd2a03f693a2150c62a92f40d199"
+   integrity sha512-BKFPWlPDndPs+NGGCr1U59t0XScL5317Y0UReNrHaw9/FwhPENlq6bfgs+4yPfyP51vqC1bQ4rp1EfXW5ZSH9w==
+@@ -3077,6 +3257,11 @@ terser@^5.26.0:
+     commander "^2.20.0"
+     source-map-support "~0.5.20"
+ 
++thingies@^1.20.0:
++  version "1.21.0"
++  resolved "https://registry.yarnpkg.com/thingies/-/thingies-1.21.0.tgz#e80fbe58fd6fdaaab8fad9b67bd0a5c943c445c1"
++  integrity sha512-hsqsJsFMsV+aD4s3CWKk85ep/3I9XzYV/IXaSouJMYIoDlgyi11cBhsqYe9/geRfB0YIikBQg6raRaM+nIMP9g==
++
+ thunky@^1.0.2:
+   version "1.1.0"
+   resolved "https://registry.yarnpkg.com/thunky/-/thunky-1.1.0.tgz#5abaf714a9405db0504732bbccd2cedd9ef9537d"
+@@ -3111,6 +3296,16 @@ tr46@~0.0.3:
+   resolved "https://registry.yarnpkg.com/tr46/-/tr46-0.0.3.tgz#8184fd347dac9cdc185992f3a6622e14b9d9ab6a"
+   integrity sha512-N3WMsuqV66lT30CrXNbEjx4GEwlow3v6rr4mCcv6prnfwhS01rkgyFdjPNBYd9br7LpXV1+Emh01fHnq2Gdgrw==
+ 
++tree-dump@^1.0.1:
++  version "1.0.2"
++  resolved "https://registry.yarnpkg.com/tree-dump/-/tree-dump-1.0.2.tgz#c460d5921caeb197bde71d0e9a7b479848c5b8ac"
++  integrity sha512-dpev9ABuLWdEubk+cIaI9cHwRNNDjkBBLXTwI4UCUFdQ5xXKqNXoK4FEciw/vxf+NQ7Cb7sGUyeUtORvHIdRXQ==
++
++tslib@^2.0.0:
++  version "2.6.3"
++  resolved "https://registry.yarnpkg.com/tslib/-/tslib-2.6.3.tgz#0438f810ad7a9edcde7a241c3d80db693c8cbfe0"
++  integrity sha512-xNvxJEOUiWPGhUuUdQgAJPKOOJfGnIyKySOc09XkKsgdUV/3E2zvwZYdejjmRgPCgcym1juLH3226yA7sEFJKQ==
++
+ tty-browserify@^0.0.1:
+   version "0.0.1"
+   resolved "https://registry.yarnpkg.com/tty-browserify/-/tty-browserify-0.0.1.tgz#3f05251ee17904dfd0677546670db9651682b811"
+@@ -3129,10 +3324,10 @@ type-is@~1.6.18:
+     media-typer "0.3.0"
+     mime-types "~2.1.24"
+ 
+-typescript@5.0.4:
+-  version "5.0.4"
+-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-5.0.4.tgz#b217fd20119bd61a94d4011274e0ab369058da3b"
+-  integrity sha512-cW9T5W9xY37cc+jfEnaUvX91foxtHkza3Nw3wkoF4sSlKn0MONdkdEndig/qPBWXNkmplh3NzayQzCiHM4/hqw==
++typescript@5.4.3:
++  version "5.4.3"
++  resolved "https://registry.yarnpkg.com/typescript/-/typescript-5.4.3.tgz#5c6fedd4c87bee01cd7a528a30145521f8e0feff"
++  integrity sha512-KrPd3PKaCLr78MalgiwJnA25Nm8HAmdwN3mYUYZgG/wizIo9EainNVQI9/yDavtVFRN2h3k8uf3GLHuhDMgEHg==
+ 
+ ua-parser-js@^0.7.30:
+   version "0.7.38"
+@@ -3154,10 +3349,10 @@ unpipe@1.0.0, unpipe@~1.0.0:
+   resolved "https://registry.yarnpkg.com/unpipe/-/unpipe-1.0.0.tgz#b2bf4ee8514aae6165b4817829d21b2ef49904ec"
+   integrity sha512-pjy2bYhSsufwWlKwPc+l3cN7+wuJlK6uz0YdJEOlQDbl6jo/YlPi4mb8agUkVC8BF7V8NuzeyPNqRksA3hztKQ==
+ 
+-update-browserslist-db@^1.0.16:
+-  version "1.0.16"
+-  resolved "https://registry.yarnpkg.com/update-browserslist-db/-/update-browserslist-db-1.0.16.tgz#f6d489ed90fb2f07d67784eb3f53d7891f736356"
+-  integrity sha512-KVbTxlBYlckhF5wgfyZXTWnMn7MMZjMu9XG8bPlliUOP9ThaF4QnhP8qrjrH7DRzHfSk0oQv1wToW+iA5GajEQ==
++update-browserslist-db@^1.1.0:
++  version "1.1.0"
++  resolved "https://registry.yarnpkg.com/update-browserslist-db/-/update-browserslist-db-1.1.0.tgz#7ca61c0d8650766090728046e416a8cde682859e"
++  integrity sha512-EdRAaAyk2cUE1wOf2DkEhzxqOQvFOoRJFNS6NeyJ01Gp2beMRpBAINjM2iDXE3KCuKhwnvHIQCJm6ThL2Z+HzQ==
+   dependencies:
+     escalade "^3.1.2"
+     picocolors "^1.0.1"
+@@ -3218,7 +3413,7 @@ void-elements@^2.0.0:
+   resolved "https://registry.yarnpkg.com/void-elements/-/void-elements-2.0.1.tgz#c066afb582bb1cb4128d60ea92392e94d5e9dbec"
+   integrity sha512-qZKX4RnBzH2ugr8Lxa7x+0V6XD9Sb/ouARtiasEQCHB1EVU4NXtmHsDDrx1dO4ne5fc3J6EW05BP1Dl0z0iung==
+ 
+-watchpack@^2.4.0:
++watchpack@^2.4.1:
+   version "2.4.1"
+   resolved "https://registry.yarnpkg.com/watchpack/-/watchpack-2.4.1.tgz#29308f2cac150fa8e4c92f90e0ec954a9fed7fff"
+   integrity sha512-8wrBCMtVhqcXP2Sup1ctSkga6uc2Bx0IIvKyT7yTFier5AXHooSI+QyQQAtTb7+E0IUCCKyTFmXqdqgum2XWGg==
+@@ -3238,15 +3433,15 @@ webidl-conversions@^3.0.0:
+   resolved "https://registry.yarnpkg.com/webidl-conversions/-/webidl-conversions-3.0.1.tgz#24534275e2a7bc6be7bc86611cc16ae0a5654871"
+   integrity sha512-2JAn3z8AR6rjK8Sm8orRC0h/bcl/DqL7tRPdGZ4I1CjdF+EaMLmYxBHyXuKL849eucPFhvBoxMsflfOb8kxaeQ==
+ 
+-webpack-cli@5.1.0:
+-  version "5.1.0"
+-  resolved "https://registry.yarnpkg.com/webpack-cli/-/webpack-cli-5.1.0.tgz#abc4b1f44b50250f2632d8b8b536cfe2f6257891"
+-  integrity sha512-a7KRJnCxejFoDpYTOwzm5o21ZXMaNqtRlvS183XzGDUPRdVEzJNImcQokqYZ8BNTnk9DkKiuWxw75+DCCoZ26w==
++webpack-cli@5.1.4:
++  version "5.1.4"
++  resolved "https://registry.yarnpkg.com/webpack-cli/-/webpack-cli-5.1.4.tgz#c8e046ba7eaae4911d7e71e2b25b776fcc35759b"
++  integrity sha512-pIDJHIEI9LR0yxHXQ+Qh95k2EvXpWzZ5l+d+jIo+RdSm9MiHfzazIxwwni/p7+x4eJZuvG1AJwgC4TNQ7NRgsg==
+   dependencies:
+     "@discoveryjs/json-ext" "^0.5.0"
+-    "@webpack-cli/configtest" "^2.1.0"
+-    "@webpack-cli/info" "^2.0.1"
+-    "@webpack-cli/serve" "^2.0.3"
++    "@webpack-cli/configtest" "^2.1.1"
++    "@webpack-cli/info" "^2.0.2"
++    "@webpack-cli/serve" "^2.0.5"
+     colorette "^2.0.14"
+     commander "^10.0.1"
+     cross-spawn "^7.0.3"
+@@ -3257,52 +3452,53 @@ webpack-cli@5.1.0:
+     rechoir "^0.8.0"
+     webpack-merge "^5.7.3"
+ 
+-webpack-dev-middleware@^5.3.1:
+-  version "5.3.4"
+-  resolved "https://registry.yarnpkg.com/webpack-dev-middleware/-/webpack-dev-middleware-5.3.4.tgz#eb7b39281cbce10e104eb2b8bf2b63fce49a3517"
+-  integrity sha512-BVdTqhhs+0IfoeAf7EoH5WE+exCmqGerHfDM0IL096Px60Tq2Mn9MAbnaGUe6HiMa41KMCYF19gyzZmBcq/o4Q==
++webpack-dev-middleware@^7.1.0:
++  version "7.2.1"
++  resolved "https://registry.yarnpkg.com/webpack-dev-middleware/-/webpack-dev-middleware-7.2.1.tgz#2af00538b6e4eda05f5afdd5d711dbebc05958f7"
++  integrity sha512-hRLz+jPQXo999Nx9fXVdKlg/aehsw1ajA9skAneGmT03xwmyuhvF93p6HUKKbWhXdcERtGTzUCtIQr+2IQegrA==
+   dependencies:
+     colorette "^2.0.10"
+-    memfs "^3.4.3"
++    memfs "^4.6.0"
+     mime-types "^2.1.31"
++    on-finished "^2.4.1"
+     range-parser "^1.2.1"
+     schema-utils "^4.0.0"
+ 
+-webpack-dev-server@4.15.0:
+-  version "4.15.0"
+-  resolved "https://registry.yarnpkg.com/webpack-dev-server/-/webpack-dev-server-4.15.0.tgz#87ba9006eca53c551607ea0d663f4ae88be7af21"
+-  integrity sha512-HmNB5QeSl1KpulTBQ8UT4FPrByYyaLxpJoQ0+s7EvUrMc16m0ZS1sgb1XGqzmgCPk0c9y+aaXxn11tbLzuM7NQ==
+-  dependencies:
+-    "@types/bonjour" "^3.5.9"
+-    "@types/connect-history-api-fallback" "^1.3.5"
+-    "@types/express" "^4.17.13"
+-    "@types/serve-index" "^1.9.1"
+-    "@types/serve-static" "^1.13.10"
+-    "@types/sockjs" "^0.3.33"
+-    "@types/ws" "^8.5.1"
++webpack-dev-server@5.0.4:
++  version "5.0.4"
++  resolved "https://registry.yarnpkg.com/webpack-dev-server/-/webpack-dev-server-5.0.4.tgz#cb6ea47ff796b9251ec49a94f24a425e12e3c9b8"
++  integrity sha512-dljXhUgx3HqKP2d8J/fUMvhxGhzjeNVarDLcbO/EWMSgRizDkxHQDZQaLFL5VJY9tRBj2Gz+rvCEYYvhbqPHNA==
++  dependencies:
++    "@types/bonjour" "^3.5.13"
++    "@types/connect-history-api-fallback" "^1.5.4"
++    "@types/express" "^4.17.21"
++    "@types/serve-index" "^1.9.4"
++    "@types/serve-static" "^1.15.5"
++    "@types/sockjs" "^0.3.36"
++    "@types/ws" "^8.5.10"
+     ansi-html-community "^0.0.8"
+-    bonjour-service "^1.0.11"
+-    chokidar "^3.5.3"
++    bonjour-service "^1.2.1"
++    chokidar "^3.6.0"
+     colorette "^2.0.10"
+     compression "^1.7.4"
+     connect-history-api-fallback "^2.0.0"
+     default-gateway "^6.0.3"
+     express "^4.17.3"
+     graceful-fs "^4.2.6"
+-    html-entities "^2.3.2"
++    html-entities "^2.4.0"
+     http-proxy-middleware "^2.0.3"
+-    ipaddr.js "^2.0.1"
+-    launch-editor "^2.6.0"
+-    open "^8.0.9"
+-    p-retry "^4.5.0"
+-    rimraf "^3.0.2"
+-    schema-utils "^4.0.0"
+-    selfsigned "^2.1.1"
++    ipaddr.js "^2.1.0"
++    launch-editor "^2.6.1"
++    open "^10.0.3"
++    p-retry "^6.2.0"
++    rimraf "^5.0.5"
++    schema-utils "^4.2.0"
++    selfsigned "^2.4.1"
+     serve-index "^1.9.1"
+     sockjs "^0.3.24"
+     spdy "^4.0.2"
+-    webpack-dev-middleware "^5.3.1"
+-    ws "^8.13.0"
++    webpack-dev-middleware "^7.1.0"
++    ws "^8.16.0"
+ 
+ webpack-merge@^4.1.5:
+   version "4.2.2"
+@@ -3325,34 +3521,34 @@ webpack-sources@^3.2.3:
+   resolved "https://registry.yarnpkg.com/webpack-sources/-/webpack-sources-3.2.3.tgz#2d4daab8451fd4b240cc27055ff6a0c2ccea0cde"
+   integrity sha512-/DyMEOrDgLKKIG0fmvtz+4dUX/3Ghozwgm6iPp8KRhvn+eQf9+Q7GWxVNMk3+uCPWfdXYC4ExGBckIXdFEfH1w==
+ 
+-webpack@5.82.0:
+-  version "5.82.0"
+-  resolved "https://registry.yarnpkg.com/webpack/-/webpack-5.82.0.tgz#3c0d074dec79401db026b4ba0fb23d6333f88e7d"
+-  integrity sha512-iGNA2fHhnDcV1bONdUu554eZx+XeldsaeQ8T67H6KKHl2nUSwX8Zm7cmzOA46ox/X1ARxf7Bjv8wQ/HsB5fxBg==
++webpack@5.91.0:
++  version "5.91.0"
++  resolved "https://registry.yarnpkg.com/webpack/-/webpack-5.91.0.tgz#ffa92c1c618d18c878f06892bbdc3373c71a01d9"
++  integrity sha512-rzVwlLeBWHJbmgTC/8TvAcu5vpJNII+MelQpylD4jNERPwpBJOE2lEcko1zJX3QJeLjTTAnQxn/OJ8bjDzVQaw==
+   dependencies:
+     "@types/eslint-scope" "^3.7.3"
+-    "@types/estree" "^1.0.0"
+-    "@webassemblyjs/ast" "^1.11.5"
+-    "@webassemblyjs/wasm-edit" "^1.11.5"
+-    "@webassemblyjs/wasm-parser" "^1.11.5"
++    "@types/estree" "^1.0.5"
++    "@webassemblyjs/ast" "^1.12.1"
++    "@webassemblyjs/wasm-edit" "^1.12.1"
++    "@webassemblyjs/wasm-parser" "^1.12.1"
+     acorn "^8.7.1"
+-    acorn-import-assertions "^1.7.6"
+-    browserslist "^4.14.5"
++    acorn-import-assertions "^1.9.0"
++    browserslist "^4.21.10"
+     chrome-trace-event "^1.0.2"
+-    enhanced-resolve "^5.13.0"
++    enhanced-resolve "^5.16.0"
+     es-module-lexer "^1.2.1"
+     eslint-scope "5.1.1"
+     events "^3.2.0"
+     glob-to-regexp "^0.4.1"
+-    graceful-fs "^4.2.9"
++    graceful-fs "^4.2.11"
+     json-parse-even-better-errors "^2.3.1"
+     loader-runner "^4.2.0"
+     mime-types "^2.1.27"
+     neo-async "^2.6.2"
+-    schema-utils "^3.1.2"
++    schema-utils "^3.2.0"
+     tapable "^2.1.1"
+-    terser-webpack-plugin "^5.3.7"
+-    watchpack "^2.4.0"
++    terser-webpack-plugin "^5.3.10"
++    watchpack "^2.4.1"
+     webpack-sources "^3.2.3"
+ 
+ websocket-driver@>=0.5.1, websocket-driver@^0.7.4:
+@@ -3412,7 +3608,7 @@ workerpool@6.2.1:
+   resolved "https://registry.yarnpkg.com/workerpool/-/workerpool-6.2.1.tgz#46fc150c17d826b86a008e5a4508656777e9c343"
+   integrity sha512-ILEIE97kDZvF9Wb9f6h5aXK4swSlKGUcOEGiIYb2OOu/IrDU9iwj0fD//SsA6E5ibwJxpEvhullJY4Sl4GcpAw==
+ 
+-wrap-ansi@^7.0.0:
++"wrap-ansi-cjs@npm:wrap-ansi@^7.0.0", wrap-ansi@^7.0.0:
+   version "7.0.0"
+   resolved "https://registry.yarnpkg.com/wrap-ansi/-/wrap-ansi-7.0.0.tgz#67e145cff510a6a6984bdf1152911d69d2eb9e43"
+   integrity sha512-YVGIj2kamLSTxw6NsZjoBxfSwsn0ycdesmc4p+Q21c5zPuZ1pl+NfxVdxPtdHvmNVOQ6XSYG4AUtyt/Fi7D16Q==
+@@ -3421,6 +3617,15 @@ wrap-ansi@^7.0.0:
+     string-width "^4.1.0"
+     strip-ansi "^6.0.0"
+ 
++wrap-ansi@^8.1.0:
++  version "8.1.0"
++  resolved "https://registry.yarnpkg.com/wrap-ansi/-/wrap-ansi-8.1.0.tgz#56dc22368ee570face1b49819975d9b9a5ead214"
++  integrity sha512-si7QWI6zUMq56bESFvagtmzMdGOtoxfR+Sez11Mobfc7tm+VkUckk9bW2UeffTGVUbOksxmSw0AA2gs8g71NCQ==
++  dependencies:
++    ansi-styles "^6.1.0"
++    string-width "^5.0.1"
++    strip-ansi "^7.0.1"
++
+ wrappy@1:
+   version "1.0.2"
+   resolved "https://registry.yarnpkg.com/wrappy/-/wrappy-1.0.2.tgz#b5243d8f3ec1aa35f1364605bc0d1036e30ab69f"
+@@ -3431,10 +3636,10 @@ ws@8.5.0:
+   resolved "https://registry.yarnpkg.com/ws/-/ws-8.5.0.tgz#bfb4be96600757fe5382de12c670dab984a1ed4f"
+   integrity sha512-BWX0SWVgLPzYwF8lTzEy1egjhS4S4OEAHfsO8o65WOVsrnSRGaSiUaa9e0ggGlkMTtBlmOpEXiie9RUcBO86qg==
+ 
+-ws@^8.13.0:
+-  version "8.17.1"
+-  resolved "https://registry.yarnpkg.com/ws/-/ws-8.17.1.tgz#9293da530bb548febc95371d90f9c878727d919b"
+-  integrity sha512-6XQFvXTkbfUOZOKKILFG1PDK2NDQs4azKQl26T0YS5CxqWLgXajbPZ+h4gZekJyRqFU8pvnbAbbs/3TgRPy+GQ==
++ws@^8.16.0:
++  version "8.18.0"
++  resolved "https://registry.yarnpkg.com/ws/-/ws-8.18.0.tgz#0d7505a6eafe2b0e712d232b42279f53bc289bbc"
++  integrity sha512-8VbfWfHLbbwu3+N6OKsOMpBdT4kXPDDB9cJk2bJ6mh9ucxdlnNvH1e+roYkKmN9Nxw2yjz7VzeO9oOz2zJ04Pw==
+ 
+ ws@~8.11.0:
+   version "8.11.0"
+ 
