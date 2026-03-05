@@ -1,0 +1,562 @@
+diff --git a/coil-compose-core/api/android/coil-compose-core.api b/coil-compose-core/api/android/coil-compose-core.api
+index 2a73177e..b4a0ac94 100644
+--- a/coil-compose-core/api/android/coil-compose-core.api
++++ b/coil-compose-core/api/android/coil-compose-core.api
+@@ -1,6 +1,6 @@
+ public final class coil3/compose/AsyncImageKt {
+-	public static final fun AsyncImage-MvsnxeU (Ljava/lang/Object;Ljava/lang/String;Lcoil3/ImageLoader;Landroidx/compose/ui/Modifier;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Landroidx/compose/ui/Alignment;Landroidx/compose/ui/layout/ContentScale;FLandroidx/compose/ui/graphics/ColorFilter;ILandroidx/compose/runtime/Composer;III)V
+-	public static final fun AsyncImage-Q4Kwu38 (Ljava/lang/Object;Ljava/lang/String;Lcoil3/ImageLoader;Landroidx/compose/ui/Modifier;Landroidx/compose/ui/graphics/painter/Painter;Landroidx/compose/ui/graphics/painter/Painter;Landroidx/compose/ui/graphics/painter/Painter;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Landroidx/compose/ui/Alignment;Landroidx/compose/ui/layout/ContentScale;FLandroidx/compose/ui/graphics/ColorFilter;ILandroidx/compose/runtime/Composer;III)V
++	public static final fun AsyncImage-nc27qi8 (Ljava/lang/Object;Ljava/lang/String;Lcoil3/ImageLoader;Landroidx/compose/ui/Modifier;Landroidx/compose/ui/graphics/painter/Painter;Landroidx/compose/ui/graphics/painter/Painter;Landroidx/compose/ui/graphics/painter/Painter;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Landroidx/compose/ui/Alignment;Landroidx/compose/ui/layout/ContentScale;FLandroidx/compose/ui/graphics/ColorFilter;ILcoil3/compose/EqualityDelegate;Landroidx/compose/runtime/Composer;III)V
++	public static final fun AsyncImage-sKDTAoQ (Ljava/lang/Object;Ljava/lang/String;Lcoil3/ImageLoader;Landroidx/compose/ui/Modifier;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Landroidx/compose/ui/Alignment;Landroidx/compose/ui/layout/ContentScale;FLandroidx/compose/ui/graphics/ColorFilter;ILcoil3/compose/EqualityDelegate;Landroidx/compose/runtime/Composer;III)V
+ }
+ 
+ public final class coil3/compose/AsyncImagePainter : androidx/compose/ui/graphics/painter/Painter, androidx/compose/runtime/RememberObserver {
+@@ -73,8 +73,8 @@ public final class coil3/compose/AsyncImagePainter$State$Success : coil3/compose
+ }
+ 
+ public final class coil3/compose/AsyncImagePainter_commonKt {
+-	public static final fun rememberAsyncImagePainter-3HmZ8SU (Ljava/lang/Object;Lcoil3/ImageLoader;Landroidx/compose/ui/graphics/painter/Painter;Landroidx/compose/ui/graphics/painter/Painter;Landroidx/compose/ui/graphics/painter/Painter;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Landroidx/compose/ui/layout/ContentScale;ILandroidx/compose/runtime/Composer;II)Lcoil3/compose/AsyncImagePainter;
+-	public static final fun rememberAsyncImagePainter-5jETZwI (Ljava/lang/Object;Lcoil3/ImageLoader;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Landroidx/compose/ui/layout/ContentScale;ILandroidx/compose/runtime/Composer;II)Lcoil3/compose/AsyncImagePainter;
++	public static final fun rememberAsyncImagePainter-0YpotYA (Ljava/lang/Object;Lcoil3/ImageLoader;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Landroidx/compose/ui/layout/ContentScale;ILcoil3/compose/EqualityDelegate;Landroidx/compose/runtime/Composer;II)Lcoil3/compose/AsyncImagePainter;
++	public static final fun rememberAsyncImagePainter-10Xjiaw (Ljava/lang/Object;Lcoil3/ImageLoader;Landroidx/compose/ui/graphics/painter/Painter;Landroidx/compose/ui/graphics/painter/Painter;Landroidx/compose/ui/graphics/painter/Painter;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Landroidx/compose/ui/layout/ContentScale;ILcoil3/compose/EqualityDelegate;Landroidx/compose/runtime/Composer;III)Lcoil3/compose/AsyncImagePainter;
+ }
+ 
+ public final class coil3/compose/ComposableSingletons$SubcomposeAsyncImageKt {
+@@ -84,13 +84,22 @@ public final class coil3/compose/ComposableSingletons$SubcomposeAsyncImageKt {
+ 	public final fun getLambda-1$coil_compose_core_release ()Lkotlin/jvm/functions/Function3;
+ }
+ 
++public abstract interface class coil3/compose/EqualityDelegate {
++	public abstract fun equals (Ljava/lang/Object;Ljava/lang/Object;)Z
++	public abstract fun hashCode (Ljava/lang/Object;)I
++}
++
++public final class coil3/compose/EqualityDelegateKt {
++	public static final fun getDefaultModelEqualityDelegate ()Lcoil3/compose/EqualityDelegate;
++}
++
+ public final class coil3/compose/LocalPlatformContextKt {
+ 	public static final fun getLocalPlatformContext ()Landroidx/compose/runtime/ProvidableCompositionLocal;
+ }
+ 
+ public final class coil3/compose/SubcomposeAsyncImageKt {
+-	public static final fun SubcomposeAsyncImage-Q4Kwu38 (Ljava/lang/Object;Ljava/lang/String;Lcoil3/ImageLoader;Landroidx/compose/ui/Modifier;Lkotlin/jvm/functions/Function4;Lkotlin/jvm/functions/Function4;Lkotlin/jvm/functions/Function4;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Landroidx/compose/ui/Alignment;Landroidx/compose/ui/layout/ContentScale;FLandroidx/compose/ui/graphics/ColorFilter;ILandroidx/compose/runtime/Composer;III)V
+-	public static final fun SubcomposeAsyncImage-sKDTAoQ (Ljava/lang/Object;Ljava/lang/String;Lcoil3/ImageLoader;Landroidx/compose/ui/Modifier;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Landroidx/compose/ui/Alignment;Landroidx/compose/ui/layout/ContentScale;FLandroidx/compose/ui/graphics/ColorFilter;ILkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;III)V
++	public static final fun SubcomposeAsyncImage-MokUVwQ (Ljava/lang/Object;Ljava/lang/String;Lcoil3/ImageLoader;Landroidx/compose/ui/Modifier;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function4;Lkotlin/jvm/functions/Function4;Lkotlin/jvm/functions/Function4;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Landroidx/compose/ui/Alignment;Landroidx/compose/ui/layout/ContentScale;FLandroidx/compose/ui/graphics/ColorFilter;ILcoil3/compose/EqualityDelegate;Landroidx/compose/runtime/Composer;III)V
++	public static final fun SubcomposeAsyncImage-QgsmV_s (Ljava/lang/Object;Ljava/lang/String;Lcoil3/ImageLoader;Landroidx/compose/ui/Modifier;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Landroidx/compose/ui/Alignment;Landroidx/compose/ui/layout/ContentScale;FLandroidx/compose/ui/graphics/ColorFilter;ILcoil3/compose/EqualityDelegate;Lkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;III)V
+ 	public static final fun SubcomposeAsyncImageContent (Lcoil3/compose/SubcomposeAsyncImageScope;Landroidx/compose/ui/Modifier;Landroidx/compose/ui/graphics/painter/Painter;Ljava/lang/String;Landroidx/compose/ui/Alignment;Landroidx/compose/ui/layout/ContentScale;FLandroidx/compose/ui/graphics/ColorFilter;Landroidx/compose/runtime/Composer;II)V
+ }
+ 
+diff --git a/coil-compose-core/api/jvm/coil-compose-core.api b/coil-compose-core/api/jvm/coil-compose-core.api
+index 862a2343..fae8ec44 100644
+--- a/coil-compose-core/api/jvm/coil-compose-core.api
++++ b/coil-compose-core/api/jvm/coil-compose-core.api
+@@ -1,6 +1,6 @@
+ public final class coil3/compose/AsyncImageKt {
+-	public static final fun AsyncImage-MvsnxeU (Ljava/lang/Object;Ljava/lang/String;Lcoil3/ImageLoader;Landroidx/compose/ui/Modifier;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Landroidx/compose/ui/Alignment;Landroidx/compose/ui/layout/ContentScale;FLandroidx/compose/ui/graphics/ColorFilter;ILandroidx/compose/runtime/Composer;III)V
+-	public static final fun AsyncImage-Q4Kwu38 (Ljava/lang/Object;Ljava/lang/String;Lcoil3/ImageLoader;Landroidx/compose/ui/Modifier;Landroidx/compose/ui/graphics/painter/Painter;Landroidx/compose/ui/graphics/painter/Painter;Landroidx/compose/ui/graphics/painter/Painter;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Landroidx/compose/ui/Alignment;Landroidx/compose/ui/layout/ContentScale;FLandroidx/compose/ui/graphics/ColorFilter;ILandroidx/compose/runtime/Composer;III)V
++	public static final fun AsyncImage-nc27qi8 (Ljava/lang/Object;Ljava/lang/String;Lcoil3/ImageLoader;Landroidx/compose/ui/Modifier;Landroidx/compose/ui/graphics/painter/Painter;Landroidx/compose/ui/graphics/painter/Painter;Landroidx/compose/ui/graphics/painter/Painter;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Landroidx/compose/ui/Alignment;Landroidx/compose/ui/layout/ContentScale;FLandroidx/compose/ui/graphics/ColorFilter;ILcoil3/compose/EqualityDelegate;Landroidx/compose/runtime/Composer;III)V
++	public static final fun AsyncImage-sKDTAoQ (Ljava/lang/Object;Ljava/lang/String;Lcoil3/ImageLoader;Landroidx/compose/ui/Modifier;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Landroidx/compose/ui/Alignment;Landroidx/compose/ui/layout/ContentScale;FLandroidx/compose/ui/graphics/ColorFilter;ILcoil3/compose/EqualityDelegate;Landroidx/compose/runtime/Composer;III)V
+ }
+ 
+ public final class coil3/compose/AsyncImagePainter : androidx/compose/ui/graphics/painter/Painter, androidx/compose/runtime/RememberObserver {
+@@ -73,8 +73,8 @@ public final class coil3/compose/AsyncImagePainter$State$Success : coil3/compose
+ }
+ 
+ public final class coil3/compose/AsyncImagePainter_commonKt {
+-	public static final fun rememberAsyncImagePainter-3HmZ8SU (Ljava/lang/Object;Lcoil3/ImageLoader;Landroidx/compose/ui/graphics/painter/Painter;Landroidx/compose/ui/graphics/painter/Painter;Landroidx/compose/ui/graphics/painter/Painter;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Landroidx/compose/ui/layout/ContentScale;ILandroidx/compose/runtime/Composer;II)Lcoil3/compose/AsyncImagePainter;
+-	public static final fun rememberAsyncImagePainter-5jETZwI (Ljava/lang/Object;Lcoil3/ImageLoader;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Landroidx/compose/ui/layout/ContentScale;ILandroidx/compose/runtime/Composer;II)Lcoil3/compose/AsyncImagePainter;
++	public static final fun rememberAsyncImagePainter-0YpotYA (Ljava/lang/Object;Lcoil3/ImageLoader;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Landroidx/compose/ui/layout/ContentScale;ILcoil3/compose/EqualityDelegate;Landroidx/compose/runtime/Composer;II)Lcoil3/compose/AsyncImagePainter;
++	public static final fun rememberAsyncImagePainter-10Xjiaw (Ljava/lang/Object;Lcoil3/ImageLoader;Landroidx/compose/ui/graphics/painter/Painter;Landroidx/compose/ui/graphics/painter/Painter;Landroidx/compose/ui/graphics/painter/Painter;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Landroidx/compose/ui/layout/ContentScale;ILcoil3/compose/EqualityDelegate;Landroidx/compose/runtime/Composer;III)Lcoil3/compose/AsyncImagePainter;
+ }
+ 
+ public final class coil3/compose/ComposableSingletons$SubcomposeAsyncImageKt {
+@@ -84,13 +84,22 @@ public final class coil3/compose/ComposableSingletons$SubcomposeAsyncImageKt {
+ 	public final fun getLambda-1$coil_compose_core ()Lkotlin/jvm/functions/Function3;
+ }
+ 
++public abstract interface class coil3/compose/EqualityDelegate {
++	public abstract fun equals (Ljava/lang/Object;Ljava/lang/Object;)Z
++	public abstract fun hashCode (Ljava/lang/Object;)I
++}
++
++public final class coil3/compose/EqualityDelegateKt {
++	public static final fun getDefaultModelEqualityDelegate ()Lcoil3/compose/EqualityDelegate;
++}
++
+ public final class coil3/compose/LocalPlatformContextKt {
+ 	public static final fun getLocalPlatformContext ()Landroidx/compose/runtime/ProvidableCompositionLocal;
+ }
+ 
+ public final class coil3/compose/SubcomposeAsyncImageKt {
+-	public static final fun SubcomposeAsyncImage-Q4Kwu38 (Ljava/lang/Object;Ljava/lang/String;Lcoil3/ImageLoader;Landroidx/compose/ui/Modifier;Lkotlin/jvm/functions/Function4;Lkotlin/jvm/functions/Function4;Lkotlin/jvm/functions/Function4;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Landroidx/compose/ui/Alignment;Landroidx/compose/ui/layout/ContentScale;FLandroidx/compose/ui/graphics/ColorFilter;ILandroidx/compose/runtime/Composer;III)V
+-	public static final fun SubcomposeAsyncImage-sKDTAoQ (Ljava/lang/Object;Ljava/lang/String;Lcoil3/ImageLoader;Landroidx/compose/ui/Modifier;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Landroidx/compose/ui/Alignment;Landroidx/compose/ui/layout/ContentScale;FLandroidx/compose/ui/graphics/ColorFilter;ILkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;III)V
++	public static final fun SubcomposeAsyncImage-MokUVwQ (Ljava/lang/Object;Ljava/lang/String;Lcoil3/ImageLoader;Landroidx/compose/ui/Modifier;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function4;Lkotlin/jvm/functions/Function4;Lkotlin/jvm/functions/Function4;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Landroidx/compose/ui/Alignment;Landroidx/compose/ui/layout/ContentScale;FLandroidx/compose/ui/graphics/ColorFilter;ILcoil3/compose/EqualityDelegate;Landroidx/compose/runtime/Composer;III)V
++	public static final fun SubcomposeAsyncImage-QgsmV_s (Ljava/lang/Object;Ljava/lang/String;Lcoil3/ImageLoader;Landroidx/compose/ui/Modifier;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Landroidx/compose/ui/Alignment;Landroidx/compose/ui/layout/ContentScale;FLandroidx/compose/ui/graphics/ColorFilter;ILcoil3/compose/EqualityDelegate;Lkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;III)V
+ 	public static final fun SubcomposeAsyncImageContent (Lcoil3/compose/SubcomposeAsyncImageScope;Landroidx/compose/ui/Modifier;Landroidx/compose/ui/graphics/painter/Painter;Ljava/lang/String;Landroidx/compose/ui/Alignment;Landroidx/compose/ui/layout/ContentScale;FLandroidx/compose/ui/graphics/ColorFilter;Landroidx/compose/runtime/Composer;II)V
+ }
+ 
+diff --git a/coil-compose-core/src/commonMain/kotlin/coil3/compose/AsyncImage.kt b/coil-compose-core/src/commonMain/kotlin/coil3/compose/AsyncImage.kt
+index 1c1fd637..aa467e55 100644
+--- a/coil-compose-core/src/commonMain/kotlin/coil3/compose/AsyncImage.kt
++++ b/coil-compose-core/src/commonMain/kotlin/coil3/compose/AsyncImage.kt
+@@ -42,6 +42,8 @@ import coil3.request.ImageRequest
+  *  rendered onscreen.
+  * @param filterQuality Sampling algorithm applied to a bitmap when it is scaled and drawn into the
+  *  destination.
++ * @param modelEqualityDelegate Determines the equality of [model]. This controls whether this
++ *  composable is redrawn and a new image request is launched when the outer composable recomposes.
+  */
+ @Composable
+ @NonRestartableComposable
+@@ -61,10 +63,10 @@ fun AsyncImage(
+     alpha: Float = DefaultAlpha,
+     colorFilter: ColorFilter? = null,
+     filterQuality: FilterQuality = DefaultFilterQuality,
++    modelEqualityDelegate: EqualityDelegate = DefaultModelEqualityDelegate,
+ ) = AsyncImage(
+-    model = model,
++    state = AsyncImageState(model, modelEqualityDelegate, imageLoader),
+     contentDescription = contentDescription,
+-    imageLoader = imageLoader,
+     modifier = modifier,
+     transform = transformOf(placeholder, error, fallback),
+     onState = onStateOf(onLoading, onSuccess, onError),
+@@ -97,8 +99,11 @@ fun AsyncImage(
+  *  rendered onscreen.
+  * @param filterQuality Sampling algorithm applied to a bitmap when it is scaled and drawn into the
+  *  destination.
++ * @param modelEqualityDelegate Determines the equality of [model]. This controls whether this
++ *  composable is redrawn and a new image request is launched when the outer composable recomposes.
+  */
+ @Composable
++@NonRestartableComposable
+ fun AsyncImage(
+     model: Any?,
+     contentDescription: String?,
+@@ -111,19 +116,46 @@ fun AsyncImage(
+     alpha: Float = DefaultAlpha,
+     colorFilter: ColorFilter? = null,
+     filterQuality: FilterQuality = DefaultFilterQuality,
++    modelEqualityDelegate: EqualityDelegate = DefaultModelEqualityDelegate,
++) = AsyncImage(
++    state = AsyncImageState(model, modelEqualityDelegate, imageLoader),
++    contentDescription = contentDescription,
++    modifier = modifier,
++    transform = transform,
++    onState = onState,
++    alignment = alignment,
++    contentScale = contentScale,
++    alpha = alpha,
++    colorFilter = colorFilter,
++    filterQuality = filterQuality,
++)
++
++@Composable
++private fun AsyncImage(
++    state: AsyncImageState,
++    contentDescription: String?,
++    modifier: Modifier,
++    transform: (State) -> State,
++    onState: ((State) -> Unit)?,
++    alignment: Alignment,
++    contentScale: ContentScale,
++    alpha: Float,
++    colorFilter: ColorFilter?,
++    filterQuality: FilterQuality,
+ ) {
+     // Create and execute the image request.
+     val request = requestOfWithSizeResolver(
+-        model = model,
++        model = state.model,
+         contentScale = contentScale,
+     )
+     val painter = rememberAsyncImagePainter(
+         model = request,
+-        imageLoader = imageLoader,
++        imageLoader = state.imageLoader,
+         transform = transform,
+         onState = onState,
+         contentScale = contentScale,
+         filterQuality = filterQuality,
++        modelEqualityDelegate = state.modelEqualityDelegate,
+     )
+ 
+     // Draw the content.
+diff --git a/coil-compose-core/src/commonMain/kotlin/coil3/compose/AsyncImagePainter.common.kt b/coil-compose-core/src/commonMain/kotlin/coil3/compose/AsyncImagePainter.common.kt
+index 284bece9..18b8ba79 100644
+--- a/coil-compose-core/src/commonMain/kotlin/coil3/compose/AsyncImagePainter.common.kt
++++ b/coil-compose-core/src/commonMain/kotlin/coil3/compose/AsyncImagePainter.common.kt
+@@ -76,6 +76,8 @@ import kotlinx.coroutines.launch
+  *  to the same value that's passed to [Image].
+  * @param filterQuality Sampling algorithm applied to a bitmap when it is scaled and drawn into the
+  *  destination.
++ * @param modelEqualityDelegate Determines the equality of [model]. This controls whether this
++ *  composable is redrawn and a new image request is launched when the outer composable recomposes.
+  */
+ @Composable
+ @NonRestartableComposable
+@@ -90,9 +92,9 @@ fun rememberAsyncImagePainter(
+     onError: ((State.Error) -> Unit)? = null,
+     contentScale: ContentScale = ContentScale.Fit,
+     filterQuality: FilterQuality = DefaultFilterQuality,
++    modelEqualityDelegate: EqualityDelegate = DefaultModelEqualityDelegate,
+ ) = rememberAsyncImagePainter(
+-    model = model,
+-    imageLoader = imageLoader,
++    state = AsyncImageState(model, modelEqualityDelegate, imageLoader),
+     transform = transformOf(placeholder, error, fallback),
+     onState = onStateOf(onLoading, onSuccess, onError),
+     contentScale = contentScale,
+@@ -122,8 +124,11 @@ fun rememberAsyncImagePainter(
+  *  to the same value that's passed to [Image].
+  * @param filterQuality Sampling algorithm applied to a bitmap when it is scaled and drawn into the
+  *  destination.
++ * @param modelEqualityDelegate Determines the equality of [model]. This controls whether this
++ *  composable is redrawn and a new image request is launched when the outer composable recomposes.
+  */
+ @Composable
++@NonRestartableComposable
+ fun rememberAsyncImagePainter(
+     model: Any?,
+     imageLoader: ImageLoader,
+@@ -131,17 +136,33 @@ fun rememberAsyncImagePainter(
+     onState: ((State) -> Unit)? = null,
+     contentScale: ContentScale = ContentScale.Fit,
+     filterQuality: FilterQuality = DefaultFilterQuality,
++    modelEqualityDelegate: EqualityDelegate = DefaultModelEqualityDelegate,
++) = rememberAsyncImagePainter(
++    state = AsyncImageState(model, modelEqualityDelegate, imageLoader),
++    transform = transform,
++    onState = onState,
++    contentScale = contentScale,
++    filterQuality = filterQuality,
++)
++
++@Composable
++private fun rememberAsyncImagePainter(
++    state: AsyncImageState,
++    transform: (State) -> State,
++    onState: ((State) -> Unit)?,
++    contentScale: ContentScale,
++    filterQuality: FilterQuality,
+ ): AsyncImagePainter {
+-    val request = requestOf(model)
++    val request = requestOf(state.model)
+     validateRequest(request)
+ 
+-    val painter = remember { AsyncImagePainter(request, imageLoader) }
++    val painter = remember { AsyncImagePainter(request, state.imageLoader) }
+     painter.transform = transform
+     painter.onState = onState
+     painter.contentScale = contentScale
+     painter.filterQuality = filterQuality
+     painter.isPreview = LocalInspectionMode.current
+-    painter.imageLoader = imageLoader
++    painter.imageLoader = state.imageLoader
+     painter.request = request // Update request last so all other properties are up to date.
+     painter.onRemembered() // Invoke this manually so `painter.state` is set to `Loading` immediately.
+     return painter
+@@ -301,8 +322,14 @@ class AsyncImagePainter internal constructor(
+     }
+ 
+     private fun ImageResult.toState() = when (this) {
+-        is SuccessResult -> State.Success(image.toPainter(request.context, filterQuality), this)
+-        is ErrorResult -> State.Error(image?.toPainter(request.context, filterQuality), this)
++        is SuccessResult -> State.Success(
++            painter = image.toPainter(request.context, filterQuality),
++            result = this,
++        )
++        is ErrorResult -> State.Error(
++            painter = image?.toPainter(request.context, filterQuality),
++            result = this,
++        )
+     }
+ 
+     /**
+diff --git a/coil-compose-core/src/commonMain/kotlin/coil3/compose/EqualityDelegate.kt b/coil-compose-core/src/commonMain/kotlin/coil3/compose/EqualityDelegate.kt
+new file mode 100644
+index 00000000..840cc95e
+--- /dev/null
++++ b/coil-compose-core/src/commonMain/kotlin/coil3/compose/EqualityDelegate.kt
+@@ -0,0 +1,53 @@
++package coil3.compose
++
++import androidx.compose.runtime.Stable
++import coil3.request.ImageRequest
++
++/**
++ * Determines equality between two values or a value's hash code.
++ */
++@Stable
++interface EqualityDelegate {
++    fun equals(self: Any?, other: Any?): Boolean
++    fun hashCode(self: Any?): Int
++}
++
++/**
++ * The default [EqualityDelegate] used to determine equality and the hash code for the `model`
++ * argument for [rememberAsyncImagePainter], [AsyncImage], and [SubcomposeAsyncImage].
++ */
++val DefaultModelEqualityDelegate = object : EqualityDelegate {
++
++    override fun equals(self: Any?, other: Any?): Boolean {
++        if (self !is ImageRequest || other !is ImageRequest) {
++            return self == other
++        }
++
++        return self.context == other.context &&
++            self.data == other.data &&
++            self.memoryCacheKey == other.memoryCacheKey &&
++            self.memoryCacheKeyExtras == other.memoryCacheKeyExtras &&
++            self.diskCacheKey == other.diskCacheKey &&
++            self.fileSystem == other.fileSystem &&
++            self.sizeResolver == other.sizeResolver &&
++            self.scale == other.scale &&
++            self.precision == other.precision
++    }
++
++    override fun hashCode(self: Any?): Int {
++        if (self !is ImageRequest) {
++            return self.hashCode()
++        }
++
++        var result = self.context.hashCode()
++        result = 31 * result + self.data.hashCode()
++        result = 31 * result + self.memoryCacheKey.hashCode()
++        result = 31 * result + self.memoryCacheKeyExtras.hashCode()
++        result = 31 * result + self.diskCacheKey.hashCode()
++        result = 31 * result + self.fileSystem.hashCode()
++        result = 31 * result + self.sizeResolver.hashCode()
++        result = 31 * result + self.scale.hashCode()
++        result = 31 * result + self.precision.hashCode()
++        return result
++    }
++}
+diff --git a/coil-compose-core/src/commonMain/kotlin/coil3/compose/SubcomposeAsyncImage.kt b/coil-compose-core/src/commonMain/kotlin/coil3/compose/SubcomposeAsyncImage.kt
+index 9d235de4..69c16f13 100644
+--- a/coil-compose-core/src/commonMain/kotlin/coil3/compose/SubcomposeAsyncImage.kt
++++ b/coil-compose-core/src/commonMain/kotlin/coil3/compose/SubcomposeAsyncImage.kt
+@@ -49,6 +49,8 @@ import coil3.request.ImageRequest
+  *  rendered onscreen.
+  * @param filterQuality Sampling algorithm applied to a bitmap when it is scaled and drawn into the
+  *  destination.
++ * @param modelEqualityDelegate Determines the equality of [model]. This controls whether this
++ *  composable is redrawn and a new image request is launched when the outer composable recomposes.
+  */
+ @Composable
+ @NonRestartableComposable
+@@ -57,6 +59,7 @@ fun SubcomposeAsyncImage(
+     contentDescription: String?,
+     imageLoader: ImageLoader,
+     modifier: Modifier = Modifier,
++    transform: (State) -> State = DefaultTransform,
+     loading: @Composable (SubcomposeAsyncImageScope.(State.Loading) -> Unit)? = null,
+     success: @Composable (SubcomposeAsyncImageScope.(State.Success) -> Unit)? = null,
+     error: @Composable (SubcomposeAsyncImageScope.(State.Error) -> Unit)? = null,
+@@ -68,11 +71,12 @@ fun SubcomposeAsyncImage(
+     alpha: Float = DefaultAlpha,
+     colorFilter: ColorFilter? = null,
+     filterQuality: FilterQuality = DefaultFilterQuality,
++    modelEqualityDelegate: EqualityDelegate = DefaultModelEqualityDelegate,
+ ) = SubcomposeAsyncImage(
+-    model = model,
++    state = AsyncImageState(model, modelEqualityDelegate, imageLoader),
+     contentDescription = contentDescription,
+-    imageLoader = imageLoader,
+     modifier = modifier,
++    transform = transform,
+     onState = onStateOf(onLoading, onSuccess, onError),
+     alignment = alignment,
+     contentScale = contentScale,
+@@ -104,9 +108,12 @@ fun SubcomposeAsyncImage(
+  *  rendered onscreen.
+  * @param filterQuality Sampling algorithm applied to a bitmap when it is scaled and drawn into the
+  *  destination.
++ * @param modelEqualityDelegate Determines the equality of [model]. This controls whether this
++ *  composable is redrawn and a new image request is launched when the outer composable recomposes.
+  * @param content A callback to draw the content inside an [SubcomposeAsyncImageScope].
+  */
+ @Composable
++@NonRestartableComposable
+ fun SubcomposeAsyncImage(
+     model: Any?,
+     contentDescription: String?,
+@@ -119,16 +126,44 @@ fun SubcomposeAsyncImage(
+     alpha: Float = DefaultAlpha,
+     colorFilter: ColorFilter? = null,
+     filterQuality: FilterQuality = DefaultFilterQuality,
++    modelEqualityDelegate: EqualityDelegate = DefaultModelEqualityDelegate,
++    content: @Composable SubcomposeAsyncImageScope.() -> Unit,
++) = SubcomposeAsyncImage(
++    state = AsyncImageState(model, modelEqualityDelegate, imageLoader),
++    contentDescription = contentDescription,
++    modifier = modifier,
++    transform = transform,
++    onState = onState,
++    alignment = alignment,
++    contentScale = contentScale,
++    alpha = alpha,
++    colorFilter = colorFilter,
++    filterQuality = filterQuality,
++    content = content,
++)
++
++@Composable
++private fun SubcomposeAsyncImage(
++    state: AsyncImageState,
++    contentDescription: String?,
++    modifier: Modifier = Modifier,
++    transform: (State) -> State,
++    onState: ((State) -> Unit)?,
++    alignment: Alignment,
++    contentScale: ContentScale,
++    alpha: Float,
++    colorFilter: ColorFilter?,
++    filterQuality: FilterQuality,
+     content: @Composable SubcomposeAsyncImageScope.() -> Unit,
+ ) {
+     // Create and execute the image request.
+     val request = requestOfWithSizeResolver(
+-        model = model,
++        model = state.model,
+         contentScale = contentScale,
+     )
+     val painter = rememberAsyncImagePainter(
+         model = request,
+-        imageLoader = imageLoader,
++        imageLoader = state.imageLoader,
+         transform = transform,
+         onState = onState,
+         contentScale = contentScale,
+diff --git a/coil-compose-core/src/commonMain/kotlin/coil3/compose/utils.kt b/coil-compose-core/src/commonMain/kotlin/coil3/compose/utils.kt
+index 2b8a62b1..1eee48c2 100644
+--- a/coil-compose-core/src/commonMain/kotlin/coil3/compose/utils.kt
++++ b/coil-compose-core/src/commonMain/kotlin/coil3/compose/utils.kt
+@@ -1,6 +1,7 @@
+ package coil3.compose
+ 
+ import androidx.compose.runtime.Composable
++import androidx.compose.runtime.NonRestartableComposable
+ import androidx.compose.runtime.Stable
+ import androidx.compose.runtime.remember
+ import androidx.compose.ui.Modifier
+@@ -13,6 +14,7 @@ import androidx.compose.ui.semantics.role
+ import androidx.compose.ui.semantics.semantics
+ import androidx.compose.ui.unit.Constraints
+ import androidx.compose.ui.unit.IntSize
++import coil3.ImageLoader
+ import coil3.compose.AsyncImagePainter.Companion.DefaultTransform
+ import coil3.compose.AsyncImagePainter.State
+ import coil3.request.ImageRequest
+@@ -25,6 +27,7 @@ import kotlin.math.roundToInt
+ 
+ /** Create an [ImageRequest] from the [model]. */
+ @Composable
++@NonRestartableComposable
+ internal fun requestOf(model: Any?): ImageRequest {
+     if (model is ImageRequest) {
+         return model
+@@ -40,6 +43,7 @@ internal fun requestOf(model: Any?): ImageRequest {
+ 
+ /** Create an [ImageRequest] with a not-null [SizeResolver] from the [model]. */
+ @Composable
++@NonRestartableComposable
+ internal fun requestOfWithSizeResolver(
+     model: Any?,
+     contentScale: ContentScale,
+@@ -116,6 +120,28 @@ internal fun onStateOf(
+     }
+ }
+ 
++/** Wrap [AsyncImage]'s unstable arguments to make them stable. */
++@Stable
++internal class AsyncImageState(
++    val model: Any?,
++    val modelEqualityDelegate: EqualityDelegate,
++    val imageLoader: ImageLoader,
++) {
++
++    override fun equals(other: Any?): Boolean {
++        if (this === other) return true
++        return other is AsyncImageState &&
++            modelEqualityDelegate.equals(model, other.model) &&
++            imageLoader == other.imageLoader
++    }
++
++    override fun hashCode(): Int {
++        var result = modelEqualityDelegate.hashCode(model)
++        result = 31 * result + imageLoader.hashCode()
++        return result
++    }
++}
++
+ @Stable
+ internal fun Modifier.contentDescription(contentDescription: String?): Modifier {
+     if (contentDescription != null) {
+diff --git a/coil-core/api/android/coil-core.api b/coil-core/api/android/coil-core.api
+index b0eae2fd..3ae845be 100644
+--- a/coil-core/api/android/coil-core.api
++++ b/coil-core/api/android/coil-core.api
+@@ -1031,11 +1031,8 @@ public final class coil3/transition/CrossfadeTransition$Factory : coil3/transiti
+ 	public fun <init> (IZ)V
+ 	public synthetic fun <init> (IZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+ 	public fun create (Lcoil3/transition/TransitionTarget;Lcoil3/request/ImageResult;)Lcoil3/transition/Transition;
+-	public fun equals (Ljava/lang/Object;)Z
+ 	public final fun getDurationMillis ()I
+ 	public final fun getPreferExactIntrinsicSize ()Z
+-	public fun hashCode ()I
+-	public fun toString ()Ljava/lang/String;
+ }
+ 
+ public abstract interface class coil3/transition/Transition {
+diff --git a/coil-core/src/androidMain/kotlin/coil3/size/DisplaySizeResolver.kt b/coil-core/src/androidMain/kotlin/coil3/size/DisplaySizeResolver.kt
+index 28e53e71..195334ce 100644
+--- a/coil-core/src/androidMain/kotlin/coil3/size/DisplaySizeResolver.kt
++++ b/coil-core/src/androidMain/kotlin/coil3/size/DisplaySizeResolver.kt
+@@ -7,7 +7,9 @@ import coil3.annotation.Data
+  * The default [SizeResolver] that returns the maximum dimension of the display as the size.
+  */
+ @Data
+-internal class DisplaySizeResolver(private val context: Context) : SizeResolver {
++internal class DisplaySizeResolver(
++    private val context: Context,
++) : SizeResolver {
+ 
+     override suspend fun size(): Size {
+         val metrics = context.resources.displayMetrics
+diff --git a/coil-core/src/androidMain/kotlin/coil3/target/ImageViewTarget.kt b/coil-core/src/androidMain/kotlin/coil3/target/ImageViewTarget.kt
+index f9476992..036d9d30 100644
+--- a/coil-core/src/androidMain/kotlin/coil3/target/ImageViewTarget.kt
++++ b/coil-core/src/androidMain/kotlin/coil3/target/ImageViewTarget.kt
+@@ -8,7 +8,9 @@ import coil3.annotation.Data
+  * A [Target] that handles setting images on an [ImageView].
+  */
+ @Data
+-open class ImageViewTarget(override val view: ImageView) : GenericViewTarget<ImageView>() {
++open class ImageViewTarget(
++    override val view: ImageView,
++) : GenericViewTarget<ImageView>() {
+ 
+     override var drawable: Drawable?
+         get() = view.drawable
+diff --git a/coil-core/src/androidMain/kotlin/coil3/transition/CrossfadeTransition.kt b/coil-core/src/androidMain/kotlin/coil3/transition/CrossfadeTransition.kt
+index 119b421f..dd88848d 100644
+--- a/coil-core/src/androidMain/kotlin/coil3/transition/CrossfadeTransition.kt
++++ b/coil-core/src/androidMain/kotlin/coil3/transition/CrossfadeTransition.kt
+@@ -1,6 +1,5 @@
+ package coil3.transition
+ 
+-import coil3.annotation.Data
+ import coil3.asCoilImage
+ import coil3.decode.DataSource
+ import coil3.request.DEFAULT_CROSSFADE_MILLIS
+@@ -40,7 +39,6 @@ class CrossfadeTransition @JvmOverloads constructor(
+         }
+     }
+ 
+-    @Data
+     class Factory @JvmOverloads constructor(
+         val durationMillis: Int = DEFAULT_CROSSFADE_MILLIS,
+         val preferExactIntrinsicSize: Boolean = false,
+

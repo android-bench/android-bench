@@ -1,0 +1,136 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 1c8d22466..1c5b3cec6 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -16,6 +16,8 @@
+         ([#3917](https://github.com/Automattic/pocket-casts-android/pull/3917))
+     *   Fix issue with disappearing file image after upload completes
+         ([#3910](https://github.com/Automattic/pocket-casts-android/pull/3910))
++    *   Fix issue with image artwork not loading in some cases
++        ([#3970](https://github.com/Automattic/pocket-casts-android/pull/3970))
+ 
+ 7.87
+ -----
+diff --git a/modules/services/servers/src/main/java/au/com/shiftyjelly/pocketcasts/servers/CleanAndRetryInterceptor.kt b/modules/services/servers/src/main/java/au/com/shiftyjelly/pocketcasts/servers/CleanAndRetryInterceptor.kt
+index 3c28faf06..d28d7813f 100644
+--- a/modules/services/servers/src/main/java/au/com/shiftyjelly/pocketcasts/servers/CleanAndRetryInterceptor.kt
++++ b/modules/services/servers/src/main/java/au/com/shiftyjelly/pocketcasts/servers/CleanAndRetryInterceptor.kt
+@@ -9,7 +9,9 @@ internal class CleanAndRetryInterceptor(
+     override fun intercept(chain: Interceptor.Chain): Response {
+         val originalRequest = chain.request()
+         val response = chain.proceed(originalRequest)
+-        return if (response.isSuccessful || response.isRedirect) {
++        // response.isRedirect returns true only when redirecting to different resources
++        // It doesn't work here as it doesn't account for 304
++        return if (response.code in 200..399) {
+             response
+         } else {
+             response.close()
+diff --git a/modules/services/servers/src/main/java/au/com/shiftyjelly/pocketcasts/servers/di/InterceptorModule.kt b/modules/services/servers/src/main/java/au/com/shiftyjelly/pocketcasts/servers/di/InterceptorModule.kt
+index 6be9c0689..a87ad8fb5 100644
+--- a/modules/services/servers/src/main/java/au/com/shiftyjelly/pocketcasts/servers/di/InterceptorModule.kt
++++ b/modules/services/servers/src/main/java/au/com/shiftyjelly/pocketcasts/servers/di/InterceptorModule.kt
+@@ -227,4 +227,21 @@ object InterceptorModule {
+             }
+         }
+     }
++
++    @Provides
++    @Artwork
++    fun provideArtworkInterceptors(): List<OkHttpInterceptor> {
++        return buildList {
++            add(publicUserAgentInterceptor.toClientInterceptor())
++            add(crashLoggingInterceptor.toClientInterceptor())
++            add(cleanAndRetryInterceptor)
++
++            if (BuildConfig.DEBUG) {
++                val loggingInterceptor = HttpLoggingInterceptor().apply {
++                    level = HttpLoggingInterceptor.Level.HEADERS
++                }
++                add(loggingInterceptor.toClientInterceptor())
++            }
++        }
++    }
+ }
+diff --git a/modules/services/servers/src/main/java/au/com/shiftyjelly/pocketcasts/servers/di/ServersModule.kt b/modules/services/servers/src/main/java/au/com/shiftyjelly/pocketcasts/servers/di/ServersModule.kt
+index b1dcafa1e..a9e3e67f0 100644
+--- a/modules/services/servers/src/main/java/au/com/shiftyjelly/pocketcasts/servers/di/ServersModule.kt
++++ b/modules/services/servers/src/main/java/au/com/shiftyjelly/pocketcasts/servers/di/ServersModule.kt
+@@ -199,6 +199,18 @@ class ServersModule {
+             .build()
+     }
+ 
++    @Provides
++    @Singleton
++    @Artwork
++    fun provideArtworkClient(
++        @Raw client: OkHttpClient,
++        @Artwork interceptors: List<@JvmSuppressWildcards OkHttpInterceptor>,
++    ): OkHttpClient {
++        return client.newBuilder()
++            .addInterceptors(interceptors)
++            .build()
++    }
++
+     @Provides
+     @SyncServiceRetrofit
+     @Singleton
+@@ -322,6 +334,10 @@ annotation class Transcripts
+ @Retention(AnnotationRetention.BINARY)
+ annotation class Player
+ 
++@Qualifier
++@Retention(AnnotationRetention.BINARY)
++annotation class Artwork
++
+ @Qualifier
+ @Retention(AnnotationRetention.BINARY)
+ annotation class SyncServiceRetrofit
+diff --git a/modules/services/ui/build.gradle.kts b/modules/services/ui/build.gradle.kts
+index 4df1c4a4e..ba2025e18 100644
+--- a/modules/services/ui/build.gradle.kts
++++ b/modules/services/ui/build.gradle.kts
+@@ -26,6 +26,7 @@ dependencies {
+     api(projects.modules.services.model)
+     api(projects.modules.services.preferences)
+     api(projects.modules.services.repositories)
++    api(projects.modules.services.servers)
+ 
+     implementation(platform(libs.compose.bom))
+ 
+diff --git a/modules/services/ui/src/main/java/au/com/shiftyjelly/pocketcasts/ui/di/UiModule.kt b/modules/services/ui/src/main/java/au/com/shiftyjelly/pocketcasts/ui/di/UiModule.kt
+index 5ebc1f4e9..94c01e400 100644
+--- a/modules/services/ui/src/main/java/au/com/shiftyjelly/pocketcasts/ui/di/UiModule.kt
++++ b/modules/services/ui/src/main/java/au/com/shiftyjelly/pocketcasts/ui/di/UiModule.kt
+@@ -1,6 +1,7 @@
+ package au.com.shiftyjelly.pocketcasts.ui.di
+ 
+ import android.content.Context
++import au.com.shiftyjelly.pocketcasts.servers.di.Artwork
+ import coil.ImageLoader
+ import coil.disk.DiskCache
+ import dagger.Module
+@@ -9,6 +10,7 @@ import dagger.hilt.InstallIn
+ import dagger.hilt.android.qualifiers.ApplicationContext
+ import dagger.hilt.components.SingletonComponent
+ import javax.inject.Singleton
++import okhttp3.OkHttpClient
+ 
+ @Module
+ @InstallIn(SingletonComponent::class)
+@@ -16,9 +18,13 @@ class UiModule {
+ 
+     @Provides
+     @Singleton
+-    internal fun provideCoilImageLoader(@ApplicationContext context: Context): ImageLoader {
++    internal fun provideCoilImageLoader(
++        @ApplicationContext context: Context,
++        @Artwork client: OkHttpClient,
++    ): ImageLoader {
+         return ImageLoader.Builder(context)
+             .crossfade(true)
++            .okHttpClient(client)
+             .diskCache {
+                 DiskCache.Builder()
+                     .directory(context.cacheDir.resolve("ImageCache"))
+

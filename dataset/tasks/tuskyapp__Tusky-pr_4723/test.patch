@@ -1,0 +1,90 @@
+diff --git forkSrcPrefix/app/src/test/java/com/keylesspalace/tusky/util/LinkHelperTest.kt forkDstPrefix/app/src/test/java/com/keylesspalace/tusky/util/LinkHelperTest.kt
+index 99be370c5cb99a84934f46a4e0f615b7ff63e18d..40a7ac8c475b74e1ff49fdcc5d55aa8f49ead1cb 100644
+--- forkSrcPrefix/app/src/test/java/com/keylesspalace/tusky/util/LinkHelperTest.kt
++++ forkDstPrefix/app/src/test/java/com/keylesspalace/tusky/util/LinkHelperTest.kt
+@@ -1,5 +1,6 @@
+ package com.keylesspalace.tusky.util
+
++import android.text.Spannable
+ import android.text.SpannableStringBuilder
+ import android.text.style.URLSpan
+ import android.widget.TextView
+@@ -168,7 +169,7 @@ class LinkHelperTest {
+         content.append(displayedContent, URLSpan(maliciousUrl), 0)
+         val oldContent = content.toString()
+         Assert.assertEquals(
+-            textView.context.getString(R.string.url_domain_notifier, displayedContent, maliciousDomain),
++            displayedContent + " (🔗 ${maliciousDomain})",
+             markupHiddenUrls(textView, content).toString()
+         )
+         Assert.assertEquals(oldContent, content.toString())
+@@ -182,7 +183,7 @@ class LinkHelperTest {
+         val content = SpannableStringBuilder()
+         content.append(displayedContent, URLSpan(maliciousUrl), 0)
+         Assert.assertEquals(
+-            textView.context.getString(R.string.url_domain_notifier, displayedContent, maliciousDomain),
++            displayedContent + " (🔗 ${maliciousDomain})",
+             markupHiddenUrls(textView, content).toString()
+         )
+     }
+@@ -198,7 +199,7 @@ class LinkHelperTest {
+
+         val markedUpContent = markupHiddenUrls(textView, content)
+         for (domain in domains) {
+-            Assert.assertTrue(markedUpContent.contains(textView.context.getString(R.string.url_domain_notifier, displayedContent, domain)))
++            Assert.assertTrue(markedUpContent.contains(displayedContent + " (🔗 ${domain})"))
+         }
+     }
+
+@@ -249,8 +250,9 @@ class LinkHelperTest {
+             "Another Place | https://another.place/",
+             "Another Place https://another.place/path"
+         )
++        print(markedUpContent)
+         asserts.forEach {
+-            Assert.assertTrue(markedUpContent.contains(textView.context.getString(R.string.url_domain_notifier, it, "some.place")))
++            Assert.assertTrue(markedUpContent.contains(it + " (🔗 some.place)"))
+         }
+     }
+
+@@ -296,6 +298,40 @@ class LinkHelperTest {
+         }
+     }
+
++    @Test
++    fun markupHiddenUrls_emojiAndEmoteTest() {
++        val url = "https://corteximplant.com"
++
++        // Test cases: (input text, span start, span end) for custom emotes
++        val cases = listOf(
++            Triple(":cyberdon: link text", 0, 10),
++            Triple("link text :blob_happy:", 10, 22),
++            Triple(" :blob_joy: link text", 1, 11),
++            Triple("link :cat_eyes: text", 5, 15),
++            Triple("link text :fox_cool: ", 10, 20)
++        )
++
++        for ((input, start, end) in cases) {
++            // Create a Spannable with a URLSpan covering the entire input text
++            val content = SpannableStringBuilder().append(input, URLSpan(url), 0)
++
++            // Attach an EmojiSpan to the specified range
++            val emojiSpan = EmojiSpan(textView).also {
++                content.setSpan(it, start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
++            }
++
++            val result = markupHiddenUrls(textView, content)
++
++            // Verify the final string matches the expected format: "original text (🔗 domain)"
++            val expected = "$input (🔗 corteximplant.com)"
++            Assert.assertEquals("Failed on input: $input", expected, result.toString())
++
++            // Verify that the original EmojiSpan is still present and attached to the correct range.
++            val spans = result.getSpans(start, end, EmojiSpan::class.java)
++            Assert.assertTrue("EmojiSpan should be preserved for input: $input", spans.contains(emojiSpan))
++        }
++    }
++
+     @Test
+     fun invalidTagsAreNotMarkedUp() {
+         val builder = SpannableStringBuilder()

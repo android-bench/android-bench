@@ -1,0 +1,207 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index c92ab23ff..d1c0bf2c9 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -4,7 +4,9 @@
+ 
+ 7.32
+ -----
+-
++* Bug Fixes:
++    *    Ask notifications permission for newly-installed apps on Android 13
++         ([#723](https://github.com/Automattic/pocket-casts-android/issues/723)).
+ 
+ 7.31
+ -----
+diff --git a/app/src/main/AndroidManifest.xml b/app/src/main/AndroidManifest.xml
+index 26f66ae91..a9a828bb1 100644
+--- a/app/src/main/AndroidManifest.xml
++++ b/app/src/main/AndroidManifest.xml
+@@ -12,6 +12,7 @@
+     <uses-feature android:name="android.hardware.telephony" android:required="false"/>
+ 
+     <uses-permission android:name="android.permission.INTERNET"/>
++    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+     <uses-permission android:name="android.permission.WAKE_LOCK"/>
+     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
+     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+@@ -23,7 +24,6 @@
+     <uses-permission android:name="com.android.vending.BILLING" />
+     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+ 
+     <uses-permission android:name="com.google.android.gms.permission.AD_ID" tools:node="remove"/>
+ 
+diff --git a/app/src/main/java/au/com/shiftyjelly/pocketcasts/ui/MainActivity.kt b/app/src/main/java/au/com/shiftyjelly/pocketcasts/ui/MainActivity.kt
+index 39df2b67e..c84c04e8e 100644
+--- a/app/src/main/java/au/com/shiftyjelly/pocketcasts/ui/MainActivity.kt
++++ b/app/src/main/java/au/com/shiftyjelly/pocketcasts/ui/MainActivity.kt
+@@ -1,14 +1,19 @@
+ package au.com.shiftyjelly.pocketcasts.ui
+ 
++import android.Manifest
++import android.annotation.SuppressLint
+ import android.app.Activity
+ import android.content.Intent
++import android.content.pm.PackageManager
+ import android.content.res.Configuration
+ import android.net.Uri
++import android.os.Build
+ import android.os.Bundle
+ import android.provider.MediaStore
+ import android.view.View
+ import android.view.WindowManager
+ import androidx.activity.result.ActivityResultLauncher
++import androidx.activity.result.contract.ActivityResultContracts
+ import androidx.activity.viewModels
+ import androidx.appcompat.app.AppCompatActivity
+ import androidx.appcompat.app.AppCompatDelegate
+@@ -16,6 +21,7 @@ import androidx.appcompat.widget.Toolbar
+ import androidx.compose.runtime.collectAsState
+ import androidx.compose.runtime.getValue
+ import androidx.compose.ui.platform.ComposeView
++import androidx.core.content.ContextCompat
+ import androidx.core.view.isVisible
+ import androidx.core.view.updatePadding
+ import androidx.fragment.app.Fragment
+@@ -107,6 +113,7 @@ import au.com.shiftyjelly.pocketcasts.views.helper.WarningsHelper
+ import au.com.shiftyjelly.pocketcasts.views.helper.WhatsNew
+ import au.com.shiftyjelly.pocketcasts.views.multiselect.MultiSelectHelper
+ import com.google.android.material.bottomsheet.BottomSheetBehavior
++import com.google.android.material.snackbar.Snackbar
+ import dagger.hilt.android.AndroidEntryPoint
+ import io.reactivex.BackpressureStrategy
+ import io.reactivex.Observable
+@@ -123,15 +130,18 @@ import kotlinx.coroutines.launch
+ import kotlinx.coroutines.runBlocking
+ import kotlinx.coroutines.withContext
+ import timber.log.Timber
++import java.util.Locale
+ import java.util.concurrent.TimeUnit
+ import javax.inject.Inject
+ import kotlin.coroutines.CoroutineContext
++import android.provider.Settings as AndroidProviderSettings
+ import au.com.shiftyjelly.pocketcasts.localization.R as LR
+ import au.com.shiftyjelly.pocketcasts.views.R as VR
+ import com.google.android.material.R as MR
+ 
+ private const val SAVEDSTATE_PLAYER_OPEN = "player_open"
+ private const val SAVEDSTATE_MINIPLAYER_SHOWN = "miniplayer_shown"
++private const val EXTRA_LONG_SNACKBAR_DURATION_MS: Int = 5000
+ 
+ @AndroidEntryPoint
+ class MainActivity :
+@@ -204,6 +214,45 @@ class MainActivity :
+         }
+     }
+ 
++    private val notificationPermissionLauncher = registerForActivityResult(
++        ActivityResultContracts.RequestPermission()
++    ) {}
++
++    @SuppressLint("WrongConstant") // for custom snackbar duration constant
++    private fun checkForNotificationPermission() {
++        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
++            when {
++                ContextCompat.checkSelfPermission(
++                    this, Manifest.permission.POST_NOTIFICATIONS
++                ) == PackageManager.PERMISSION_GRANTED -> Unit // Do nothing
++                shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS) -> {
++                    if (settings.isNotificationsDisabledMessageShown()) return
++                    Snackbar.make(
++                        findViewById(R.id.root),
++                        getString(LR.string.notifications_blocked_warning),
++                        EXTRA_LONG_SNACKBAR_DURATION_MS
++                    ).setAction(
++                        getString(LR.string.notifications_blocked_warning_snackbar_action)
++                            .uppercase(Locale.getDefault())
++                    ) {
++                        // Responds to click on the action
++                        val intent = Intent(AndroidProviderSettings.ACTION_APPLICATION_DETAILS_SETTINGS)
++                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
++                        val uri: Uri = Uri.fromParts("package", packageName, null)
++                        intent.data = uri
++                        startActivity(intent)
++                    }.show()
++                    settings.setNotificationsDisabledMessageShown(true)
++                }
++                else -> {
++                    notificationPermissionLauncher.launch(
++                        Manifest.permission.POST_NOTIFICATIONS
++                    )
++                }
++            }
++        }
++    }
++
+     override fun onCreate(savedInstanceState: Bundle?) {
+         Timber.d("Main Activity onCreate")
+         super.onCreate(savedInstanceState)
+@@ -218,6 +267,7 @@ class MainActivity :
+         binding = ActivityMainBinding.inflate(layoutInflater)
+         val view = binding.root
+         setContentView(view)
++        checkForNotificationPermission()
+ 
+         lifecycleScope.launchWhenCreated {
+             val isEligible = viewModel.isEndOfYearStoriesEligible()
+diff --git a/modules/services/localization/src/main/res/values/strings.xml b/modules/services/localization/src/main/res/values/strings.xml
+index fd10ab385..27e7f5bb4 100644
+--- a/modules/services/localization/src/main/res/values/strings.xml
++++ b/modules/services/localization/src/main/res/values/strings.xml
+@@ -31,6 +31,8 @@
+     <string name="more">More</string>
+     <string name="more_options">More options</string>
+     <string name="next_episode">Next episode</string>
++    <string name="notifications_blocked_warning">Notifications are blocked. You can update permission through Settings.</string>
++    <string name="notifications_blocked_warning_snackbar_action" translatable="false">@string/update</string>
+     <string name="ok">OK</string>
+     <string name="options">Options</string>
+     <string name="pause">Pause</string>
+diff --git a/modules/services/preferences/src/main/java/au/com/shiftyjelly/pocketcasts/preferences/Settings.kt b/modules/services/preferences/src/main/java/au/com/shiftyjelly/pocketcasts/preferences/Settings.kt
+index 269039129..9c22dc0b9 100644
+--- a/modules/services/preferences/src/main/java/au/com/shiftyjelly/pocketcasts/preferences/Settings.kt
++++ b/modules/services/preferences/src/main/java/au/com/shiftyjelly/pocketcasts/preferences/Settings.kt
+@@ -129,6 +129,8 @@ interface Settings {
+         const val INTENT_LINK_PROMO_CODE = "pktc://redeem/promo/"
+ 
+         const val LOG_TAG_AUTO = "PocketCastsAuto"
++
++        const val NOTIFICATIONS_DISABLED_MESSAGE_SHOWN = "notificationsDisabledMessageShown"
+     }
+ 
+     enum class NotificationChannel(val id: String) {
+@@ -609,4 +611,7 @@ interface Settings {
+ 
+     fun areCustomMediaActionsVisible(): Boolean
+     fun setCustomMediaActionsVisible(value: Boolean)
++
++    fun isNotificationsDisabledMessageShown(): Boolean
++    fun setNotificationsDisabledMessageShown(value: Boolean)
+ }
+diff --git a/modules/services/preferences/src/main/java/au/com/shiftyjelly/pocketcasts/preferences/SettingsImpl.kt b/modules/services/preferences/src/main/java/au/com/shiftyjelly/pocketcasts/preferences/SettingsImpl.kt
+index f98021144..99d9f4137 100644
+--- a/modules/services/preferences/src/main/java/au/com/shiftyjelly/pocketcasts/preferences/SettingsImpl.kt
++++ b/modules/services/preferences/src/main/java/au/com/shiftyjelly/pocketcasts/preferences/SettingsImpl.kt
+@@ -24,6 +24,7 @@ import au.com.shiftyjelly.pocketcasts.models.to.SubscriptionStatus
+ import au.com.shiftyjelly.pocketcasts.models.type.PodcastsSortType
+ import au.com.shiftyjelly.pocketcasts.models.type.TrimMode
+ import au.com.shiftyjelly.pocketcasts.preferences.Settings.Companion.DEFAULT_MAX_AUTO_ADD_LIMIT
++import au.com.shiftyjelly.pocketcasts.preferences.Settings.Companion.NOTIFICATIONS_DISABLED_MESSAGE_SHOWN
+ import au.com.shiftyjelly.pocketcasts.preferences.Settings.Companion.SETTINGS_ENCRYPT_SECRET
+ import au.com.shiftyjelly.pocketcasts.preferences.Settings.MediaNotificationControls
+ import au.com.shiftyjelly.pocketcasts.preferences.Settings.NotificationChannel
+@@ -1503,4 +1504,11 @@ class SettingsImpl @Inject constructor(
+         setBoolean(CUSTOM_MEDIA_ACTIONS_VISIBLE_KEY, value)
+         customMediaActionsVisibilityFlow.update { value }
+     }
++
++    override fun isNotificationsDisabledMessageShown() =
++        getBoolean(NOTIFICATIONS_DISABLED_MESSAGE_SHOWN, false)
++
++    override fun setNotificationsDisabledMessageShown(value: Boolean) {
++        setBoolean(NOTIFICATIONS_DISABLED_MESSAGE_SHOWN, value)
++    }
+ }
+

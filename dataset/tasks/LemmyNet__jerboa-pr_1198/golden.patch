@@ -1,0 +1,423 @@
+diff --git a/app/src/main/java/com/jerboa/ui/components/common/InputFields.kt b/app/src/main/java/com/jerboa/ui/components/common/InputFields.kt
+index 52bb28f6..b08e718e 100644
+--- a/app/src/main/java/com/jerboa/ui/components/common/InputFields.kt
++++ b/app/src/main/java/com/jerboa/ui/components/common/InputFields.kt
+@@ -1,4 +1,3 @@
+-
+ package com.jerboa.ui.components.common
+ 
+ import android.net.Uri
+@@ -13,6 +12,7 @@ import androidx.compose.foundation.layout.Column
+ import androidx.compose.foundation.layout.Row
+ import androidx.compose.foundation.layout.fillMaxWidth
+ import androidx.compose.foundation.layout.padding
++import androidx.compose.foundation.layout.size
+ import androidx.compose.foundation.rememberScrollState
+ import androidx.compose.foundation.text.KeyboardOptions
+ import androidx.compose.foundation.verticalScroll
+@@ -54,6 +54,7 @@ import androidx.compose.ui.focus.FocusRequester
+ import androidx.compose.ui.focus.focusRequester
+ import androidx.compose.ui.graphics.Color
+ import androidx.compose.ui.platform.LocalContext
++import androidx.compose.ui.res.painterResource
+ import androidx.compose.ui.res.stringResource
+ import androidx.compose.ui.text.TextRange
+ import androidx.compose.ui.text.input.KeyboardCapitalization
+@@ -67,6 +68,7 @@ import com.jerboa.appendMarkdownImage
+ import com.jerboa.db.entity.Account
+ import com.jerboa.db.entity.isAnon
+ import com.jerboa.imageInputStreamFromUri
++import com.jerboa.ui.theme.MARKDOWN_BAR_ICON_SIZE
+ import com.jerboa.ui.theme.MEDIUM_PADDING
+ import com.jerboa.ui.theme.muted
+ import kotlinx.coroutines.launch
+@@ -143,72 +145,8 @@ fun MarkdownTextField(
+ 
+         MarkdownHelperBar(
+             imageUploading = imageUploading.value,
+-            onBoldClick = {
+-                simpleMarkdownSurround(
+-                    "**",
+-                    value = text,
+-                    onValueChange = onTextChange,
+-                )
+-            },
+-            onItalicsClick = {
+-                simpleMarkdownSurround(
+-                    "*",
+-                    value = text,
+-                    onValueChange = onTextChange,
+-                )
+-            },
+-            onQuoteClick = {
+-                simpleMarkdownSurround(
+-                    "> ",
+-                    value = text,
+-                    onValueChange = onTextChange,
+-                    surround = false,
+-                )
+-            },
+-            onHeaderClick = {
+-                simpleMarkdownSurround(
+-                    "# ",
+-                    value = text,
+-                    onValueChange = onTextChange,
+-                    surround = false,
+-                )
+-            },
+-            onCodeClick = {
+-                simpleMarkdownSurround(
+-                    "`",
+-                    value = text,
+-                    onValueChange = onTextChange,
+-                )
+-            },
+-            onStrikethroughClick = {
+-                simpleMarkdownSurround(
+-                    "~~",
+-                    value = text,
+-                    onValueChange = onTextChange,
+-                )
+-            },
+-            onSubscriptClick = {
+-                simpleMarkdownSurround(
+-                    "~",
+-                    value = text,
+-                    onValueChange = onTextChange,
+-                )
+-            },
+-            onSuperscriptClick = {
+-                simpleMarkdownSurround(
+-                    "^",
+-                    value = text,
+-                    onValueChange = onTextChange,
+-                )
+-            },
+-            onListClick = {
+-                simpleMarkdownSurround(
+-                    "- ",
+-                    value = text,
+-                    onValueChange = onTextChange,
+-                    surround = false,
+-                )
+-            },
++            text = text,
++            onTextChange = onTextChange,
+             onImageClick = {
+                 launcher.launch("image/*")
+             },
+@@ -388,7 +326,7 @@ fun simpleMarkdownSurround(
+     val out = if (value.selection.start == value.selection.end) {
+         var altered = value.text.insert(value.selection.start, markdownChar)
+         if (surround) {
+-            altered = altered.insert(value.selection.start, markdownChar)
++            altered = altered.insert(value.selection.start + markdownChar.length, markdownChar)
+         }
+         val cursor = TextRange(value.selection.start + markdownChar.length)
+ 
+@@ -400,7 +338,6 @@ fun simpleMarkdownSurround(
+             altered = altered
+                 .insert(value.selection.end + markdownChar.length, markdownChar)
+         }
+-//        Log.d("jerboa", "start = ${value.selection.start}, end = ${value.selection.end}")
+ 
+         // TODO weird glitch when its the last item
+         val start = value.selection.start + markdownChar.length
+@@ -423,21 +360,48 @@ fun simpleMarkdownSurround(
+     onValueChange(out)
+ }
+ 
++fun simpleMarkdownSurround(
++    startText: String,
++    endText: String,
++    value: TextFieldValue,
++    onValueChange: (TextFieldValue) -> Unit,
++) {
++    val out = if (value.selection.start == value.selection.end) {
++        val altered = value.text
++            .insert(value.selection.start, startText)
++            .insert(value.selection.start + startText.length, endText)
++
++        val cursor = TextRange(value.selection.start + startText.length)
++
++        TextFieldValue(altered, cursor)
++    } else {
++        val altered = value.text
++            .insert(value.selection.start, startText)
++            .insert(value.selection.end + startText.length, endText)
++
++        val start = value.selection.start + startText.length
++        val end = value.selection.end + endText.length
++
++        val cursor = if (value.selection.end == value.text.length) {
++            TextRange(start)
++        } else {
++            TextRange(start, end)
++        }
++
++        TextFieldValue(altered, cursor)
++    }
++
++    onValueChange(out)
++}
++
+ @Composable
+ fun MarkdownHelperBar(
+     onPreviewClick: () -> Unit,
+-    onHeaderClick: () -> Unit,
+     onImageClick: () -> Unit,
+     onLinkClick: () -> Unit,
+-    onListClick: () -> Unit,
+-    onQuoteClick: () -> Unit,
+-    onBoldClick: () -> Unit,
+-    onItalicsClick: () -> Unit,
+-    onCodeClick: () -> Unit,
+-    onStrikethroughClick: () -> Unit,
+-    onSubscriptClick: () -> Unit,
+-    onSuperscriptClick: () -> Unit,
+     imageUploading: Boolean,
++    text: TextFieldValue,
++    onTextChange: (TextFieldValue) -> Unit,
+ ) {
+     Row(
+         modifier = Modifier.horizontalScroll(rememberScrollState()),
+@@ -477,7 +441,13 @@ fun MarkdownHelperBar(
+             }
+         }
+         IconButton(
+-            onClick = onBoldClick,
++            onClick = {
++                simpleMarkdownSurround(
++                    "**",
++                    value = text,
++                    onValueChange = onTextChange,
++                )
++            },
+         ) {
+             Icon(
+                 imageVector = Icons.Outlined.FormatBold,
+@@ -486,7 +456,13 @@ fun MarkdownHelperBar(
+             )
+         }
+         IconButton(
+-            onClick = onItalicsClick,
++            onClick = {
++                simpleMarkdownSurround(
++                    "*",
++                    value = text,
++                    onValueChange = onTextChange,
++                )
++            },
+         ) {
+             Icon(
+                 imageVector = Icons.Outlined.FormatItalic,
+@@ -495,7 +471,14 @@ fun MarkdownHelperBar(
+             )
+         }
+         IconButton(
+-            onClick = onQuoteClick,
++            onClick = {
++                simpleMarkdownSurround(
++                    "> ",
++                    value = text,
++                    onValueChange = onTextChange,
++                    surround = false,
++                )
++            },
+         ) {
+             Icon(
+                 imageVector = Icons.Outlined.FormatQuote,
+@@ -504,7 +487,14 @@ fun MarkdownHelperBar(
+             )
+         }
+         IconButton(
+-            onClick = onListClick,
++            onClick = {
++                simpleMarkdownSurround(
++                    "- ",
++                    value = text,
++                    onValueChange = onTextChange,
++                    surround = false,
++                )
++            },
+         ) {
+             Icon(
+                 imageVector = Icons.Outlined.FormatListBulleted,
+@@ -513,7 +503,31 @@ fun MarkdownHelperBar(
+             )
+         }
+         IconButton(
+-            onClick = onHeaderClick,
++            onClick = {
++                simpleMarkdownSurround(
++                    startText = "::: spoiler Title\n",
++                    endText = "\n:::",
++                    value = text,
++                    onValueChange = onTextChange,
++                )
++            },
++        ) {
++            Icon(
++                painter = painterResource(R.drawable.emergency_home_fill0_wght400_grad0_opsz48),
++                contentDescription = stringResource(R.string.markdownHelper_insertSpoiler),
++                modifier = Modifier.size(MARKDOWN_BAR_ICON_SIZE),
++                tint = MaterialTheme.colorScheme.onBackground.muted,
++            )
++        }
++        IconButton(
++            onClick = {
++                simpleMarkdownSurround(
++                    "# ",
++                    value = text,
++                    onValueChange = onTextChange,
++                    surround = false,
++                )
++            },
+         ) {
+             Icon(
+                 imageVector = Icons.Outlined.Title,
+@@ -522,7 +536,13 @@ fun MarkdownHelperBar(
+             )
+         }
+         IconButton(
+-            onClick = onCodeClick,
++            onClick = {
++                simpleMarkdownSurround(
++                    "`",
++                    value = text,
++                    onValueChange = onTextChange,
++                )
++            },
+         ) {
+             Icon(
+                 imageVector = Icons.Outlined.Code,
+@@ -531,7 +551,13 @@ fun MarkdownHelperBar(
+             )
+         }
+         IconButton(
+-            onClick = onStrikethroughClick,
++            onClick = {
++                simpleMarkdownSurround(
++                    "~~",
++                    value = text,
++                    onValueChange = onTextChange,
++                )
++            },
+         ) {
+             Icon(
+                 imageVector = Icons.Outlined.FormatStrikethrough,
+@@ -540,7 +566,13 @@ fun MarkdownHelperBar(
+             )
+         }
+         IconButton(
+-            onClick = onSubscriptClick,
++            onClick = {
++                simpleMarkdownSurround(
++                    "~",
++                    value = text,
++                    onValueChange = onTextChange,
++                )
++            },
+         ) {
+             Icon(
+                 imageVector = Icons.Outlined.Subscript,
+@@ -549,7 +581,13 @@ fun MarkdownHelperBar(
+             )
+         }
+         IconButton(
+-            onClick = onSuperscriptClick,
++            onClick = {
++                simpleMarkdownSurround(
++                    "^",
++                    value = text,
++                    onValueChange = onTextChange,
++                )
++            },
+         ) {
+             Icon(
+                 imageVector = Icons.Outlined.Superscript,
+@@ -564,19 +602,12 @@ fun MarkdownHelperBar(
+ @Composable
+ fun TextMarkdownBarPreview() {
+     MarkdownHelperBar(
+-        onHeaderClick = {},
+         onPreviewClick = {},
+         onImageClick = {},
+-        onListClick = {},
+-        onQuoteClick = {},
+-        onBoldClick = {},
+-        onItalicsClick = {},
+-        onCodeClick = {},
+-        onStrikethroughClick = {},
+-        onSubscriptClick = {},
+-        onSuperscriptClick = {},
+         onLinkClick = {},
+         imageUploading = false,
++        text = TextFieldValue(),
++        onTextChange = {},
+     )
+ }
+ 
+diff --git a/app/src/main/java/com/jerboa/ui/theme/Sizes.kt b/app/src/main/java/com/jerboa/ui/theme/Sizes.kt
+index 7e1e6b3c..34e227ce 100644
+--- a/app/src/main/java/com/jerboa/ui/theme/Sizes.kt
++++ b/app/src/main/java/com/jerboa/ui/theme/Sizes.kt
+@@ -3,6 +3,7 @@ package com.jerboa.ui.theme
+ import androidx.compose.ui.unit.dp
+ 
+ val ACTION_BAR_ICON_SIZE = 16.dp
++val MARKDOWN_BAR_ICON_SIZE = 24.dp
+ 
+ val SMALL_PADDING = 4.dp
+ val MEDIUM_PADDING = 8.dp
+diff --git a/app/src/main/java/com/jerboa/util/markwon/MarkwonSpoilerPlugin.kt b/app/src/main/java/com/jerboa/util/markwon/MarkwonSpoilerPlugin.kt
+index 04a41408..577106f4 100644
+--- a/app/src/main/java/com/jerboa/util/markwon/MarkwonSpoilerPlugin.kt
++++ b/app/src/main/java/com/jerboa/util/markwon/MarkwonSpoilerPlugin.kt
+@@ -27,7 +27,7 @@ class MarkwonSpoilerPlugin(val enableInteraction: Boolean) : AbstractMarkwonPlug
+ 
+     private class SpoilerTextAddedListener : CorePlugin.OnTextAddedListener {
+         override fun onTextAdded(visitor: MarkwonVisitor, text: String, start: Int) {
+-            val spoilerTitleRegex = Regex("(:::\\s*spoiler\\s*)(.*)")
++            val spoilerTitleRegex = Regex("(:::\\s+spoiler\\s+)(.*)")
+             // Find all spoiler "start" lines
+             val spoilerTitles = spoilerTitleRegex.findAll(text)
+ 
+@@ -72,8 +72,10 @@ class MarkwonSpoilerPlugin(val enableInteraction: Boolean) : AbstractMarkwonPlug
+                 }
+ 
+                 var open = false
++                // The space at the end is necessary for the lengths to be the same
++                // This reduces complexity as else it would need complex logic to determine the replacement length
+                 val getSpoilerTitle = { openParam: Boolean ->
+-                    if (openParam) "▼ ${spoilerTitleSpan.title}" else "▶ ${spoilerTitleSpan.title}"
++                    if (openParam) "▼ ${spoilerTitleSpan.title}\n" else "▶ ${spoilerTitleSpan.title}\u200B"
+                 }
+ 
+                 val spoilerTitle = getSpoilerTitle(false)
+diff --git a/app/src/main/res/drawable/emergency_home_fill0_wght400_grad0_opsz48.xml b/app/src/main/res/drawable/emergency_home_fill0_wght400_grad0_opsz48.xml
+new file mode 100644
+index 00000000..e8db7a0f
+--- /dev/null
++++ b/app/src/main/res/drawable/emergency_home_fill0_wght400_grad0_opsz48.xml
+@@ -0,0 +1,9 @@
++<vector xmlns:android="http://schemas.android.com/apk/res/android"
++    android:width="48dp"
++    android:height="48dp"
++    android:viewportWidth="960"
++    android:viewportHeight="960">
++  <path
++      android:fillColor="#FF000000"
++      android:pathData="M480,889q-11,0 -21.96,-4.43Q447.07,880.13 438,872L88,522q-8.13,-9.07 -12.56,-20.04Q71,491 71,480q0,-11 4.43,-22.34Q79.87,446.32 88,438l350,-350q9.07,-8.87 20.04,-12.94Q469,71 480,71q11,0 22.34,4.07Q513.68,79.13 522,88l350,350q8.87,8.32 12.94,19.66Q889,469 889,480q0,11 -4.07,21.96Q880.87,512.93 872,522L522,872q-8.32,8.13 -19.66,12.56Q491,889 480,889ZM480,829 L829,480 480,131 131,480 480,829ZM480.17,520q12.82,0 21.33,-8.63T510,490v-180q0,-12.75 -8.68,-21.38 -8.68,-8.63 -21.5,-8.63 -12.82,0 -21.33,8.63T450,310v180q0,12.75 8.68,21.38 8.68,8.63 21.5,8.63ZM480,630q12,0 21,-9t9,-21q0,-12 -9,-21t-21,-9q-12,0 -21,9t-9,21q0,12 9,21t21,9ZM480,480Z"/>
++</vector>
+diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
+index 8d5578e2..25b51a07 100644
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -411,4 +411,5 @@
+     <string name="open_link">Open link</string>
+     <string name="open_link_external">Open link in external</string>
+     <string name="no_activity_found">No activity (app) found that can open this link</string>
++    <string name="markdownHelper_insertSpoiler">Insert spoiler</string>
+ </resources>
+

@@ -1,0 +1,39 @@
+diff --git a/decompose/src/commonTest/kotlin/com/arkivanov/decompose/lifecycle/MergedLifecycleTest.kt b/decompose/src/commonTest/kotlin/com/arkivanov/decompose/lifecycle/MergedLifecycleTest.kt
+index 4a9cfa69..6e33aff4 100644
+--- a/decompose/src/commonTest/kotlin/com/arkivanov/decompose/lifecycle/MergedLifecycleTest.kt
++++ b/decompose/src/commonTest/kotlin/com/arkivanov/decompose/lifecycle/MergedLifecycleTest.kt
+@@ -367,6 +367,16 @@ class MergedLifecycleTest {
+         callbacks.assertNoEvents()
+     }
+ 
++    @Test
++    fun WHEN_lifecycle1_destroyed_and_lifecycle2_destroyed_THEN_onCreate_onDestroy_called() {
++        lifecycle1.create()
++        lifecycle1.destroy()
++        lifecycle2.create()
++        lifecycle2.destroy()
++
++        callbacks.assertEvents(Event.ON_CREATE, Event.ON_DESTROY)
++    }
++
+     @Test
+     fun GIVEN_lifecycle1_destroyed_WHEN_MergedLifecycle_created_THEN_not_subscribed() {
+         val lifecycle1 = TestLifecycleRegistry()
+@@ -414,6 +424,16 @@ class MergedLifecycleTest {
+         assertEquals(Lifecycle.State.DESTROYED, merged.state)
+     }
+ 
++    @Test
++    fun WHEN_lifecycle1_created_and_destroyed_and_lifecycle2_created_and_destroyed_THEN_state_destroyed() {
++        lifecycle1.create()
++        lifecycle1.destroy()
++        lifecycle2.create()
++        lifecycle2.destroy()
++
++        assertEquals(Lifecycle.State.DESTROYED, merged.state)
++    }
++
+     @Test
+     fun WHEN_lifecycle1_destroyed_THEN_all_callbacks_unsubscribed() {
+         lifecycle1.resume()
+

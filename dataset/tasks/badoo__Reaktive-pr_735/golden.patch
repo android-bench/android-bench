@@ -1,0 +1,518 @@
+diff --git a/reaktive/src/commonMain/kotlin/com/badoo/reaktive/subject/DefaultSubject.kt b/reaktive/src/commonMain/kotlin/com/badoo/reaktive/subject/AbstractSubject.kt
+similarity index 65%
+rename from reaktive/src/commonMain/kotlin/com/badoo/reaktive/subject/DefaultSubject.kt
+rename to reaktive/src/commonMain/kotlin/com/badoo/reaktive/subject/AbstractSubject.kt
+index b8f443ee..76e7390b 100644
+--- a/reaktive/src/commonMain/kotlin/com/badoo/reaktive/subject/DefaultSubject.kt
++++ b/reaktive/src/commonMain/kotlin/com/badoo/reaktive/subject/AbstractSubject.kt
+@@ -1,11 +1,13 @@
+ package com.badoo.reaktive.subject
+ 
++import com.badoo.reaktive.base.Observer
+ import com.badoo.reaktive.disposable.Disposable
++import com.badoo.reaktive.disposable.SerialDisposable
+ import com.badoo.reaktive.observable.ObservableObserver
+ import com.badoo.reaktive.utils.atomic.AtomicReference
+ import com.badoo.reaktive.utils.serializer.serializer
+ 
+-internal open class DefaultSubject<T> : Subject<T> {
++internal abstract class AbstractSubject<T, S> : Subject<T> {
+ 
+     private val observers = ArrayList<ObservableObserver<T>>()
+     private val serializer = serializer(onValue = ::onSerializedValue)
+@@ -18,10 +20,6 @@ internal open class DefaultSubject<T> : Subject<T> {
+             onStatusChanged(value)
+         }
+ 
+-    override fun subscribe(observer: ObservableObserver<T>) {
+-        serializer.accept(Event.OnSubscribe(observer))
+-    }
+-
+     override fun onNext(value: T) {
+         serializer.accept(value)
+     }
+@@ -34,9 +32,18 @@ internal open class DefaultSubject<T> : Subject<T> {
+         serializer.accept(Event.OnError(error))
+     }
+ 
+-    protected open fun onSubscribed(observer: ObservableObserver<T>): Boolean = true
++    protected fun onSubscribe(observer: ObservableObserver<T>, disposable: SerialDisposable, token: S) {
++        serializer.accept(Event.OnSubscribe(observer, disposable, token))
++    }
++
++    protected fun Observer.onSubscribe(): SerialDisposable? {
++        val disposable = SerialDisposable()
++        onSubscribe(disposable)
+ 
+-    protected open fun onAfterSubscribe(observer: ObservableObserver<T>) {
++        return disposable.takeUnless(SerialDisposable::isDisposed)
++    }
++
++    protected open fun onAfterSubscribe(observer: ObservableObserver<T>, token: S) {
+     }
+ 
+     protected open fun onAfterUnsubscribe(observer: ObservableObserver<T>) {
+@@ -49,11 +56,11 @@ internal open class DefaultSubject<T> : Subject<T> {
+     }
+ 
+     private fun onSerializedValue(value: Any?): Boolean {
+-        if (value is Event<*>) {
++        if (value is Event<*, *>) {
+             @Suppress("UNCHECKED_CAST") // Either Event<T> or T, to avoid unnecessary allocations
+-            val event = value as Event<T>
++            val event = value as Event<T, S>
+             when (event) {
+-                is Event.OnSubscribe -> onSerializedSubscribe(event.observer)
++                is Event.OnSubscribe -> onSerializedSubscribe(event.observer, event.disposable, event.token)
+                 is Event.OnUnsubscribe -> onSerializedUnsubscribe(event.observer)
+                 is Event.OnComplete -> onSerializedComplete()
+                 is Event.OnError -> onSerializedError(event.error)
+@@ -66,39 +73,22 @@ internal open class DefaultSubject<T> : Subject<T> {
+         return true
+     }
+ 
+-    private fun onSerializedSubscribe(observer: ObservableObserver<T>) {
+-        val disposable = Disposable { serializer.accept(Event.OnUnsubscribe(observer)) }
+-
+-        observer.onSubscribe(disposable)
+-
++    private fun onSerializedSubscribe(observer: ObservableObserver<T>, disposable: SerialDisposable, token: S) {
+         if (disposable.isDisposed) {
+             return
+         }
+ 
+-        if (!onSubscribed(observer)) {
+-            return
+-        }
+-
+-        status.also {
+-            when (it) {
+-                is Subject.Status.Completed -> {
+-                    observer.onComplete()
+-                    return
+-                }
+-
+-                is Subject.Status.Error -> {
+-                    observer.onError(it.error)
+-                    return
+-                }
++        disposable.set(Disposable { serializer.accept(Event.OnUnsubscribe(observer)) })
+ 
+-                is Subject.Status.Active -> {
+-                }
++        when (val status = status) {
++            Subject.Status.Active -> {
++                observers += observer
++                onAfterSubscribe(observer, token)
+             }
+-        }
+-
+-        observers += observer
+ 
+-        onAfterSubscribe(observer)
++            Subject.Status.Completed -> observer.onComplete()
++            is Subject.Status.Error -> observer.onError(status.error)
++        }
+     }
+ 
+     private fun onSerializedUnsubscribe(observer: ObservableObserver<T>) {
+@@ -127,10 +117,15 @@ internal open class DefaultSubject<T> : Subject<T> {
+         }
+     }
+ 
+-    private sealed class Event<out T> {
+-        class OnSubscribe<T>(val observer: ObservableObserver<T>) : Event<T>()
+-        class OnUnsubscribe<T>(val observer: ObservableObserver<T>) : Event<T>()
+-        object OnComplete : Event<Nothing>()
+-        class OnError(val error: Throwable) : Event<Nothing>()
++    private sealed class Event<out T, out S> {
++        class OnSubscribe<T, out S>(
++            val observer: ObservableObserver<T>,
++            val disposable: SerialDisposable,
++            val token: S,
++        ) : Event<T, S>()
++
++        class OnUnsubscribe<T>(val observer: ObservableObserver<T>) : Event<T, Nothing>()
++        object OnComplete : Event<Nothing, Nothing>()
++        class OnError(val error: Throwable) : Event<Nothing, Nothing>()
+     }
+ }
+diff --git a/reaktive/src/commonMain/kotlin/com/badoo/reaktive/subject/LinkedQueue.kt b/reaktive/src/commonMain/kotlin/com/badoo/reaktive/subject/LinkedQueue.kt
+new file mode 100644
+index 00000000..4a4d7f22
+--- /dev/null
++++ b/reaktive/src/commonMain/kotlin/com/badoo/reaktive/subject/LinkedQueue.kt
+@@ -0,0 +1,41 @@
++package com.badoo.reaktive.subject
++
++import com.badoo.reaktive.utils.atomic.AtomicReference
++
++internal class LinkedQueue<T>(
++    private val limit: Int,
++) {
++    private val _head = AtomicReference<MutableNode<T>?>(null)
++    val head: Node<T>? get() = _head.value // Can be read concurrently
++
++    private var tail: MutableNode<T>? = null
++    private var size: Int = 0
++
++    fun addLast(value: T) {
++        val node = MutableNode(value)
++
++        if (size == 0) {
++            _head.value = node
++            tail = node
++            size++
++        } else {
++            requireNotNull(tail).next = node
++            tail = node
++
++            if (size < limit) {
++                size++
++            } else {
++                _head.value = requireNotNull(_head.value).next
++            }
++        }
++    }
++
++    interface Node<out T> {
++        val value: T
++        val next: Node<T>?
++    }
++
++    private class MutableNode<T>(override val value: T) : Node<T> {
++        override var next: MutableNode<T>? = null
++    }
++}
+diff --git a/reaktive/src/commonMain/kotlin/com/badoo/reaktive/subject/LinkedQueueExt.kt b/reaktive/src/commonMain/kotlin/com/badoo/reaktive/subject/LinkedQueueExt.kt
+new file mode 100644
+index 00000000..534d4410
+--- /dev/null
++++ b/reaktive/src/commonMain/kotlin/com/badoo/reaktive/subject/LinkedQueueExt.kt
+@@ -0,0 +1,12 @@
++package com.badoo.reaktive.subject
++
++internal fun <T> LinkedQueue.Node<T>.forEachAndGetLast(block: (T) -> Unit): LinkedQueue.Node<T> {
++    var node = this
++
++    while (true) {
++        block(node.value)
++        node = node.next ?: break
++    }
++
++    return node
++}
+diff --git a/reaktive/src/commonMain/kotlin/com/badoo/reaktive/subject/behavior/BehaviorSubjectBuilder.kt b/reaktive/src/commonMain/kotlin/com/badoo/reaktive/subject/behavior/BehaviorSubjectBuilder.kt
+index 991ecd73..0174ff0b 100644
+--- a/reaktive/src/commonMain/kotlin/com/badoo/reaktive/subject/behavior/BehaviorSubjectBuilder.kt
++++ b/reaktive/src/commonMain/kotlin/com/badoo/reaktive/subject/behavior/BehaviorSubjectBuilder.kt
+@@ -1,9 +1,5 @@
+ package com.badoo.reaktive.subject.behavior
+ 
+-import com.badoo.reaktive.observable.ObservableObserver
+-import com.badoo.reaktive.subject.DefaultSubject
+-import com.badoo.reaktive.utils.atomic.AtomicReference
+-
+ /**
+  * Creates a new instance of [BehaviorSubject].
+  *
+@@ -11,20 +7,4 @@ import com.badoo.reaktive.utils.atomic.AtomicReference
+  */
+ @Suppress("FunctionName")
+ fun <T> BehaviorSubject(initialValue: T): BehaviorSubject<T> =
+-    object : DefaultSubject<T>(), BehaviorSubject<T> {
+-        @Suppress("ObjectPropertyName")
+-        private val _value = AtomicReference(initialValue)
+-        override val value: T get() = _value.value
+-
+-        override fun onAfterSubscribe(observer: ObservableObserver<T>) {
+-            super.onAfterSubscribe(observer)
+-
+-            observer.onNext(value)
+-        }
+-
+-        override fun onBeforeNext(value: T) {
+-            super.onBeforeNext(value)
+-
+-            _value.value = value
+-        }
+-    }
++    BehaviorSubjectImpl(initialValue)
+diff --git a/reaktive/src/commonMain/kotlin/com/badoo/reaktive/subject/behavior/BehaviorSubjectImpl.kt b/reaktive/src/commonMain/kotlin/com/badoo/reaktive/subject/behavior/BehaviorSubjectImpl.kt
+new file mode 100644
+index 00000000..57a62a8c
+--- /dev/null
++++ b/reaktive/src/commonMain/kotlin/com/badoo/reaktive/subject/behavior/BehaviorSubjectImpl.kt
+@@ -0,0 +1,35 @@
++package com.badoo.reaktive.subject.behavior
++
++import com.badoo.reaktive.observable.ObservableObserver
++import com.badoo.reaktive.subject.AbstractSubject
++import com.badoo.reaktive.subject.LinkedQueue
++import com.badoo.reaktive.subject.LinkedQueue.Node
++import com.badoo.reaktive.subject.forEachAndGetLast
++import com.badoo.reaktive.subject.isActive
++
++internal class BehaviorSubjectImpl<T>(initialValue: T) : AbstractSubject<T, Node<T>?>(), BehaviorSubject<T> {
++
++    private val buffer = LinkedQueue<T>(limit = 1).apply { addLast(initialValue) }
++    private val node get() = requireNotNull(buffer.head)
++    override val value: T get() = node.value
++
++    override fun subscribe(observer: ObservableObserver<T>) {
++        val disposable = observer.onSubscribe() ?: return
++        val lastNode = node.takeIf { isActive }?.forEachAndGetLast { observer.onNext(it) }
++        onSubscribe(observer, disposable, lastNode)
++    }
++
++    override fun onAfterSubscribe(observer: ObservableObserver<T>, token: Node<T>?) {
++        super.onAfterSubscribe(observer, token)
++
++        token?.next?.forEachAndGetLast {
++            observer.onNext(it)
++        }
++    }
++
++    override fun onBeforeNext(value: T) {
++        super.onBeforeNext(value)
++
++        buffer.addLast(value)
++    }
++}
+diff --git a/reaktive/src/commonMain/kotlin/com/badoo/reaktive/subject/publish/PublishSubjectBuilder.kt b/reaktive/src/commonMain/kotlin/com/badoo/reaktive/subject/publish/PublishSubjectBuilder.kt
+index 522a723c..44407645 100644
+--- a/reaktive/src/commonMain/kotlin/com/badoo/reaktive/subject/publish/PublishSubjectBuilder.kt
++++ b/reaktive/src/commonMain/kotlin/com/badoo/reaktive/subject/publish/PublishSubjectBuilder.kt
+@@ -1,11 +1,16 @@
+ package com.badoo.reaktive.subject.publish
+ 
+-import com.badoo.reaktive.subject.DefaultSubject
++import com.badoo.reaktive.observable.ObservableObserver
++import com.badoo.reaktive.subject.AbstractSubject
+ 
+ /**
+  * Creates a new instance of [PublishSubject].
+  */
+ @Suppress("FunctionName")
+ fun <T> PublishSubject(): PublishSubject<T> =
+-    object : DefaultSubject<T>(), PublishSubject<T> {
++    object : AbstractSubject<T, Nothing?>(), PublishSubject<T> {
++        override fun subscribe(observer: ObservableObserver<T>) {
++            val disposable = observer.onSubscribe() ?: return
++            onSubscribe(observer, disposable, null)
++        }
+     }
+diff --git a/reaktive/src/commonMain/kotlin/com/badoo/reaktive/subject/replay/ReplaySubjectBuilder.kt b/reaktive/src/commonMain/kotlin/com/badoo/reaktive/subject/replay/ReplaySubjectBuilder.kt
+index 6b40ba1d..d18f831a 100644
+--- a/reaktive/src/commonMain/kotlin/com/badoo/reaktive/subject/replay/ReplaySubjectBuilder.kt
++++ b/reaktive/src/commonMain/kotlin/com/badoo/reaktive/subject/replay/ReplaySubjectBuilder.kt
+@@ -1,8 +1,5 @@
+ package com.badoo.reaktive.subject.replay
+ 
+-import com.badoo.reaktive.observable.ObservableObserver
+-import com.badoo.reaktive.subject.DefaultSubject
+-
+ /**
+  * Creates a new instance of [ReplaySubject].
+  *
+@@ -13,22 +10,5 @@ import com.badoo.reaktive.subject.DefaultSubject
+ fun <T> ReplaySubject(bufferSize: Int = Int.MAX_VALUE): ReplaySubject<T> {
+     require(bufferSize > 0) { "Buffer size must be a positive value" }
+ 
+-    return object : DefaultSubject<T>(), ReplaySubject<T> {
+-        private val buffer = ArrayDeque<T>()
+-
+-        override fun onSubscribed(observer: ObservableObserver<T>): Boolean {
+-            buffer.forEach(observer::onNext)
+-
+-            return true
+-        }
+-
+-        override fun onBeforeNext(value: T) {
+-            super.onBeforeNext(value)
+-
+-            if (buffer.size >= bufferSize) {
+-                buffer.removeFirst()
+-            }
+-            buffer.addLast(value)
+-        }
+-    }
++    return ReplaySubjectImpl(bufferLimit = bufferSize)
+ }
+diff --git a/reaktive/src/commonMain/kotlin/com/badoo/reaktive/subject/replay/ReplaySubjectImpl.kt b/reaktive/src/commonMain/kotlin/com/badoo/reaktive/subject/replay/ReplaySubjectImpl.kt
+new file mode 100644
+index 00000000..1c55e448
+--- /dev/null
++++ b/reaktive/src/commonMain/kotlin/com/badoo/reaktive/subject/replay/ReplaySubjectImpl.kt
+@@ -0,0 +1,34 @@
++package com.badoo.reaktive.subject.replay
++
++import com.badoo.reaktive.observable.ObservableObserver
++import com.badoo.reaktive.subject.AbstractSubject
++import com.badoo.reaktive.subject.LinkedQueue
++import com.badoo.reaktive.subject.LinkedQueue.Node
++import com.badoo.reaktive.subject.forEachAndGetLast
++
++internal class ReplaySubjectImpl<T>(
++    bufferLimit: Int,
++) : AbstractSubject<T, Node<T>?>(), ReplaySubject<T> {
++
++    private val buffer: LinkedQueue<T> = LinkedQueue(limit = bufferLimit)
++
++    override fun subscribe(observer: ObservableObserver<T>) {
++        val disposable = observer.onSubscribe() ?: return
++        val lastNode = buffer.head?.forEachAndGetLast { observer.onNext(it) }
++        onSubscribe(observer, disposable, lastNode)
++    }
++
++    override fun onAfterSubscribe(observer: ObservableObserver<T>, token: Node<T>?) {
++        super.onAfterSubscribe(observer, token)
++
++        token?.next?.forEachAndGetLast {
++            observer.onNext(it)
++        }
++    }
++
++    override fun onBeforeNext(value: T) {
++        super.onBeforeNext(value)
++
++        buffer.addLast(value)
++    }
++}
+diff --git a/reaktive/src/commonMain/kotlin/com/badoo/reaktive/subject/unicast/UnicastSubjectBuilder.kt b/reaktive/src/commonMain/kotlin/com/badoo/reaktive/subject/unicast/UnicastSubjectBuilder.kt
+index 1768bb10..2f7f4b56 100644
+--- a/reaktive/src/commonMain/kotlin/com/badoo/reaktive/subject/unicast/UnicastSubjectBuilder.kt
++++ b/reaktive/src/commonMain/kotlin/com/badoo/reaktive/subject/unicast/UnicastSubjectBuilder.kt
+@@ -1,10 +1,5 @@
+ package com.badoo.reaktive.subject.unicast
+ 
+-import com.badoo.reaktive.observable.ObservableObserver
+-import com.badoo.reaktive.subject.DefaultSubject
+-import com.badoo.reaktive.subject.Subject
+-import com.badoo.reaktive.subject.isActive
+-
+ /**
+  * Create a new instance of [UnicastSubject].
+  *
+@@ -13,46 +8,11 @@ import com.badoo.reaktive.subject.isActive
+  * @param onTerminate called when the returned [UnicastSubject] receives a terminal event (`onComplete` or `onError`)
+  */
+ @Suppress("FunctionName")
+-fun <T> UnicastSubject(bufferSize: Int = Int.MAX_VALUE, onTerminate: () -> Unit = {}): UnicastSubject<T> =
+-    object : DefaultSubject<T>(), UnicastSubject<T> {
+-        private var queue: ArrayDeque<T>? = ArrayDeque()
+-
+-        override fun onSubscribed(observer: ObservableObserver<T>): Boolean {
+-            queue?.also {
+-                queue = null
+-                it.forEach(observer::onNext)
+-                return true
+-            }
+-
+-            observer.onError(IllegalStateException("Only a single observer allowed for UnicastSubject"))
+-
+-            return false
+-        }
+-
+-        override fun onBeforeNext(value: T) {
+-            super.onBeforeNext(value)
+-
+-            queue?.apply {
+-                if (size >= bufferSize) {
+-                    removeFirst()
+-                }
+-                addLast(value)
+-            }
+-        }
+-
+-        override fun onAfterUnsubscribe(observer: ObservableObserver<T>) {
+-            super.onAfterUnsubscribe(observer)
+-
+-            if (isActive) {
+-                status = Subject.Status.Completed
+-            }
+-        }
+-
+-        override fun onStatusChanged(status: Subject.Status) {
+-            super.onStatusChanged(status)
+-
+-            if (!status.isActive) {
+-                onTerminate()
+-            }
+-        }
+-    }
++fun <T> UnicastSubject(bufferSize: Int = Int.MAX_VALUE, onTerminate: () -> Unit = {}): UnicastSubject<T> {
++    require(bufferSize > 0) { "Buffer size must be a positive value" }
++
++    return UnicastSubjectImpl(
++        bufferLimit = bufferSize,
++        onTerminate = onTerminate,
++    )
++}
+diff --git a/reaktive/src/commonMain/kotlin/com/badoo/reaktive/subject/unicast/UnicastSubjectImpl.kt b/reaktive/src/commonMain/kotlin/com/badoo/reaktive/subject/unicast/UnicastSubjectImpl.kt
+new file mode 100644
+index 00000000..3817fabf
+--- /dev/null
++++ b/reaktive/src/commonMain/kotlin/com/badoo/reaktive/subject/unicast/UnicastSubjectImpl.kt
+@@ -0,0 +1,60 @@
++package com.badoo.reaktive.subject.unicast
++
++import com.badoo.reaktive.observable.ObservableObserver
++import com.badoo.reaktive.subject.AbstractSubject
++import com.badoo.reaktive.subject.LinkedQueue
++import com.badoo.reaktive.subject.LinkedQueue.Node
++import com.badoo.reaktive.subject.Subject
++import com.badoo.reaktive.subject.forEachAndGetLast
++import com.badoo.reaktive.subject.isActive
++import com.badoo.reaktive.utils.atomic.AtomicReference
++
++internal class UnicastSubjectImpl<T>(
++    bufferLimit: Int,
++    private val onTerminate: () -> Unit,
++) : AbstractSubject<T, Node<T>?>(), UnicastSubject<T> {
++
++    private val buffer = AtomicReference<LinkedQueue<T>?>(LinkedQueue(limit = bufferLimit))
++
++    override fun subscribe(observer: ObservableObserver<T>) {
++        val disposable = observer.onSubscribe() ?: return
++        val buffer = buffer.getAndSet(null)
++
++        if (buffer != null) {
++            val lastNode = buffer.head?.forEachAndGetLast { observer.onNext(it) }
++            onSubscribe(observer, disposable, lastNode)
++        } else {
++            observer.onError(IllegalStateException("Only one single observer allowed for UnicastSubject"))
++        }
++    }
++
++    override fun onAfterSubscribe(observer: ObservableObserver<T>, token: Node<T>?) {
++        super.onAfterSubscribe(observer, token)
++
++        token?.next?.forEachAndGetLast {
++            observer.onNext(it)
++        }
++    }
++
++    override fun onBeforeNext(value: T) {
++        super.onBeforeNext(value)
++
++        buffer.value?.addLast(value)
++    }
++
++    override fun onAfterUnsubscribe(observer: ObservableObserver<T>) {
++        super.onAfterUnsubscribe(observer)
++
++        if (isActive) {
++            status = Subject.Status.Completed
++        }
++    }
++
++    override fun onStatusChanged(status: Subject.Status) {
++        super.onStatusChanged(status)
++
++        if (!isActive) {
++            onTerminate()
++        }
++    }
++}
+

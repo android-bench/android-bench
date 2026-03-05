@@ -1,0 +1,56 @@
+diff --git a/gradle.properties b/gradle.properties
+index 5ff8c92..1702d90 100644
+--- a/gradle.properties
++++ b/gradle.properties
+@@ -42,7 +42,7 @@ RELEASE_SIGNING_ENABLED=true
+ 
+ GROUP=net.engawapg.lib
+ POM_ARTIFACT_ID=zoomable
+-VERSION_NAME=1.6.1
++VERSION_NAME=1.6.2
+ 
+ POM_NAME=zoomable
+ POM_DESCRIPTION=An android library for Jetpack Compose that enables contents zoomable.
+diff --git a/gradle/libs.versions.toml b/gradle/libs.versions.toml
+index 8f50a3a..6f5836e 100644
+--- a/gradle/libs.versions.toml
++++ b/gradle/libs.versions.toml
+@@ -1,7 +1,7 @@
+ [versions]
+ composeCompiler = "1.5.8"
+-compose = "1.6.4"
+-composeMaterial3 = "1.2.0"
++compose = "1.6.8"
++composeMaterial3 = "1.2.1"
+ 
+ kotlin = "1.9.22"
+ androidGradle = "8.2.2"
+diff --git a/zoomable/src/main/java/net/engawapg/lib/zoomable/Zoomable.kt b/zoomable/src/main/java/net/engawapg/lib/zoomable/Zoomable.kt
+index 6098a5e..71acc2f 100644
+--- a/zoomable/src/main/java/net/engawapg/lib/zoomable/Zoomable.kt
++++ b/zoomable/src/main/java/net/engawapg/lib/zoomable/Zoomable.kt
+@@ -73,6 +73,7 @@ private suspend fun PointerInputScope.detectTransformGestures(
+     enableOneFingerZoom: Boolean = true,
+ ) = awaitEachGesture {
+     val firstDown = awaitFirstDown(requireUnconsumed = false)
++    firstDown.consume()
+     onGestureStart()
+ 
+     var firstUp: PointerInputChange = firstDown
+@@ -113,6 +114,7 @@ private suspend fun PointerInputScope.detectTransformGestures(
+         if (secondDown == null) {
+             onTap(firstUp.position)
+         } else {
++            secondDown.consume()
+             var isDoubleTap = true
+             var isSecondCanceled = false
+             var secondUp: PointerInputChange = secondDown
+@@ -166,6 +168,7 @@ private suspend fun AwaitPointerEventScope.forEachPointerEventUntilReleased(
+     do {
+         val mainEvent = awaitPointerEvent(pass = PointerEventPass.Main)
+         if (mainEvent.changes.fastAny { it.isConsumed }) {
++            onCancel()
+             break
+         }
+ 
+

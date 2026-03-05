@@ -1,0 +1,172 @@
+diff --git a/reaktive/api/android/reaktive.api b/reaktive/api/android/reaktive.api
+index 9f51343f..611b69b6 100644
+--- a/reaktive/api/android/reaktive.api
++++ b/reaktive/api/android/reaktive.api
+@@ -1422,6 +1422,7 @@ public final class com/badoo/reaktive/subject/unicast/UnicastSubjectBuilderKt {
+ public final class com/badoo/reaktive/utils/HandleSourceErrorKt {
+ 	public static final fun handleReaktiveError (Ljava/lang/Throwable;Lkotlin/jvm/functions/Function1;)V
+ 	public static synthetic fun handleReaktiveError$default (Ljava/lang/Throwable;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)V
++	public static final fun throwIfFatal (Ljava/lang/Throwable;)V
+ }
+ 
+ public final class com/badoo/reaktive/utils/UncaughtErrorHandlerKt {
+diff --git a/reaktive/api/jvm/reaktive.api b/reaktive/api/jvm/reaktive.api
+index 9f51343f..611b69b6 100644
+--- a/reaktive/api/jvm/reaktive.api
++++ b/reaktive/api/jvm/reaktive.api
+@@ -1422,6 +1422,7 @@ public final class com/badoo/reaktive/subject/unicast/UnicastSubjectBuilderKt {
+ public final class com/badoo/reaktive/utils/HandleSourceErrorKt {
+ 	public static final fun handleReaktiveError (Ljava/lang/Throwable;Lkotlin/jvm/functions/Function1;)V
+ 	public static synthetic fun handleReaktiveError$default (Ljava/lang/Throwable;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)V
++	public static final fun throwIfFatal (Ljava/lang/Throwable;)V
+ }
+ 
+ public final class com/badoo/reaktive/utils/UncaughtErrorHandlerKt {
+diff --git a/reaktive/src/commonMain/kotlin/com/badoo/reaktive/base/ErrorCallbackExt.kt b/reaktive/src/commonMain/kotlin/com/badoo/reaktive/base/ErrorCallbackExt.kt
+index 8b2e5667..f9bad56d 100644
+--- a/reaktive/src/commonMain/kotlin/com/badoo/reaktive/base/ErrorCallbackExt.kt
++++ b/reaktive/src/commonMain/kotlin/com/badoo/reaktive/base/ErrorCallbackExt.kt
+@@ -1,6 +1,8 @@
+ package com.badoo.reaktive.base
+ 
++import com.badoo.reaktive.base.exceptions.CompositeException
+ import com.badoo.reaktive.utils.handleReaktiveError
++import com.badoo.reaktive.utils.throwIfFatal
+ 
+ inline fun <T> ErrorCallback.tryCatch(
+     block: () -> T,
+@@ -10,7 +12,18 @@ inline fun <T> ErrorCallback.tryCatch(
+     try {
+         block()
+     } catch (e: Throwable) {
+-        handleReaktiveError(errorTransformer(e), ::onError)
++        e.throwIfFatal()
++
++        val transformedError =
++            try {
++                errorTransformer(e)
++            } catch (e2: Throwable) {
++                e2.throwIfFatal()
++                CompositeException(cause1 = e, cause2 = e2)
++            }
++
++        handleReaktiveError(transformedError, ::onError)
++
+         return
+     }
+         .also(onSuccess)
+@@ -23,7 +36,17 @@ inline fun ErrorCallback.tryCatch(
+     try {
+         block()
+     } catch (e: Throwable) {
+-        handleReaktiveError(errorTransformer(e), ::onError)
++        e.throwIfFatal()
++
++        val transformedError =
++            try {
++                errorTransformer(e)
++            } catch (e2: Throwable) {
++                e2.throwIfFatal()
++                CompositeException(cause1 = e, cause2 = e2)
++            }
++
++        handleReaktiveError(transformedError, ::onError)
+     }
+ }
+ 
+@@ -34,6 +57,16 @@ internal inline fun tryCatchAndHandle(
+     try {
+         block()
+     } catch (e: Throwable) {
+-        handleReaktiveError(errorTransformer(e))
++        e.throwIfFatal()
++
++        val transformedError =
++            try {
++                errorTransformer(e)
++            } catch (e2: Throwable) {
++                e2.throwIfFatal()
++                CompositeException(cause1 = e, cause2 = e2)
++            }
++
++        handleReaktiveError(transformedError)
+     }
+ }
+diff --git a/reaktive/src/commonMain/kotlin/com/badoo/reaktive/utils/HandleSourceError.kt b/reaktive/src/commonMain/kotlin/com/badoo/reaktive/utils/HandleSourceError.kt
+index 836f6642..6c1d429d 100644
+--- a/reaktive/src/commonMain/kotlin/com/badoo/reaktive/utils/HandleSourceError.kt
++++ b/reaktive/src/commonMain/kotlin/com/badoo/reaktive/utils/HandleSourceError.kt
+@@ -3,6 +3,8 @@ package com.badoo.reaktive.utils
+ import com.badoo.reaktive.base.exceptions.CompositeException
+ 
+ fun handleReaktiveError(error: Throwable, onError: ((Throwable) -> Unit)? = null) {
++    error.throwIfFatal()
++
+     if (onError == null) {
+         handleError(error)
+     } else {
+@@ -14,6 +16,7 @@ private fun handleError(error: Throwable) {
+     try {
+         reaktiveUncaughtErrorHandler(error)
+     } catch (errorDeliveryException: Throwable) {
++        errorDeliveryException.throwIfFatal()
+         printErrors("Error delivering uncaught error", error, errorDeliveryException)
+     }
+ }
+@@ -22,11 +25,13 @@ private fun handleError(error: Throwable, onError: (Throwable) -> Unit) {
+     try {
+         onError(error)
+     } catch (errorHandlerException: Throwable) {
++        errorHandlerException.throwIfFatal()
+         printErrors("onError callback failed", error, errorHandlerException)
+ 
+         try {
+             reaktiveUncaughtErrorHandler(CompositeException(error, errorHandlerException))
+         } catch (errorDeliveryException: Throwable) {
++            errorDeliveryException.throwIfFatal()
+             printErrors("Error delivering uncaught error", error, errorDeliveryException)
+         }
+     }
+@@ -37,3 +42,11 @@ private fun printErrors(message: String, outerError: Throwable, innerError: Thro
+     outerError.printStackTrace()
+     innerError.printStackTrace()
+ }
++
++fun Throwable.throwIfFatal() {
++    if (isFatal()) {
++        throw this
++    }
++}
++
++internal expect fun Throwable.isFatal(): Boolean
+diff --git a/reaktive/src/jsCommonMain/kotlin/com/badoo/reaktive/utils/HandleSourceError.kt b/reaktive/src/jsCommonMain/kotlin/com/badoo/reaktive/utils/HandleSourceError.kt
+new file mode 100644
+index 00000000..2256c81b
+--- /dev/null
++++ b/reaktive/src/jsCommonMain/kotlin/com/badoo/reaktive/utils/HandleSourceError.kt
+@@ -0,0 +1,3 @@
++package com.badoo.reaktive.utils
++
++actual fun Throwable.isFatal(): Boolean = false
+diff --git a/reaktive/src/jvmCommonMain/kotlin/com/badoo/reaktive/utils/HandleSourceError.jvm.kt b/reaktive/src/jvmCommonMain/kotlin/com/badoo/reaktive/utils/HandleSourceError.jvm.kt
+new file mode 100644
+index 00000000..6391f60f
+--- /dev/null
++++ b/reaktive/src/jvmCommonMain/kotlin/com/badoo/reaktive/utils/HandleSourceError.jvm.kt
+@@ -0,0 +1,6 @@
++package com.badoo.reaktive.utils
++
++internal actual fun Throwable.isFatal(): Boolean =
++    (this is VirtualMachineError) ||
++        (this is ThreadDeath) ||
++        (this is LinkageError)
+diff --git a/reaktive/src/nativeCommonMain/kotlin/com/badoo/reaktive/utils/HandleSourceError.native.kt b/reaktive/src/nativeCommonMain/kotlin/com/badoo/reaktive/utils/HandleSourceError.native.kt
+new file mode 100644
+index 00000000..7a8ce262
+--- /dev/null
++++ b/reaktive/src/nativeCommonMain/kotlin/com/badoo/reaktive/utils/HandleSourceError.native.kt
+@@ -0,0 +1,3 @@
++package com.badoo.reaktive.utils
++
++internal actual fun Throwable.isFatal(): Boolean = false
+

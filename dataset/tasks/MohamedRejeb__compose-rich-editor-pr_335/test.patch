@@ -1,0 +1,51 @@
+diff --git a/richeditor-compose/src/commonTest/kotlin/com.mohamedrejeb.richeditor/parser/markdown/RichTextStateMarkdownParserTest.kt b/richeditor-compose/src/commonTest/kotlin/com.mohamedrejeb.richeditor/parser/markdown/RichTextStateMarkdownParserTest.kt
+index 3749211..b1b3f82 100644
+--- a/richeditor-compose/src/commonTest/kotlin/com.mohamedrejeb.richeditor/parser/markdown/RichTextStateMarkdownParserTest.kt
++++ b/richeditor-compose/src/commonTest/kotlin/com.mohamedrejeb.richeditor/parser/markdown/RichTextStateMarkdownParserTest.kt
+@@ -149,6 +149,45 @@ class RichTextStateMarkdownParserTest {
+         )
+     }
+ 
++    @Test
++    fun testEncodeMarkdownWithSingleDollar() {
++        val markdown = "Hello World $100!"
++        val expectedText = "Hello World $100!"
++        val state = RichTextStateMarkdownParser.encode(markdown)
++        val actualText = state.annotatedString.text
++
++        assertEquals(
++            expected = expectedText,
++            actual = actualText,
++        )
++    }
++
++    @Test
++    fun testEncodeMarkdownWithDoubleDollar() {
++        val markdown = "Hello World $$100!"
++        val expectedText = "Hello World $$100!"
++        val state = RichTextStateMarkdownParser.encode(markdown)
++        val actualText = state.annotatedString.text
++
++        assertEquals(
++            expected = expectedText,
++            actual = actualText,
++        )
++    }
++
++    @Test
++    fun testEncodeMarkdownWithInlineMath() {
++        val markdown = "Hello World \$100$!"
++        val expectedText = "Hello World 100!"
++        val state = RichTextStateMarkdownParser.encode(markdown)
++        val actualText = state.annotatedString.text
++
++        assertEquals(
++            expected = expectedText,
++            actual = actualText,
++        )
++    }
++
+     /**
+      * Decode tests
+      */
+

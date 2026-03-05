@@ -1,0 +1,300 @@
+diff --git a/core/ui/compose/designsystem/src/debug/kotlin/app/k9mail/core/ui/compose/designsystem/molecule/input/AdvancedTextInputPreview.kt b/core/ui/compose/designsystem/src/debug/kotlin/app/k9mail/core/ui/compose/designsystem/molecule/input/AdvancedTextInputPreview.kt
+new file mode 100644
+index 0000000000..7fa0eb3bdd
+--- /dev/null
++++ b/core/ui/compose/designsystem/src/debug/kotlin/app/k9mail/core/ui/compose/designsystem/molecule/input/AdvancedTextInputPreview.kt
+@@ -0,0 +1,87 @@
++package app.k9mail.core.ui.compose.designsystem.molecule.input
++
++import androidx.compose.runtime.Composable
++import androidx.compose.ui.text.SpanStyle
++import androidx.compose.ui.text.TextRange
++import androidx.compose.ui.text.buildAnnotatedString
++import androidx.compose.ui.text.font.FontWeight
++import androidx.compose.ui.text.input.TextFieldValue
++import androidx.compose.ui.text.withStyle
++import androidx.compose.ui.tooling.preview.Preview
++import app.k9mail.core.ui.compose.designsystem.PreviewWithThemes
++
++@Composable
++@Preview(showBackground = true)
++internal fun AdvancedTextInputPreview() {
++    PreviewWithThemes {
++        AdvancedTextInput(
++            onTextChange = {},
++        )
++    }
++}
++
++@Composable
++@Preview(showBackground = true)
++internal fun AdvancedTextInputIsRequiredPreview() {
++    PreviewWithThemes {
++        AdvancedTextInput(
++            onTextChange = {},
++            label = "Text input is required",
++            isRequired = true,
++        )
++    }
++}
++
++@Composable
++@Preview(showBackground = true)
++internal fun AdvancedTextInputWithErrorPreview() {
++    PreviewWithThemes {
++        AdvancedTextInput(
++            onTextChange = {},
++            errorMessage = "Text input error",
++        )
++    }
++}
++
++@Composable
++@Preview(showBackground = true)
++internal fun AdvancedTextInputWithAnnotatedStringPreview() {
++    PreviewWithThemes {
++        AdvancedTextInput(
++            onTextChange = {},
++            text = TextFieldValue(
++                annotatedString = buildAnnotatedString {
++                    append("Text input with ")
++                    withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
++                        append("Annotated")
++                    }
++                },
++            ),
++        )
++    }
++}
++
++@Composable
++@Preview(showBackground = true)
++internal fun AdvancedTextInputWithSelectionPreview() {
++    PreviewWithThemes {
++        AdvancedTextInput(
++            onTextChange = {},
++            text = TextFieldValue("Text input with selection", selection = TextRange(0, 4)),
++        )
++    }
++}
++
++@Composable
++@Preview(showBackground = true)
++internal fun AdvancedTextInputWithCompositionPreview() {
++    PreviewWithThemes {
++        AdvancedTextInput(
++            onTextChange = {},
++            text = TextFieldValue(
++                text = "Text input with composition",
++                composition = TextRange(0, 4),
++            ),
++        )
++    }
++}
+diff --git a/core/ui/compose/designsystem/src/main/kotlin/app/k9mail/core/ui/compose/designsystem/atom/textfield/TextFieldCommon.kt b/core/ui/compose/designsystem/src/main/kotlin/app/k9mail/core/ui/compose/designsystem/atom/textfield/TextFieldCommon.kt
+index 14bf10063b..e41e8c7734 100644
+--- a/core/ui/compose/designsystem/src/main/kotlin/app/k9mail/core/ui/compose/designsystem/atom/textfield/TextFieldCommon.kt
++++ b/core/ui/compose/designsystem/src/main/kotlin/app/k9mail/core/ui/compose/designsystem/atom/textfield/TextFieldCommon.kt
+@@ -1,6 +1,7 @@
+ package app.k9mail.core.ui.compose.designsystem.atom.textfield
+ 
+ import androidx.compose.runtime.Composable
++import androidx.compose.ui.text.input.TextFieldValue
+ 
+ private val LINE_BREAK = "[\\r\\n]".toRegex()
+ 
+@@ -8,6 +9,12 @@ internal fun stripLineBreaks(onValueChange: (String) -> Unit): (String) -> Unit
+     onValueChange(value.replace(LINE_BREAK, replacement = ""))
+ }
+ 
++internal fun stripTextFieldValueLineBreaks(onValueChange: (TextFieldValue) -> Unit): (TextFieldValue) -> Unit {
++    return { value ->
++        onValueChange(value.copy(text = value.text.replace(LINE_BREAK, replacement = "")))
++    }
++}
++
+ internal fun selectLabel(
+     label: String?,
+     isRequired: Boolean,
+diff --git a/core/ui/compose/designsystem/src/main/kotlin/app/k9mail/core/ui/compose/designsystem/atom/textfield/TextFieldOutlined.kt b/core/ui/compose/designsystem/src/main/kotlin/app/k9mail/core/ui/compose/designsystem/atom/textfield/TextFieldOutlined.kt
+index 2ba6456536..6b879df962 100644
+--- a/core/ui/compose/designsystem/src/main/kotlin/app/k9mail/core/ui/compose/designsystem/atom/textfield/TextFieldOutlined.kt
++++ b/core/ui/compose/designsystem/src/main/kotlin/app/k9mail/core/ui/compose/designsystem/atom/textfield/TextFieldOutlined.kt
+@@ -3,6 +3,7 @@ package app.k9mail.core.ui.compose.designsystem.atom.textfield
+ import androidx.compose.foundation.text.KeyboardOptions
+ import androidx.compose.runtime.Composable
+ import androidx.compose.ui.Modifier
++import androidx.compose.ui.text.input.TextFieldValue
+ import androidx.compose.material3.OutlinedTextField as Material3OutlinedTextField
+ 
+ @Suppress("LongParameterList")
+@@ -33,3 +34,35 @@ fun TextFieldOutlined(
+         keyboardOptions = keyboardOptions,
+     )
+ }
++
++/**
++ * Overload of [TextFieldOutlined] that accepts a [TextFieldValue] instead of a [String].
++ */
++@Suppress("LongParameterList")
++@Composable
++fun TextFieldOutlined(
++    value: TextFieldValue,
++    onValueChange: (TextFieldValue) -> Unit,
++    modifier: Modifier = Modifier,
++    label: String? = null,
++    trailingIcon: @Composable (() -> Unit)? = null,
++    isEnabled: Boolean = true,
++    isReadOnly: Boolean = false,
++    isRequired: Boolean = false,
++    hasError: Boolean = false,
++    isSingleLine: Boolean = true,
++    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
++) {
++    Material3OutlinedTextField(
++        value = value,
++        onValueChange = if (isSingleLine) stripTextFieldValueLineBreaks(onValueChange) else onValueChange,
++        modifier = modifier,
++        enabled = isEnabled,
++        label = selectLabel(label, isRequired),
++        trailingIcon = trailingIcon,
++        readOnly = isReadOnly,
++        isError = hasError,
++        singleLine = isSingleLine,
++        keyboardOptions = keyboardOptions,
++    )
++}
+diff --git a/core/ui/compose/designsystem/src/main/kotlin/app/k9mail/core/ui/compose/designsystem/molecule/input/AdvancedTextInput.kt b/core/ui/compose/designsystem/src/main/kotlin/app/k9mail/core/ui/compose/designsystem/molecule/input/AdvancedTextInput.kt
+new file mode 100644
+index 0000000000..45efb93cd9
+--- /dev/null
++++ b/core/ui/compose/designsystem/src/main/kotlin/app/k9mail/core/ui/compose/designsystem/molecule/input/AdvancedTextInput.kt
+@@ -0,0 +1,47 @@
++package app.k9mail.core.ui.compose.designsystem.molecule.input
++
++import androidx.compose.foundation.layout.PaddingValues
++import androidx.compose.foundation.layout.fillMaxWidth
++import androidx.compose.foundation.text.KeyboardOptions
++import androidx.compose.runtime.Composable
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.text.input.TextFieldValue
++import app.k9mail.core.ui.compose.designsystem.atom.textfield.TextFieldOutlined
++
++/**
++ * A text input field that uses [TextFieldValue] to support text selection and composition.
++ *
++ * It supports annotated strings, which can be used to display rich text or formatted text.
++ */
++@Suppress("LongParameterList")
++@Composable
++fun AdvancedTextInput(
++    onTextChange: (TextFieldValue) -> Unit,
++    modifier: Modifier = Modifier,
++    text: TextFieldValue = TextFieldValue(""),
++    label: String? = null,
++    isRequired: Boolean = false,
++    errorMessage: String? = null,
++    contentPadding: PaddingValues = inputContentPadding(),
++    isSingleLine: Boolean = true,
++    isEnabled: Boolean = true,
++    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
++) {
++    InputLayout(
++        modifier = modifier,
++        contentPadding = contentPadding,
++        errorMessage = errorMessage,
++    ) {
++        TextFieldOutlined(
++            value = text,
++            onValueChange = onTextChange,
++            label = label,
++            isEnabled = isEnabled,
++            isRequired = isRequired,
++            hasError = errorMessage != null,
++            isSingleLine = isSingleLine,
++            modifier = Modifier.fillMaxWidth(),
++            keyboardOptions = keyboardOptions,
++        )
++    }
++}
+diff --git a/core/ui/compose/preference/src/main/kotlin/net/thunderbird/core/ui/compose/preference/ui/components/dialog/PreferenceDialogTextView.kt b/core/ui/compose/preference/src/main/kotlin/net/thunderbird/core/ui/compose/preference/ui/components/dialog/PreferenceDialogTextView.kt
+index 1ebc818705..0cc8b824b2 100644
+--- a/core/ui/compose/preference/src/main/kotlin/net/thunderbird/core/ui/compose/preference/ui/components/dialog/PreferenceDialogTextView.kt
++++ b/core/ui/compose/preference/src/main/kotlin/net/thunderbird/core/ui/compose/preference/ui/components/dialog/PreferenceDialogTextView.kt
+@@ -4,14 +4,27 @@ import androidx.compose.foundation.layout.PaddingValues
+ import androidx.compose.foundation.layout.Spacer
+ import androidx.compose.foundation.layout.height
+ import androidx.compose.runtime.Composable
++import androidx.compose.runtime.LaunchedEffect
++import androidx.compose.runtime.getValue
+ import androidx.compose.runtime.mutableStateOf
++import androidx.compose.runtime.remember
+ import androidx.compose.runtime.saveable.rememberSaveable
++import androidx.compose.runtime.setValue
+ import androidx.compose.ui.Modifier
++import androidx.compose.ui.focus.FocusRequester
++import androidx.compose.ui.focus.focusRequester
++import androidx.compose.ui.text.TextRange
++import androidx.compose.ui.text.input.TextFieldValue
+ import app.k9mail.core.ui.compose.designsystem.atom.text.TextBodyMedium
+-import app.k9mail.core.ui.compose.designsystem.molecule.input.TextInput
++import app.k9mail.core.ui.compose.designsystem.molecule.input.AdvancedTextInput
+ import app.k9mail.core.ui.compose.theme2.MainTheme
++import kotlinx.coroutines.delay
+ import net.thunderbird.core.ui.compose.preference.api.PreferenceSetting
+ 
++// This a workaround for a bug in Compose, preventing the keyboard been show when requesting focus on a dialog,
++// see: https://issuetracker.google.com/issues/204502668
++private const val EDIT_TEXT_FOCUS_DELAY = 200L
++
+ @Composable
+ internal fun PreferenceDialogTextView(
+     preference: PreferenceSetting.Text,
+@@ -20,13 +33,26 @@ internal fun PreferenceDialogTextView(
+     onDismissRequest: () -> Unit,
+     modifier: Modifier = Modifier,
+ ) {
+-    val currentText = rememberSaveable { mutableStateOf(preference.value) }
++    val focusRequester = remember { FocusRequester() }
++    var textFieldValue by rememberSaveable(stateSaver = TextFieldValue.Saver) {
++        mutableStateOf(
++            TextFieldValue(
++                text = preference.value,
++                selection = TextRange(preference.value.length),
++            ),
++        )
++    }
++
++    LaunchedEffect(Unit) {
++        delay(EDIT_TEXT_FOCUS_DELAY)
++        focusRequester.requestFocus()
++    }
+ 
+     PreferenceDialogLayout(
+         title = preference.title(),
+         icon = preference.icon(),
+         onConfirmClick = {
+-            onConfirmClick(preference.copy(value = currentText.value))
++            onConfirmClick(preference.copy(value = textFieldValue.text))
+         },
+         onDismissClick = onDismissClick,
+         onDismissRequest = onDismissRequest,
+@@ -38,12 +64,13 @@ internal fun PreferenceDialogTextView(
+             Spacer(modifier = Modifier.height(MainTheme.spacings.default))
+         }
+ 
+-        TextInput(
+-            text = currentText.value,
++        AdvancedTextInput(
++            text = textFieldValue,
+             contentPadding = PaddingValues(),
+-            onTextChange = {
+-                currentText.value = it
++            onTextChange = { changedText ->
++                textFieldValue = changedText
+             },
++            modifier = Modifier.focusRequester(focusRequester),
+         )
+     }
+ }
+

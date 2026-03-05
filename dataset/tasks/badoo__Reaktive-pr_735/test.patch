@@ -1,0 +1,161 @@
+diff --git a/reaktive/src/commonTest/kotlin/com/badoo/reaktive/subject/BehaviorSubjectTest.kt b/reaktive/src/commonTest/kotlin/com/badoo/reaktive/subject/BehaviorSubjectTest.kt
+index b6c42267..c2effe0c 100644
+--- a/reaktive/src/commonTest/kotlin/com/badoo/reaktive/subject/BehaviorSubjectTest.kt
++++ b/reaktive/src/commonTest/kotlin/com/badoo/reaktive/subject/BehaviorSubjectTest.kt
+@@ -1,9 +1,11 @@
+ package com.badoo.reaktive.subject
+ 
++import com.badoo.reaktive.observable.subscribe
+ import com.badoo.reaktive.subject.behavior.BehaviorSubject
+ import com.badoo.reaktive.test.observable.assertValue
+ import com.badoo.reaktive.test.observable.test
+ import kotlin.test.Test
++import kotlin.test.assertContentEquals
+ import kotlin.test.assertEquals
+ 
+ class BehaviorSubjectTest : SubjectGenericTests by SubjectGenericTests(BehaviorSubject(0)) {
+@@ -47,4 +49,41 @@ class BehaviorSubjectTest : SubjectGenericTests by SubjectGenericTests(BehaviorS
+ 
+         assertEquals(2, value)
+     }
++
++    @Test
++    fun emits_initial_value_synchronously_WHEN_subscribed_recursively() {
++        val subject = BehaviorSubject(0)
++        var emittedValues: List<Int>? = null
++
++        subject.subscribe {
++            if (it == 1) {
++                emittedValues = subject.test().values
++            }
++        }
++
++        subject.onNext(1)
++
++        assertContentEquals(listOf(1), emittedValues)
++    }
++
++    @Test
++    fun emits_all_queued_values_WHEN_subscribed_recursively() {
++        val subject = BehaviorSubject<Int?>(0)
++        var emittedValues: List<Int?>? = null
++
++        var isSubscribedRecursively = false
++        subject.subscribe {
++            if ((it == 1) && !isSubscribedRecursively) {
++                isSubscribedRecursively = true
++                subject.onNext(2)
++                subject.onNext(null)
++                subject.onNext(1)
++                emittedValues = subject.test().values
++            }
++        }
++
++        subject.onNext(1)
++
++        assertContentEquals(listOf(1, 2, null, 1), emittedValues)
++    }
+ }
+diff --git a/reaktive/src/commonTest/kotlin/com/badoo/reaktive/subject/ReplaySubjectTest.kt b/reaktive/src/commonTest/kotlin/com/badoo/reaktive/subject/ReplaySubjectTest.kt
+index 0f94d2cf..f3b93456 100644
+--- a/reaktive/src/commonTest/kotlin/com/badoo/reaktive/subject/ReplaySubjectTest.kt
++++ b/reaktive/src/commonTest/kotlin/com/badoo/reaktive/subject/ReplaySubjectTest.kt
+@@ -1,10 +1,12 @@
+ package com.badoo.reaktive.subject
+ 
++import com.badoo.reaktive.observable.subscribe
+ import com.badoo.reaktive.subject.replay.ReplaySubject
+ import com.badoo.reaktive.test.observable.assertValues
+ import com.badoo.reaktive.test.observable.test
+ import kotlin.test.Ignore
+ import kotlin.test.Test
++import kotlin.test.assertContentEquals
+ 
+ class ReplaySubjectTest : SubjectGenericTests by SubjectGenericTests(ReplaySubject()) {
+ 
+@@ -84,4 +86,43 @@ class ReplaySubjectTest : SubjectGenericTests by SubjectGenericTests(ReplaySubje
+ 
+         observer.assertValues(1, null, 2)
+     }
++
++    @Test
++    fun emits_initial_value_synchronously_WHEN_subscribed_recursively() {
++        var emittedValues: List<Int?>? = null
++
++        subject.subscribe {
++            if (it == 2) {
++                emittedValues = subject.test().values
++            }
++        }
++
++        subject.onNext(1)
++        subject.onNext(null)
++        subject.onNext(2)
++
++        assertContentEquals(listOf(1, null, 2), emittedValues)
++    }
++
++    @Test
++    fun emits_all_queued_values_WHEN_subscribed_recursively() {
++        var emittedValues: List<Int?>? = null
++
++        var isSubscribedRecursively = false
++        subject.subscribe {
++            if ((it == 2) && !isSubscribedRecursively) {
++                isSubscribedRecursively = true
++                subject.onNext(3)
++                subject.onNext(null)
++                subject.onNext(4)
++                emittedValues = subject.test().values
++            }
++        }
++
++        subject.onNext(1)
++        subject.onNext(null)
++        subject.onNext(2)
++
++        assertContentEquals(listOf(1, null, 2, 3, null, 4), emittedValues)
++    }
+ }
+diff --git a/reaktive/src/commonTest/kotlin/com/badoo/reaktive/subject/UnicastSubjectTest.kt b/reaktive/src/commonTest/kotlin/com/badoo/reaktive/subject/UnicastSubjectTest.kt
+index 6822b82c..35ac6e7c 100644
+--- a/reaktive/src/commonTest/kotlin/com/badoo/reaktive/subject/UnicastSubjectTest.kt
++++ b/reaktive/src/commonTest/kotlin/com/badoo/reaktive/subject/UnicastSubjectTest.kt
+@@ -1,13 +1,16 @@
+ package com.badoo.reaktive.subject
+ 
++import com.badoo.reaktive.observable.subscribe
+ import com.badoo.reaktive.subject.unicast.UnicastSubject
+ import com.badoo.reaktive.test.base.assertError
++import com.badoo.reaktive.test.observable.TestObservableObserver
+ import com.badoo.reaktive.test.observable.assertNoValues
+ import com.badoo.reaktive.test.observable.assertValues
+ import com.badoo.reaktive.test.observable.test
+ import kotlin.test.Ignore
+ import kotlin.test.Test
+ import kotlin.test.assertEquals
++import kotlin.test.assertNotNull
+ 
+ class UnicastSubjectTest : SubjectGenericTests by SubjectGenericTests(UnicastSubject(), 1) {
+ 
+@@ -46,6 +49,19 @@ class UnicastSubjectTest : SubjectGenericTests by SubjectGenericTests(UnicastSub
+         observer.assertError { it is IllegalStateException }
+     }
+ 
++    @Test
++    fun produces_IllegalStateException_WHEN_second_subscriber_recursively() {
++        var observer: TestObservableObserver<*>? = null
++
++        subject.subscribe {
++            observer = subject.test()
++        }
++
++        subject.onNext(0)
++
++        assertNotNull(observer).assertError { it is IllegalStateException }
++    }
++
+     @Test
+     fun emits_last_bufferSize_values() {
+         subject.onNext(1)
+

@@ -1,0 +1,252 @@
+Subject: [PATCH] LemmyNet__jerboa-pr_991
+---
+Index: app/src/androidTest/java/com/jerboa/MainActivityTests.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/androidTest/java/com/jerboa/MainActivityTests.kt b/app/src/androidTest/java/com/jerboa/MainActivityTests.kt
+new file mode 100644
+--- /dev/null	(date 1764597068970)
++++ b/app/src/androidTest/java/com/jerboa/MainActivityTests.kt	(date 1764597068970)
+@@ -0,0 +1,138 @@
++package com.jerboa
++
++import androidx.compose.ui.geometry.Offset
++import androidx.compose.ui.test.assertIsDisplayed
++import androidx.compose.ui.test.hasText
++import androidx.compose.ui.test.junit4.createEmptyComposeRule
++import androidx.compose.ui.test.onNodeWithContentDescription
++import androidx.compose.ui.test.onNodeWithText
++import androidx.compose.ui.test.onRoot
++import androidx.compose.ui.test.performClick
++import androidx.compose.ui.test.performTouchInput
++import androidx.compose.ui.test.swipe
++import androidx.test.core.app.ActivityScenario
++import androidx.test.core.app.ApplicationProvider
++import androidx.test.platform.app.InstrumentationRegistry
++import com.jerboa.db.AccountRepository
++import com.jerboa.db.AppSettingsRepository
++import kotlinx.coroutines.test.runTest
++import org.junit.Before
++import org.junit.Rule
++import org.junit.Test
++
++class MainActivityTests {
++
++    lateinit var scenario: ActivityScenario<MainActivity>
++
++    @get:Rule
++    val composeTestRule = createEmptyComposeRule()
++
++    @Before
++    fun setup() {
++        val app = ApplicationProvider.getApplicationContext<JerboaApplication>()
++        val fakeAccountRepository = AccountRepository(FakeAccountDao())
++        val fakeAppSettingsRepository = AppSettingsRepository(FakeAppSettingsDao())
++
++        val accountRepositoryDelegateField = JerboaApplication::class.java
++            .getDeclaredField("accountRepository\$delegate")
++        accountRepositoryDelegateField.isAccessible = true
++        accountRepositoryDelegateField.set(app, lazy { fakeAccountRepository })
++
++        val appSettingsRepositoryDelegateField = JerboaApplication::class.java
++            .getDeclaredField("appSettingsRepository\$delegate")
++        appSettingsRepositoryDelegateField.isAccessible = true
++        appSettingsRepositoryDelegateField.set(app, lazy { fakeAppSettingsRepository })
++
++        scenario = ActivityScenario.launch(MainActivity::class.java)
++    }
++
++    @Test
++    fun testDrawerOpensOnEveryTab() = runTest {
++        scenario.onActivity { }
++
++        val tabs = listOf("Home", "Search", "Inbox", "Saved", "Profile")
++        tabs.forEach { tab ->
++            // Switch to the tab
++            val labelRes = when (tab) {
++                "Home" -> R.string.bottomBar_label_home
++                "Search" -> R.string.bottomBar_label_search
++                "Inbox" -> R.string.bottomBar_label_inbox
++                "Saved" -> R.string.bottomBar_label_bookmarks
++                "Profile" -> R.string.bottomBar_label_profile
++                else -> throw IllegalStateException("Unknown tab: $tab")
++            }
++            val context = InstrumentationRegistry.getInstrumentation().targetContext
++
++            // Close popup if displayed
++            if (composeTestRule.onAllNodes(hasText("Done")).fetchSemanticsNodes().isNotEmpty()) {
++                composeTestRule.onNodeWithText("Done").performClick()
++            }
++
++            composeTestRule.onNodeWithText(context.getString(labelRes)).performClick()
++
++            // Swipe to open drawer
++            composeTestRule.onRoot().performTouchInput {
++                swipe(
++                    start = Offset(60f, 40f),
++                    end = Offset(this.centerX, 40f),
++                    durationMillis = 300
++                )
++            }
++
++            composeTestRule.awaitIdle()
++
++            // Verify drawer content is displayed
++            composeTestRule.onNodeWithText("Anonymous").assertIsDisplayed()
++
++            // Close the drawer
++            scenario.onActivity { activity ->
++                activity.onBackPressedDispatcher.onBackPressed()
++            }
++
++            composeTestRule.awaitIdle()
++        }
++    }
++
++    @Test
++    fun testDrawerOpensOnHamburgerClick() = runTest {
++        scenario.onActivity { }
++
++        /* Only testing these three since on Saved/Profile sections a different view is displayed
++           in testing env due to user being logged out/network issue. */
++        val tabs = listOf("Home", "Search", "Inbox")
++        tabs.forEach { tab ->
++            // Switch to the tab
++            val labelRes = when (tab) {
++                "Home" -> R.string.bottomBar_label_home
++                "Search" -> R.string.bottomBar_label_search
++                "Inbox" -> R.string.bottomBar_label_inbox
++                else -> throw IllegalStateException("Unknown tab: $tab")
++            }
++            val context = InstrumentationRegistry.getInstrumentation().targetContext
++
++            // Close popup if displayed
++            if (composeTestRule.onAllNodes(hasText("Done")).fetchSemanticsNodes().isNotEmpty()) {
++                composeTestRule.onNodeWithText("Done").performClick()
++            }
++
++            composeTestRule.onNodeWithText(context.getString(labelRes)).performClick()
++            composeTestRule.awaitIdle()
++
++
++            // Click the hamburger icon
++            composeTestRule.onNodeWithContentDescription(context.getString(R.string.home_menu)).performClick()
++
++            composeTestRule.awaitIdle()
++
++            // Verify drawer content is displayed
++            composeTestRule.onNodeWithText("Anonymous").assertIsDisplayed()
++
++            // Close the drawer
++            scenario.onActivity { activity ->
++                activity.onBackPressedDispatcher.onBackPressed()
++            }
++
++            composeTestRule.awaitIdle()
++        }
++    }
++}
+Index: app/src/androidTest/java/com/jerboa/FakeAccountDao.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/androidTest/java/com/jerboa/FakeAccountDao.kt b/app/src/androidTest/java/com/jerboa/FakeAccountDao.kt
+new file mode 100644
+--- /dev/null	(date 1764594794824)
++++ b/app/src/androidTest/java/com/jerboa/FakeAccountDao.kt	(date 1764594794824)
+@@ -0,0 +1,54 @@
++package com.jerboa
++
++import androidx.lifecycle.LiveData
++import androidx.lifecycle.MutableLiveData
++import com.jerboa.db.Account
++import com.jerboa.db.AccountDao
++
++class FakeAccountDao : AccountDao {
++    // In-memory storage
++    private val accountsState = MutableLiveData(
++        listOf(
++            Account(
++                id = 0,
++                current = true,
++                instance = "Test",
++                name = "TestName",
++                jwt = "fakeToken",
++                defaultListingType = 0,
++                defaultSortType = 0
++            )
++        )
++    )
++    private var currentAccountId: Int? = null
++
++    override fun getAll(): LiveData<List<Account>> = accountsState
++
++    override fun getAllSync(): List<Account> = accountsState.value ?: emptyList()
++
++    override suspend fun insert(account: Account) {
++        val current = accountsState.value ?: emptyList()
++        accountsState.postValue(current + account)
++    }
++
++    override suspend fun update(account: Account) {
++        val current = accountsState.value ?: emptyList()
++        accountsState.postValue(current.map { if (it.id == account.id) account else it })
++    }
++
++    override suspend fun removeCurrent() {
++        currentAccountId = null
++    }
++
++    override suspend fun setCurrent(accountId: Int) {
++        if ((accountsState.value ?: emptyList()).any { it.id == accountId }) {
++            currentAccountId = accountId
++        }
++    }
++
++    override suspend fun delete(account: Account) {
++        val current = accountsState.value ?: emptyList()
++        accountsState.postValue(current.filter { it.id != account.id })
++        if (currentAccountId == account.id) currentAccountId = null
++    }
++}
+Index: app/src/androidTest/java/com/jerboa/FakeAppSettingsDao.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/androidTest/java/com/jerboa/FakeAppSettingsDao.kt b/app/src/androidTest/java/com/jerboa/FakeAppSettingsDao.kt
+new file mode 100644
+--- /dev/null	(date 1764595879142)
++++ b/app/src/androidTest/java/com/jerboa/FakeAppSettingsDao.kt	(date 1764595879142)
+@@ -0,0 +1,28 @@
++package com.jerboa
++
++import androidx.lifecycle.LiveData
++import androidx.lifecycle.MutableLiveData
++import com.jerboa.db.APP_SETTINGS_DEFAULT
++import com.jerboa.db.AppSettings
++import com.jerboa.db.AppSettingsDao
++
++class FakeAppSettingsDao : AppSettingsDao {
++
++    private val state = MutableLiveData(APP_SETTINGS_DEFAULT)
++
++    override fun getSettings(): LiveData<AppSettings> = state
++
++    override suspend fun updateAppSettings(appSettings: AppSettings) {
++        state.postValue(appSettings)
++    }
++
++    override suspend fun markChangelogViewed() {
++        val current = state.value ?: APP_SETTINGS_DEFAULT
++        state.postValue(current.copy(viewedChangelog = 1))
++    }
++
++    override suspend fun updatePostViewMode(postViewMode: Int) {
++        val current = state.value ?: APP_SETTINGS_DEFAULT
++        state.postValue(current.copy(postViewMode = postViewMode))
++    }
++}

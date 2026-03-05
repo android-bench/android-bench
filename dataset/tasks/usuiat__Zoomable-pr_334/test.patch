@@ -1,0 +1,272 @@
+diff --git a/zoomable/src/commonTest/kotlin/net/engawapg/lib/zoomable/DetectZoomableGesturesTest.kt b/zoomable/src/commonTest/kotlin/net/engawapg/lib/zoomable/DetectZoomableGesturesTest.kt
+index 7843e29..da5909a 100644
+--- a/zoomable/src/commonTest/kotlin/net/engawapg/lib/zoomable/DetectZoomableGesturesTest.kt
++++ b/zoomable/src/commonTest/kotlin/net/engawapg/lib/zoomable/DetectZoomableGesturesTest.kt
+@@ -19,6 +19,7 @@ import androidx.compose.ui.test.SemanticsNodeInteraction
+ import androidx.compose.ui.test.TouchInjectionScope
+ import androidx.compose.ui.test.click
+ import androidx.compose.ui.test.doubleClick
++import androidx.compose.ui.test.longClick
+ import androidx.compose.ui.test.onNodeWithTag
+ import androidx.compose.ui.test.performTouchInput
+ import androidx.compose.ui.test.runComposeUiTest
+@@ -518,6 +519,49 @@ class DetectZoomableGesturesTest : PlatformZoomableTest() {
+         assertTrue(downEvents.isEmpty())
+     }
+ 
++    @Test
++    fun first_down_event_should_not_be_consumed_if_tap_is_not_needed() = runComposeUiTest {
++        val downEvents = mutableListOf<PointerInputChange>()
++        val targetTag = "target"
++        setContent {
++            Box(
++                modifier = Modifier
++                    .pointerInput(Unit) {
++                        awaitEachGesture {
++                            downEvents.add(awaitFirstDown(requireUnconsumed = true))
++                        }
++                    }
++            ) {
++                Box(
++                    modifier = Modifier
++                        .testTag(targetTag)
++                        .size(300.dp)
++                        .pointerInput(Unit) {
++                            detectZoomableGestures(
++                                cancelIfZoomCanceled = { true },
++                                canConsumeGesture = { _, _ -> true },
++                                onGesture = { _, _, _, _ -> },
++                                onTap = null,
++                                onDoubleTap = null,
++                                onLongPress = null,
++                                enableOneFingerZoom = { false },
++                            )
++                        }
++                )
++            }
++        }
++        val target = onNodeWithTag(targetTag)
++
++        target.performTouchInput {
++            pinchZoom(2f)
++            pan(50f)
++            longClick()
++            click()
++        }
++
++        assertEquals(4, downEvents.size)
++    }
++
+     @Test
+     fun gesture_should_be_canceled_if_event_is_consumed_by_child() = runComposeUiTest {
+         val result = ZoomableResult()
+@@ -673,4 +717,110 @@ class DetectZoomableGesturesTest : PlatformZoomableTest() {
+ 
+             assertEquals(1, result.tap)
+         }
++
++    @Test
++    fun click_should_not_propagate_when_onTap_is_not_null() = runComposeUiTest {
++        val downEvents = mutableListOf<PointerInputChange>()
++        setContent {
++            Box(modifier = Modifier.pointerInput(Unit) {
++                awaitEachGesture { downEvents.add(awaitFirstDown(requireUnconsumed = true)) }
++            }) {
++                Box(modifier = Modifier.testTag("target").size(100.dp).pointerInput(Unit) {
++                    detectZoomableGestures(
++                        onGesture = { _, _, _, _ -> },
++                        canConsumeGesture = { _, _ -> true },
++                        onTap = {},
++                        cancelIfZoomCanceled = { true },
++                        enableOneFingerZoom = { false},
++                        onGestureStart = { },
++                        onGestureEnd = {},
++                        onDoubleTap = null,
++                        onLongPress = null
++                    )
++                })
++            }
++        }
++        onNodeWithTag("target").performTouchInput { click() }
++        assertEquals(0, downEvents.size) // Propagated to parent
++    }
++
++    @Test
++    fun longPress_should_not_propagate_when_longPress_is_not_null() = runComposeUiTest {
++        val downEvents = mutableListOf<PointerInputChange>()
++        setContent {
++            Box(modifier = Modifier.pointerInput(Unit) {
++                awaitEachGesture { downEvents.add(awaitFirstDown(requireUnconsumed = true)) }
++            }) {
++                Box(modifier = Modifier.testTag("target").size(100.dp).pointerInput(Unit) {
++                    detectZoomableGestures(
++                        onGesture = { _, _, _, _ -> },
++                        canConsumeGesture = { _, _ -> true },
++                        onTap = null,
++                        cancelIfZoomCanceled = { true },
++                        enableOneFingerZoom = { false},
++                        onGestureStart = { },
++                        onGestureEnd = {},
++                        onDoubleTap = null,
++                        onLongPress = {}
++                    )
++                })
++            }
++        }
++        onNodeWithTag("target").performTouchInput { click() }
++        assertEquals(0, downEvents.size) // Propagated to parent
++    }
++
++    @Test
++    fun doubleTap_should_not_propagate_when_doubleTap_is_not_null() = runComposeUiTest {
++        val downEvents = mutableListOf<PointerInputChange>()
++        setContent {
++            Box(modifier = Modifier.pointerInput(Unit) {
++                awaitEachGesture { downEvents.add(awaitFirstDown(requireUnconsumed = true)) }
++            }) {
++                Box(modifier = Modifier.testTag("target").size(100.dp).pointerInput(Unit) {
++                    detectZoomableGestures(
++                        onGesture = { _, _, _, _ -> },
++                        canConsumeGesture = { _, _ -> true },
++                        onTap = null,
++                        cancelIfZoomCanceled = { true },
++                        enableOneFingerZoom = { false},
++                        onGestureStart = { },
++                        onGestureEnd = {},
++                        onDoubleTap = {},
++                        onLongPress = null
++                    )
++                })
++            }
++        }
++        onNodeWithTag("target").performTouchInput { click() }
++        assertEquals(0, downEvents.size) // Propagated to parent
++    }
++
++    @Test
++    fun oneFingerZoom_should_not_propagate_when_oneFingerZoom_is_true() = runComposeUiTest {
++        val downEvents = mutableListOf<PointerInputChange>()
++        setContent {
++            Box(modifier = Modifier.pointerInput(Unit) {
++                awaitEachGesture { downEvents.add(awaitFirstDown(requireUnconsumed = true)) }
++            }) {
++                Box(modifier = Modifier.testTag("target").size(100.dp).pointerInput(Unit) {
++                    detectZoomableGestures(
++                        onGesture = { _, _, _, _ -> },
++                        canConsumeGesture = { _, _ -> true },
++                        onTap = null,
++                        cancelIfZoomCanceled = { true },
++                        enableOneFingerZoom = { true},
++                        onGestureStart = { },
++                        onGestureEnd = {},
++                        onDoubleTap = null,
++                        onLongPress = null
++                    )
++                })
++            }
++        }
++        onNodeWithTag("target").performTouchInput { click() }
++        assertEquals(0, downEvents.size) // Propagated to parent
++    }
++
++
+ }
+diff --git a/zoomable/src/commonTest/kotlin/net/engawapg/lib/zoomable/ZoomableTest.kt b/zoomable/src/commonTest/kotlin/net/engawapg/lib/zoomable/ZoomableTest.kt
+index 7bc4750..4368240 100644
+--- a/zoomable/src/commonTest/kotlin/net/engawapg/lib/zoomable/ZoomableTest.kt
++++ b/zoomable/src/commonTest/kotlin/net/engawapg/lib/zoomable/ZoomableTest.kt
+@@ -30,6 +30,7 @@ import androidx.compose.ui.test.doubleClick
+ import androidx.compose.ui.test.getBoundsInRoot
+ import androidx.compose.ui.test.getUnclippedBoundsInRoot
+ import androidx.compose.ui.test.onNodeWithContentDescription
++import androidx.compose.ui.test.onNodeWithTag
+ import androidx.compose.ui.test.performKeyInput
+ import androidx.compose.ui.test.performMouseInput
+ import androidx.compose.ui.test.performTouchInput
+@@ -322,6 +323,39 @@ class ZoomableTest : PlatformZoomableTest() {
+         assertEquals(0, parentClickCount)
+     }
+ 
++    @Test
++    fun tap_gesture_on_parent_composable_works_if_zoomable_tap_is_disabled() = runComposeUiTest {
++        var parentClickCount = 0
++        setContent {
++            Box(modifier = Modifier.clickable { parentClickCount++ }) {
++                val icon = Icons.Default.Info
++                val zoomState =
++                    rememberZoomState(contentSize = Size(icon.viewportWidth, icon.viewportHeight))
++                Image(
++                    imageVector = icon,
++                    contentDescription = "image",
++                    contentScale = ContentScale.Fit,
++                    modifier = Modifier
++                        .size(300.dp)
++                        .zoomable(
++                            zoomState = zoomState,
++                            enableOneFingerZoom = false,
++                            onTap = null,
++                            onLongPress = null,
++                            onDoubleTap = null,
++                        )
++                )
++            }
++        }
++
++        onNodeWithContentDescription("image").performTouchInput {
++            click()
++        }
++
++        assertEquals(1, parentClickCount)
++    }
++
++
+     @Test
+     fun scroll_gesture_propagation_content_edge_enables_to_swipe_page_on_content_edge() =
+         runComposeUiTest {
+@@ -560,4 +594,46 @@ class ZoomableTest : PlatformZoomableTest() {
+         assertEquals(11, doubleTapResult)
+         assertEquals(11, longPressResult)
+     }
++
++    @Test
++    fun zoom_gesture_works_starting_on_clickable_child() = runComposeUiTest {
++        val zoomState = ZoomState()
++        setContent {
++            // Zoomable container with NO tap handlers (hasAnyTapHandlers = false)
++            Box(
++                modifier = Modifier
++                    .fillMaxSize()
++                    .zoomable(
++                        zoomState = zoomState,
++                        onTap = null,
++                        onDoubleTap = null,
++                        onLongPress = null,
++                        enableOneFingerZoom = false
++                    )
++            ) {
++                // Interactive child that consumes the initial "down" event
++                Box(
++                    modifier = Modifier
++                        .size(100.dp)
++                        .clickable { /* Consumes events */ }
++                        .semantics { testTag = "child" }
++                )
++            }
++        }
++
++        // Perform a pinch gesture starting on the clickable child
++        onNodeWithTag("child").performTouchInput {
++            pinch(
++                start0 = center,
++                start1 = center + Offset(10f, 10f),
++                end0 = center - Offset(50f, 50f),
++                end1 = center + Offset(60f, 60f)
++            )
++        }
++
++        // Verify that the scale increased
++        assertTrue(zoomState.scale > 1f, "Zoom should work even if started on clickable child")
++    }
++
++
+ }

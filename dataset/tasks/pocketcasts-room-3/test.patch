@@ -1,0 +1,50 @@
+diff --git a/app/src/androidTest/java/au/com/shiftyjelly/pocketcasts/repositories/playlist/PlaylistManagerManualTest.kt b/app/src/androidTest/java/au/com/shiftyjelly/pocketcasts/repositories/playlist/PlaylistManagerManualTest.kt
+index 1f9b99692..865192bdc 100644
+--- a/app/src/androidTest/java/au/com/shiftyjelly/pocketcasts/repositories/playlist/PlaylistManagerManualTest.kt
++++ b/app/src/androidTest/java/au/com/shiftyjelly/pocketcasts/repositories/playlist/PlaylistManagerManualTest.kt
+@@ -3,6 +3,7 @@ package au.com.shiftyjelly.pocketcasts.repositories.playlist
+ import app.cash.turbine.test
+ import au.com.shiftyjelly.pocketcasts.models.entity.PlaylistEntity.Companion.SYNC_STATUS_NOT_SYNCED
+ import au.com.shiftyjelly.pocketcasts.models.entity.PodcastEpisode
++import au.com.shiftyjelly.pocketcasts.models.type.EpisodePlayingStatus
+ import au.com.shiftyjelly.pocketcasts.models.type.PlaylistEpisodeSortType
+ import kotlin.time.Duration
+ import kotlin.time.Duration.Companion.seconds
+@@ -694,7 +695,7 @@ class PlaylistManagerManualTest {
+     fun computeTotalPlaybackDurationLeft() = dsl.test {
+         insertManualPlaylist(index = 0)
+         insertPodcast(index = 0)
+-        repeat(6) { index ->
++        repeat(7) { index ->
+             insertManualEpisode(index = index, podcastIndex = 0, playlistIndex = 0)
+         }
+ 
+@@ -732,6 +733,11 @@ class PlaylistManagerManualTest {
+             }
+             assertEquals(40.seconds, awaitItem()?.metadata?.playbackDurationLeft)
+ 
++            insertPodcastEpisode(index = 6, podcastIndex = 0) {
++                it.copy(duration = 20.0, playingStatus = EpisodePlayingStatus.COMPLETED)
++            }
++            assertEquals(40.seconds, awaitItem()?.metadata?.playbackDurationLeft)
++
+             manager.toggleShowArchived("playlist-id-0")
+             assertEquals(45.seconds, awaitItem()?.metadata?.playbackDurationLeft)
+         }
+diff --git a/app/src/androidTest/java/au/com/shiftyjelly/pocketcasts/repositories/playlist/PlaylistManagerSmartTest.kt b/app/src/androidTest/java/au/com/shiftyjelly/pocketcasts/repositories/playlist/PlaylistManagerSmartTest.kt
+index d3c5c17b0..2f9b0b9e4 100644
+--- a/app/src/androidTest/java/au/com/shiftyjelly/pocketcasts/repositories/playlist/PlaylistManagerSmartTest.kt
++++ b/app/src/androidTest/java/au/com/shiftyjelly/pocketcasts/repositories/playlist/PlaylistManagerSmartTest.kt
+@@ -553,6 +553,11 @@ class PlaylistManagerSmartTest {
+                 it.copy(duration = 0.0, playedUpTo = 10.0)
+             }
+             assertEquals(40.seconds, awaitItem()?.metadata?.playbackDurationLeft)
++
++            insertPodcastEpisode(index = 5, podcastIndex = 0) {
++                it.copy(duration = 20.0, playingStatus = EpisodePlayingStatus.COMPLETED)
++            }
++            assertEquals(40.seconds, awaitItem()?.metadata?.playbackDurationLeft)
+         }
+     }
+ 
+

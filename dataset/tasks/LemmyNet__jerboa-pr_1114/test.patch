@@ -1,0 +1,130 @@
+Subject: [PATCH] Add instrumented test for CommentReplyActivity and MockK dependencies
+---
+Index: app/build.gradle.kts
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/build.gradle.kts b/app/build.gradle.kts
+--- a/app/build.gradle.kts	(revision d91796ce11fc3b6c3ae6f1f02ffa9cdd868ba23c)
++++ b/app/build.gradle.kts	(revision 38ecf076e8ff21d3e67d637e98866b5b3e689ecf)
+@@ -180,3 +180,14 @@
+ 
+     implementation("org.jetbrains.kotlinx:kotlinx-collections-immutable:0.3.5")
+ }
++
++android {
++    packaging {
++        resources.excludes.add("META-INF/*")
++        jniLibs.useLegacyPackaging = true
++    }
++}
++
++dependencies {
++    androidTestImplementation("io.mockk:mockk-android:1.13.8")
++}
+Index: app/src/androidTest/java/com/jerboa/ui/components/comment/reply/CommentReplyActivityTest.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/androidTest/java/com/jerboa/ui/components/comment/reply/CommentReplyActivityTest.kt b/app/src/androidTest/java/com/jerboa/ui/components/comment/reply/CommentReplyActivityTest.kt
+new file mode 100644
+--- /dev/null	(revision 38ecf076e8ff21d3e67d637e98866b5b3e689ecf)
++++ b/app/src/androidTest/java/com/jerboa/ui/components/comment/reply/CommentReplyActivityTest.kt	(revision 38ecf076e8ff21d3e67d637e98866b5b3e689ecf)
+@@ -0,0 +1,95 @@
++package com.jerboa.ui.components.comment.reply
++
++import android.content.Context
++import android.widget.Toast
++import androidx.compose.ui.test.junit4.createComposeRule
++import androidx.compose.ui.test.onNodeWithContentDescription
++import androidx.compose.ui.test.onNodeWithText
++import androidx.compose.ui.test.performClick
++import androidx.compose.ui.test.performTextInput
++import androidx.test.ext.junit.runners.AndroidJUnit4
++import androidx.test.platform.app.InstrumentationRegistry
++import com.jerboa.JerboaAppState
++import com.jerboa.R
++import com.jerboa.api.API
++import com.jerboa.datatypes.samplePostView
++import com.jerboa.model.AccountViewModel
++import com.jerboa.model.ReplyItem
++import com.jerboa.model.SiteViewModel
++import io.mockk.coEvery
++import io.mockk.coVerify
++import io.mockk.every
++import io.mockk.mockk
++import io.mockk.mockkObject
++import io.mockk.mockkStatic
++import io.mockk.unmockkAll
++import kotlinx.coroutines.test.runTest
++import okhttp3.ResponseBody.Companion.toResponseBody
++import org.junit.After
++import org.junit.Before
++import org.junit.Rule
++import org.junit.Test
++import org.junit.runner.RunWith
++import retrofit2.Response
++
++@RunWith(AndroidJUnit4::class)
++class CommentReplyActivityTest {
++
++    @get:Rule
++    val composeTestRule = createComposeRule()
++
++    private lateinit var mockAPI: API
++    private lateinit var mockAccountViewModel: AccountViewModel
++    private lateinit var mockSiteViewModel: SiteViewModel
++    private lateinit var mockAppState: JerboaAppState
++    private lateinit var toast: Toast
++
++    @Before
++    fun setupMocks() {
++        mockAPI = mockk<API>(relaxed = true)
++        mockkObject(API)
++        every { API.getInstance() } returns mockAPI
++
++        mockAccountViewModel = mockk(relaxed = true)
++        mockSiteViewModel = mockk(relaxed = true)
++        mockAppState = mockk(relaxed = true)
++
++        toast = mockk<Toast>(relaxed = true)
++        mockkStatic(Toast::class)
++        every { Toast.makeText(any<Context>(), any<String>(), any<Int>()) } returns toast
++        every { toast.show() } returns Unit
++    }
++
++    @After
++    fun removeMocks() {
++        unmockkAll()
++    }
++
++    @Test
++    fun sendingComment_callsCreateCommentAPI() = runTest {
++        val context = InstrumentationRegistry.getInstrumentation().targetContext
++        coEvery { mockAPI.createComment(any()) } returns Response.error(404, "".toResponseBody(null))
++
++        composeTestRule.setContent {
++            CommentReplyActivity(
++                replyItem = ReplyItem.PostItem(samplePostView),
++                accountViewModel = mockAccountViewModel,
++                siteViewModel = mockSiteViewModel,
++                appState = mockAppState,
++                isModerator = false
++            )
++        }
++
++        composeTestRule
++            .onNodeWithText(context.getString(R.string.comment_reply_type_your_comment))
++            .performTextInput("This is a test comment")
++
++        composeTestRule
++            .onNodeWithContentDescription(context.getString(R.string.commentReply_send))
++            .performClick()
++
++        composeTestRule.waitForIdle()
++        coVerify(atLeast = 1) { mockAPI.createComment(any()) }
++        coVerify(atLeast = 1) { toast.show() }
++    }
++}

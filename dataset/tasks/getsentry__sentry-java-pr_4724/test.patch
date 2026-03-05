@@ -1,0 +1,211 @@
+diff --git a/sentry-android-core/src/test/java/io/sentry/android/core/AndroidOptionsInitializerTest.kt b/sentry-android-core/src/test/java/io/sentry/android/core/AndroidOptionsInitializerTest.kt
+index d49a90577..dc6926c1b 100644
+--- a/sentry-android-core/src/test/java/io/sentry/android/core/AndroidOptionsInitializerTest.kt
++++ b/sentry-android-core/src/test/java/io/sentry/android/core/AndroidOptionsInitializerTest.kt
+@@ -24,6 +24,7 @@ import io.sentry.android.core.internal.debugmeta.AssetsDebugMetaLoader
+ import io.sentry.android.core.internal.gestures.AndroidViewGestureTargetLocator
+ import io.sentry.android.core.internal.modules.AssetsModulesLoader
+ import io.sentry.android.core.internal.util.AndroidConnectionStatusProvider
++import io.sentry.android.core.internal.util.AndroidRuntimeManager
+ import io.sentry.android.core.internal.util.AndroidThreadChecker
+ import io.sentry.android.core.performance.AppStartMetrics
+ import io.sentry.android.fragment.FragmentLifecycleIntegration
+@@ -917,4 +918,10 @@ class AndroidOptionsInitializerTest {
+       fixture.sentryOptions.compositePerformanceCollector is DefaultCompositePerformanceCollector
+     }
+   }
++
++  @Test
++  fun `AndroidRuntimeManager is set in the options`() {
++    fixture.initSut()
++    assertIs<AndroidRuntimeManager>(fixture.sentryOptions.runtimeManager)
++  }
+ }
+diff --git a/sentry-android-core/src/test/java/io/sentry/android/core/internal/util/AndroidRuntimeManagerTest.kt b/sentry-android-core/src/test/java/io/sentry/android/core/internal/util/AndroidRuntimeManagerTest.kt
+new file mode 100644
+index 000000000..427d12874
+--- /dev/null
++++ b/sentry-android-core/src/test/java/io/sentry/android/core/internal/util/AndroidRuntimeManagerTest.kt
+@@ -0,0 +1,87 @@
++package io.sentry.android.core.internal.util
++
++import android.os.StrictMode
++import androidx.test.ext.junit.runners.AndroidJUnit4
++import kotlin.test.AfterTest
++import kotlin.test.Test
++import kotlin.test.assertEquals
++import kotlin.test.assertNotEquals
++import kotlin.test.assertTrue
++import org.junit.runner.RunWith
++
++@RunWith(AndroidJUnit4::class)
++class AndroidRuntimeManagerTest {
++
++  val sut = AndroidRuntimeManager()
++
++  @AfterTest
++  fun `clean up`() {
++    // Revert StrictMode policies to avoid issues with other tests
++    StrictMode.setThreadPolicy(StrictMode.ThreadPolicy.LAX)
++    StrictMode.setVmPolicy(StrictMode.VmPolicy.LAX)
++  }
++
++  @Test
++  fun `runWithRelaxedPolicy changes policy when running and restores it afterwards`() {
++    var called = false
++    val threadPolicy = StrictMode.ThreadPolicy.Builder().detectAll().penaltyDeath().build()
++    val vmPolicy = StrictMode.VmPolicy.Builder().detectAll().penaltyDeath().build()
++    assertNotEquals(StrictMode.ThreadPolicy.LAX, threadPolicy)
++    assertNotEquals(StrictMode.VmPolicy.LAX, vmPolicy)
++
++    // Set and assert the StrictMode policies
++    StrictMode.setThreadPolicy(threadPolicy)
++    StrictMode.setVmPolicy(vmPolicy)
++    assertEquals(threadPolicy.toString(), StrictMode.getThreadPolicy().toString())
++    assertEquals(vmPolicy.toString(), StrictMode.getVmPolicy().toString())
++
++    // Run the function and assert LAX policies
++    called =
++      sut.runWithRelaxedPolicy {
++        assertEquals(
++          StrictMode.ThreadPolicy.LAX.toString(),
++          StrictMode.getThreadPolicy().toString(),
++        )
++        assertEquals(StrictMode.VmPolicy.LAX.toString(), StrictMode.getVmPolicy().toString())
++        true
++      }
++
++    // Policies should be reverted back
++    assertEquals(threadPolicy.toString(), StrictMode.getThreadPolicy().toString())
++    assertEquals(vmPolicy.toString(), StrictMode.getVmPolicy().toString())
++
++    // Ensure the code ran
++    assertTrue(called)
++  }
++
++  @Test
++  fun `runWithRelaxedPolicy changes policy and restores it afterwards even if the code throws`() {
++    var called = false
++    val threadPolicy = StrictMode.ThreadPolicy.Builder().detectAll().penaltyDeath().build()
++    val vmPolicy = StrictMode.VmPolicy.Builder().detectAll().penaltyDeath().build()
++
++    // Set and assert the StrictMode policies
++    StrictMode.setThreadPolicy(threadPolicy)
++    StrictMode.setVmPolicy(vmPolicy)
++
++    // Run the function and assert LAX policies
++    try {
++      sut.runWithRelaxedPolicy {
++        assertEquals(
++          StrictMode.ThreadPolicy.LAX.toString(),
++          StrictMode.getThreadPolicy().toString(),
++        )
++        assertEquals(StrictMode.VmPolicy.LAX.toString(), StrictMode.getVmPolicy().toString())
++        called = true
++        throw Exception("Test exception")
++      }
++    } catch (_: Exception) {}
++
++    // Policies should be reverted back
++    assertEquals(threadPolicy.toString(), StrictMode.getThreadPolicy().toString())
++    assertEquals(vmPolicy.toString(), StrictMode.getVmPolicy().toString())
++
++    // Ensure the code ran
++    assertTrue(called)
++  }
++}
+diff --git a/sentry-android-integration-tests/sentry-uitest-android/src/androidTest/java/io/sentry/uitest/android/SdkInitTests.kt b/sentry-android-integration-tests/sentry-uitest-android/src/androidTest/java/io/sentry/uitest/android/SdkInitTests.kt
+index d3a60d2c1..8a6dc50c1 100644
+--- a/sentry-android-integration-tests/sentry-uitest-android/src/androidTest/java/io/sentry/uitest/android/SdkInitTests.kt
++++ b/sentry-android-integration-tests/sentry-uitest-android/src/androidTest/java/io/sentry/uitest/android/SdkInitTests.kt
+@@ -1,5 +1,6 @@
+ package io.sentry.uitest.android
+ 
++import android.os.StrictMode
+ import androidx.lifecycle.Lifecycle
+ import androidx.test.core.app.launchActivity
+ import androidx.test.ext.junit.runners.AndroidJUnit4
+@@ -252,6 +253,15 @@ class SdkInitTests : BaseUiTest() {
+     assertDefaultIntegrations()
+   }
+ 
++  @Test
++  fun initNotThrowStrictMode() {
++    StrictMode.setThreadPolicy(StrictMode.ThreadPolicy.Builder().detectAll().penaltyDeath().build())
++    StrictMode.setVmPolicy(StrictMode.VmPolicy.Builder().detectAll().penaltyDeath().build())
++    val sampleScenario = launchActivity<EmptyActivity>()
++    initSentry()
++    sampleScenario.moveToState(Lifecycle.State.DESTROYED)
++  }
++
+   private fun assertDefaultIntegrations() {
+     val integrations =
+       mutableListOf(
+diff --git a/sentry/src/test/java/io/sentry/EnvelopeSenderTest.kt b/sentry/src/test/java/io/sentry/EnvelopeSenderTest.kt
+index 4ddc5561a..dce7c3d58 100644
+--- a/sentry/src/test/java/io/sentry/EnvelopeSenderTest.kt
++++ b/sentry/src/test/java/io/sentry/EnvelopeSenderTest.kt
+@@ -61,8 +61,8 @@ class EnvelopeSenderTest {
+     val sut = fixture.getSut()
+     sut.processDirectory(File("i don't exist"))
+     verify(fixture.logger)!!.log(
+-      eq(SentryLevel.WARNING),
+-      eq("Directory '%s' doesn't exist. No cached events to send."),
++      eq(SentryLevel.ERROR),
++      eq("Cache dir %s is null or is not a directory."),
+       any<Any>(),
+     )
+     verifyNoMoreInteractions(fixture.scopes)
+@@ -79,14 +79,14 @@ class EnvelopeSenderTest {
+     sut.processDirectory(testFile)
+     verify(fixture.logger)!!.log(
+       eq(SentryLevel.ERROR),
+-      eq("Cache dir %s is not a directory."),
++      eq("Cache dir %s is null or is not a directory."),
+       any<Any>(),
+     )
+     verifyNoMoreInteractions(fixture.scopes)
+   }
+ 
+   @Test
+-  fun `when directory has non event files, processDirectory logs that`() {
++  fun `when directory has non event files, processDirectory skips them`() {
+     val sut = fixture.getSut()
+     val testFile =
+       File(
+@@ -96,7 +96,8 @@ class EnvelopeSenderTest {
+     testFile.deleteOnExit()
+     verify(fixture.logger)!!.log(
+       eq(SentryLevel.DEBUG),
+-      eq("File '%s' doesn't match extension expected."),
++      eq("Processing %d items from cache dir %s"),
++      eq(0),
+       any<Any>(),
+     )
+     verify(fixture.scopes, never())!!.captureEnvelope(any(), anyOrNull())
+diff --git a/sentry/src/test/java/io/sentry/util/runtime/NeutralRuntimeManagerTest.kt b/sentry/src/test/java/io/sentry/util/runtime/NeutralRuntimeManagerTest.kt
+new file mode 100644
+index 000000000..a645915d7
+--- /dev/null
++++ b/sentry/src/test/java/io/sentry/util/runtime/NeutralRuntimeManagerTest.kt
+@@ -0,0 +1,19 @@
++package io.sentry.util.runtime
++
++import kotlin.test.Test
++import kotlin.test.assertTrue
++
++class NeutralRuntimeManagerTest {
++
++  val sut = NeutralRuntimeManager()
++
++  @Test
++  fun `runWithRelaxedPolicy runs the code`() {
++    var called = false
++
++    called = sut.runWithRelaxedPolicy { true }
++
++    // Ensure the code ran
++    assertTrue(called)
++  }
++}
+

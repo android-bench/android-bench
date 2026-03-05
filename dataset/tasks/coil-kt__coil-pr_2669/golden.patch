@@ -1,0 +1,88 @@
+diff --git a/coil-core/src/androidMain/kotlin/coil3/request/RequestService.android.kt b/coil-core/src/androidMain/kotlin/coil3/request/RequestService.android.kt
+index 67e976e8..523fb413 100644
+--- a/coil-core/src/androidMain/kotlin/coil3/request/RequestService.android.kt
++++ b/coil-core/src/androidMain/kotlin/coil3/request/RequestService.android.kt
+@@ -24,6 +24,7 @@ import coil3.util.VALID_TRANSFORMATION_CONFIGS
+ import coil3.util.getLifecycle
+ import coil3.util.isHardware
+ import coil3.util.safeConfig
++import coil3.util.scale
+ import kotlinx.coroutines.Job
+ 
+ internal actual fun RequestService(
+@@ -105,12 +106,22 @@ internal class AndroidRequestService(
+     }
+ 
+     private fun ImageRequest.resolveScale(size: Size): Scale {
++        if (defined.scale != null) {
++            return defined.scale
++        }
++
+         // Use `Scale.FIT` if either dimension is undefined.
+         if (size.width == Dimension.Undefined || size.height == Dimension.Undefined) {
+             return Scale.FIT
+-        } else {
+-            return scale
+         }
++
++        // Autodetect the scale from the ImageView.
++        val imageView = (target as? ViewTarget<*>)?.view as? ImageView
++        if (imageView != null) {
++            return imageView.scale
++        }
++
++        return scale
+     }
+ 
+     private fun ImageRequest.resolvePrecision(sizeResolver: SizeResolver): Precision {
+diff --git a/coil-core/src/androidMain/kotlin/coil3/transition/CrossfadeTransition.kt b/coil-core/src/androidMain/kotlin/coil3/transition/CrossfadeTransition.kt
+index 82510e3d..c316a199 100644
+--- a/coil-core/src/androidMain/kotlin/coil3/transition/CrossfadeTransition.kt
++++ b/coil-core/src/androidMain/kotlin/coil3/transition/CrossfadeTransition.kt
+@@ -1,5 +1,6 @@
+ package coil3.transition
+ 
++import android.widget.ImageView
+ import coil3.asDrawable
+ import coil3.asImage
+ import coil3.decode.DataSource
+@@ -7,6 +8,8 @@ import coil3.request.DEFAULT_CROSSFADE_MILLIS
+ import coil3.request.ErrorResult
+ import coil3.request.ImageResult
+ import coil3.request.SuccessResult
++import coil3.size.Scale
++import coil3.util.scale
+ 
+ /**
+  * A [Transition] that crossfades from the current drawable to a new one.
+@@ -29,7 +32,7 @@ class CrossfadeTransition @JvmOverloads constructor(
+         val drawable = CrossfadeDrawable(
+             start = target.drawable,
+             end = result.image?.asDrawable(target.view.resources),
+-            scale = result.request.scale,
++            scale = scale(),
+             durationMillis = durationMillis,
+             fadeStart = result !is SuccessResult || !result.isPlaceholderCached,
+             preferExactIntrinsicSize = preferExactIntrinsicSize,
+@@ -40,6 +43,20 @@ class CrossfadeTransition @JvmOverloads constructor(
+         }
+     }
+ 
++    private fun scale(): Scale {
++        val scale = result.request.defined.scale
++        if (scale != null) {
++            return scale
++        }
++
++        val view = target.view
++        if (view is ImageView) {
++            return view.scale
++        }
++
++        return result.request.scale
++    }
++
+     class Factory @JvmOverloads constructor(
+         val durationMillis: Int = DEFAULT_CROSSFADE_MILLIS,
+         val preferExactIntrinsicSize: Boolean = false,
+

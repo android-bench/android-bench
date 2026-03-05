@@ -1,0 +1,92 @@
+Subject: [PATCH] jwt_password
+---
+Index: app/src/test/java/com/jerboa/LoggingRedactionTest.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/test/java/com/jerboa/LoggingRedactionTest.kt b/app/src/test/java/com/jerboa/LoggingRedactionTest.kt
+new file mode 100644
+--- /dev/null	(date 1764836699199)
++++ b/app/src/test/java/com/jerboa/LoggingRedactionTest.kt	(date 1764836699199)
+@@ -0,0 +1,80 @@
++package com.jerboa
++
++import com.jerboa.api.API
++import com.jerboa.datatypes.types.Login
++import kotlinx.coroutines.runBlocking
++import org.junit.After
++import org.junit.Assert.assertFalse
++import org.junit.Before
++import org.junit.Test
++import java.util.logging.Handler
++import java.util.logging.Level
++import java.util.logging.LogRecord
++import java.util.logging.Logger
++
++class LoggingRedactionTest {
++
++    private val capturedLogs = mutableListOf<String>()
++    private lateinit var logHandler: Handler
++    private val sensitivePassword = "qwerty"
++    private val sensitiveJwt = "asdfgh"
++
++    @Before
++    fun setUp() {
++        logHandler = object : Handler() {
++            override fun publish(record: LogRecord) {
++                capturedLogs.add(record.message)
++            }
++
++            override fun flush() {}
++            override fun close() {}
++        }
++        val rootLogger = Logger.getLogger("")
++        rootLogger.addHandler(logHandler)
++        rootLogger.level = Level.ALL
++    }
++
++    @After
++    fun tearDown() {
++        val rootLogger = Logger.getLogger("")
++        rootLogger.removeHandler(logHandler)
++    }
++
++    @Test
++    fun testSensitiveDataIsNotLogged() = runBlocking {
++        // Point to localhost to trigger network activity without hitting a real server.
++        // We expect this to fail with a connection error, but the interceptor logs the request
++        // before the connection is established.
++        API.changeLemmyInstance("localhost")
++
++        val loginForm = Login(
++            username_or_email = "testuser",
++            password = sensitivePassword,
++            totp_2fa_token = "123456"
++        )
++
++        try {
++            API.getInstance().login(loginForm)
++        } catch (e: Exception) {
++            // Expected network error (Connection Refused), ignore
++        }
++
++        try {
++            API.getInstance().getSite(mapOf("auth" to sensitiveJwt))
++        } catch (e: Exception) {
++            // Expected network error, ignore
++        }
++
++        val fullLog = capturedLogs.joinToString("\n")
++
++        assertFalse(
++            "Logs should NOT contain the raw password.",
++            fullLog.contains(sensitivePassword)
++        )
++
++        assertFalse(
++            "Logs should NOT contain the raw JWT token.",
++            fullLog.contains(sensitiveJwt)
++        )
++    }
++}

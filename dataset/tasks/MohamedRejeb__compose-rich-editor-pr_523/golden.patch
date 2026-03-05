@@ -1,0 +1,60 @@
+diff --git a/richeditor-compose/src/commonMain/kotlin/com/mohamedrejeb/richeditor/model/RichTextState.kt b/richeditor-compose/src/commonMain/kotlin/com/mohamedrejeb/richeditor/model/RichTextState.kt
+index 3ee9f0a..d6ce1bd 100644
+--- a/richeditor-compose/src/commonMain/kotlin/com/mohamedrejeb/richeditor/model/RichTextState.kt
++++ b/richeditor-compose/src/commonMain/kotlin/com/mohamedrejeb/richeditor/model/RichTextState.kt
+@@ -1478,7 +1478,7 @@ public class RichTextState internal constructor(
+             else
+                 it
+         }
+-        val paragraphFirstChildStartIndex = firstNonEmptyChildIndex ?: selection.min
++        val paragraphFirstChildStartIndex = (firstNonEmptyChildIndex ?: selection.min).coerceAtLeast(0)
+ 
+         paragraph.type = newType
+ 
+@@ -1864,7 +1864,26 @@ public class RichTextState internal constructor(
+                     paragraphFirstChildMinIndex = minParagraphFirstChildMinIndex,
+                 )
+ 
++                // Save the old paragraph type
++                val minParagraphOldType = minRichSpan.paragraph.type
++
++                // Set the paragraph type to DefaultParagraph
+                 minRichSpan.paragraph.type = DefaultParagraph()
++
++                // Check if it's a list and handle level appropriately
++                if (
++                    maxRemoveIndex - minRemoveIndex == 1 &&
++                    minParagraphOldType is ConfigurableListLevel &&
++                    minParagraphOldType.level > 1
++                ) {
++                    // Decrease level instead of exiting list
++                    minParagraphOldType.level -= 1
++                    tempTextFieldValue = updateParagraphType(
++                        paragraph = minRichSpan.paragraph,
++                        newType = minParagraphOldType,
++                        textFieldValue = tempTextFieldValue,
++                    )
++                }
+             }
+         }
+ 
+@@ -1877,8 +1896,6 @@ public class RichTextState internal constructor(
+                 paragraphFirstChildMinIndex = maxParagraphFirstChildMinIndex,
+             )
+ 
+-            maxRichSpan.paragraph.type = DefaultParagraph()
+-
+             tempTextFieldValue = adjustOrderedListsNumbers(
+                 startParagraphIndex = maxParagraphIndex + 1,
+                 startNumber = 1,
+@@ -2271,8 +2288,7 @@ public class RichTextState internal constructor(
+                     // Ignore adding the new paragraph
+                     index--
+                     continue
+-                } else
+-                    if (
++                } else if (
+                     (!config.preserveStyleOnEmptyLine || richSpan.paragraph.isEmpty()) &&
+                     isSelectionAtNewRichSpan
+                 ) {
+

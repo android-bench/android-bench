@@ -1,0 +1,43 @@
+diff --git a/lottie/src/main/java/com/airbnb/lottie/LottieDrawable.java b/lottie/src/main/java/com/airbnb/lottie/LottieDrawable.java
+index 637e4944..27d255a5 100644
+--- a/lottie/src/main/java/com/airbnb/lottie/LottieDrawable.java
++++ b/lottie/src/main/java/com/airbnb/lottie/LottieDrawable.java
+@@ -691,7 +691,7 @@ public class LottieDrawable extends Drawable implements Drawable.Callback, Anima
+       lazyCompositionTasks.add(c -> setMaxProgress(maxProgress));
+       return;
+     }
+-    setMaxFrame((int) MiscUtils.lerp(composition.getStartFrame(), composition.getEndFrame(), maxProgress));
++    animator.setMaxFrame(MiscUtils.lerp(composition.getStartFrame(), composition.getEndFrame(), maxProgress));
+   }
+ 
+   /**
+@@ -975,7 +975,12 @@ public class LottieDrawable extends Drawable implements Drawable.Callback, Anima
+     return systemAnimationsEnabled || ignoreSystemAnimationsDisabled;
+   }
+ 
+-  void setSystemAnimationsAreEnabled(Boolean areEnabled) {
++  /**
++   * Tell Lottie that system animations are disabled. When using {@link LottieAnimationView} or Compose {@code LottieAnimation}, this is done
++   * automatically. However, if you are using LottieDrawable on its own, you should set this to false when
++   * {@link com.airbnb.lottie.utils.Utils#getAnimationScale(Context)} is 0.
++   */
++  public void setSystemAnimationsAreEnabled(Boolean areEnabled) {
+     systemAnimationsEnabled = areEnabled;
+   }
+ 
+diff --git a/lottie/src/main/java/com/airbnb/lottie/utils/LottieValueAnimator.java b/lottie/src/main/java/com/airbnb/lottie/utils/LottieValueAnimator.java
+index 6451c1ae..a8901682 100644
+--- a/lottie/src/main/java/com/airbnb/lottie/utils/LottieValueAnimator.java
++++ b/lottie/src/main/java/com/airbnb/lottie/utils/LottieValueAnimator.java
+@@ -138,8 +138,8 @@ public class LottieValueAnimator extends BaseLottieAnimator implements Choreogra
+ 
+     if (keepMinAndMaxFrames) {
+       setMinAndMaxFrames(
+-          (int) Math.max(this.minFrame, composition.getStartFrame()),
+-          (int) Math.min(this.maxFrame, composition.getEndFrame())
++          Math.max(this.minFrame, composition.getStartFrame()),
++          Math.min(this.maxFrame, composition.getEndFrame())
+       );
+     } else {
+       setMinAndMaxFrames((int) composition.getStartFrame(), (int) composition.getEndFrame());
+

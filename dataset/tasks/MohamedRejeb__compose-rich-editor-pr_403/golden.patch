@@ -1,0 +1,14 @@
+diff --git a/richeditor-compose/src/commonMain/kotlin/com/mohamedrejeb/richeditor/model/RichTextState.kt b/richeditor-compose/src/commonMain/kotlin/com/mohamedrejeb/richeditor/model/RichTextState.kt
+index 4323f65..6601b31 100644
+--- a/richeditor-compose/src/commonMain/kotlin/com/mohamedrejeb/richeditor/model/RichTextState.kt
++++ b/richeditor-compose/src/commonMain/kotlin/com/mohamedrejeb/richeditor/model/RichTextState.kt
+@@ -1363,7 +1363,7 @@ public class RichTextState internal constructor(
+         val removedCharsCount = textFieldValue.text.length - tempTextFieldValue.text.length
+ 
+         val minRemoveIndex =
+-            (textFieldValue.selection.max - removedCharsCount)
++            tempTextFieldValue.selection.min
+                 .coerceAtLeast(0)
+ 
+         val maxRemoveIndex =
+

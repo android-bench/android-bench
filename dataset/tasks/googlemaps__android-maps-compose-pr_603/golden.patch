@@ -1,0 +1,59 @@
+diff --git a/maps-compose/src/main/java/com/google/maps/android/compose/GoogleMap.kt b/maps-compose/src/main/java/com/google/maps/android/compose/GoogleMap.kt
+index d8911d5..df54fcd 100644
+--- a/maps-compose/src/main/java/com/google/maps/android/compose/GoogleMap.kt
++++ b/maps-compose/src/main/java/com/google/maps/android/compose/GoogleMap.kt
+@@ -70,8 +70,7 @@ import kotlinx.coroutines.awaitCancellation
+  * @param onPOIClick lambda invoked when a POI is clicked
+  * @param contentPadding the padding values used to signal that portions of the map around the edges
+  * may be obscured. The map will move the Google logo, etc. to avoid overlapping the padding.
+- * @param mapColorScheme Defines the color scheme for the Map. By default it will be
+- * [ComposeMapColorScheme.FOLLOW_SYSTEM].
++ * @param mapColorScheme Defines the color scheme for the Map.
+  * @param content the content of the map
+  */
+ @Composable
+@@ -92,7 +91,7 @@ public fun GoogleMap(
+     onMyLocationClick: ((Location) -> Unit)? = null,
+     onPOIClick: ((PointOfInterest) -> Unit)? = null,
+     contentPadding: PaddingValues = DefaultMapContentPadding,
+-    mapColorScheme: ComposeMapColorScheme = ComposeMapColorScheme.FOLLOW_SYSTEM,
++    mapColorScheme: ComposeMapColorScheme? = null,
+     content: @Composable @GoogleMapComposable () -> Unit = {},
+ ) {
+     // When in preview, early return a Box with the received modifier preserving layout
+@@ -139,7 +138,7 @@ public fun GoogleMap(
+                     locationSource = currentLocationSource,
+                     mapProperties = currentMapProperties,
+                     mapUiSettings = currentUiSettings,
+-                    colorMapScheme = currentColorScheme.value
++                    colorMapScheme = currentColorScheme?.value
+                 )
+ 
+                 MapClickListenerUpdater()
+diff --git a/maps-compose/src/main/java/com/google/maps/android/compose/MapUpdater.kt b/maps-compose/src/main/java/com/google/maps/android/compose/MapUpdater.kt
+index 6282b52..44a0b5d 100644
+--- a/maps-compose/src/main/java/com/google/maps/android/compose/MapUpdater.kt
++++ b/maps-compose/src/main/java/com/google/maps/android/compose/MapUpdater.kt
+@@ -105,7 +105,7 @@ internal inline fun MapUpdater(
+     locationSource: LocationSource?,
+     mapProperties: MapProperties,
+     mapUiSettings: MapUiSettings,
+-    colorMapScheme: Int,
++    colorMapScheme: Int?,
+ ) {
+     val map = (currentComposer.applier as MapApplier).map
+     val mapView = (currentComposer.applier as MapApplier).mapView
+@@ -141,7 +141,11 @@ internal inline fun MapUpdater(
+         set(mapProperties.mapType) { map.mapType = it.value }
+         set(mapProperties.maxZoomPreference) { map.setMaxZoomPreference(it) }
+         set(mapProperties.minZoomPreference) { map.setMinZoomPreference(it) }
+-        set(colorMapScheme) { map.mapColorScheme = it }
++        set(colorMapScheme) {
++            if (it != null) {
++                map.mapColorScheme = it
++            }
++        }
+         set(contentPadding) {
+             val node = this
+             with(this.density) {
+

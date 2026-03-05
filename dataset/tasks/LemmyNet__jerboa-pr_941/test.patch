@@ -1,0 +1,243 @@
+Subject: [PATCH] LemmyNet__jerboa-pr_941
+---
+Index: app/src/androidTest/java/com/jerboa/HomeActivityTests.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/androidTest/java/com/jerboa/HomeActivityTests.kt b/app/src/androidTest/java/com/jerboa/HomeActivityTests.kt
+new file mode 100644
+--- /dev/null	(date 1764589952611)
++++ b/app/src/androidTest/java/com/jerboa/HomeActivityTests.kt	(date 1764589952611)
+@@ -0,0 +1,106 @@
++package com.jerboa
++
++import androidx.activity.OnBackPressedCallback
++import androidx.compose.runtime.getValue
++import androidx.compose.runtime.livedata.observeAsState
++import androidx.compose.ui.test.ExperimentalTestApi
++import androidx.compose.ui.test.assertIsNotDisplayed
++import androidx.compose.ui.test.hasText
++import androidx.compose.ui.test.junit4.createAndroidComposeRule
++import androidx.compose.ui.test.onNodeWithContentDescription
++import androidx.compose.ui.test.performClick
++import androidx.lifecycle.viewmodel.compose.viewModel
++import androidx.navigation.compose.NavHost
++import androidx.navigation.compose.composable
++import androidx.navigation.compose.rememberNavController
++import androidx.test.platform.app.InstrumentationRegistry
++import com.jerboa.db.APP_SETTINGS_DEFAULT
++import com.jerboa.db.AccountRepository
++import com.jerboa.db.AccountViewModelFactory
++import com.jerboa.db.AppSettingsRepository
++import com.jerboa.db.AppSettingsViewModel
++import com.jerboa.db.AppSettingsViewModelFactory
++import com.jerboa.ui.components.home.BottomNavActivity
++import kotlinx.coroutines.test.StandardTestDispatcher
++import kotlinx.coroutines.test.runTest
++import org.junit.After
++import org.junit.Before
++import org.junit.Rule
++import org.junit.Test
++
++class HomeActivityTests {
++
++    @get:Rule
++    val composeTestRule = createAndroidComposeRule<TestActivity>()
++
++    private val appSettingsDao = FakeAppSettingsDao()
++    private val accountDao = FakeAccountDao()
++
++    @Before
++    fun setup() {
++        val dispatcher = composeTestRule.activity.onBackPressedDispatcher
++        val callback = object : OnBackPressedCallback(true) {
++            override fun handleOnBackPressed() {
++                // Consume back press, do nothing
++            }
++        }
++
++        dispatcher.addCallback(callback)
++    }
++
++    @OptIn(ExperimentalTestApi::class)
++    @Test
++    fun testDrawerClosingOnBackpress() = runTest {
++        composeTestRule.setContent {
++            val navController = rememberNavController()
++            val appSettingsViewModel: AppSettingsViewModel = viewModel(
++                factory = AppSettingsViewModelFactory(
++                    AppSettingsRepository(
++                        appSettingsDao = appSettingsDao,
++                        ioDispatcher = StandardTestDispatcher()
++                    )
++                )
++            )
++            val appSettings by appSettingsViewModel.appSettings.observeAsState(APP_SETTINGS_DEFAULT)
++
++            NavHost(
++                navController = navController,
++                startDestination = "graph_root"
++            ) {
++                composable("graph_root") {
++                    BottomNavActivity(
++                        navController = navController,
++                        accountViewModel = viewModel(
++                            factory = AccountViewModelFactory(
++                                AccountRepository(
++                                    accountDao = accountDao
++                                )
++                            )
++                        ),
++                        siteViewModel = viewModel(),
++                        appSettingsViewModel = appSettingsViewModel,
++                        appSettings = appSettings
++                    )
++                }
++            }
++        }
++
++        val context = InstrumentationRegistry.getInstrumentation().targetContext
++
++        composeTestRule.awaitIdle()
++
++        composeTestRule.onNodeWithContentDescription(context.getString(R.string.home_menu))
++            .performClick()
++
++        composeTestRule.waitUntilAtLeastOneExists(hasText("Anonymous"), 1_000)
++
++        composeTestRule.runOnUiThread {
++            composeTestRule.activity.onBackPressedDispatcher.onBackPressed()
++        }
++
++        composeTestRule.awaitIdle()
++
++        composeTestRule.onNode(hasText("Anonymous"))
++            .assertIsNotDisplayed()
++    }
++}
+Index: app/src/androidTest/java/com/jerboa/FakeAppSettingsDao.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/androidTest/java/com/jerboa/FakeAppSettingsDao.kt b/app/src/androidTest/java/com/jerboa/FakeAppSettingsDao.kt
+new file mode 100644
+--- /dev/null	(date 1764588581437)
++++ b/app/src/androidTest/java/com/jerboa/FakeAppSettingsDao.kt	(date 1764588581437)
+@@ -0,0 +1,28 @@
++package com.jerboa
++
++import androidx.lifecycle.LiveData
++import androidx.lifecycle.MutableLiveData
++import com.jerboa.db.APP_SETTINGS_DEFAULT
++import com.jerboa.db.AppSettings
++import com.jerboa.db.AppSettingsDao
++
++class FakeAppSettingsDao : AppSettingsDao {
++
++    private val state = MutableLiveData(APP_SETTINGS_DEFAULT)
++
++    override fun getSettings(): LiveData<AppSettings> = state
++
++    override suspend fun updateAppSettings(appSettings: AppSettings) {
++        state.postValue(appSettings)
++    }
++
++    override suspend fun markChangelogViewed() {
++        val current = state.value ?: APP_SETTINGS_DEFAULT
++        state.postValue(current.copy(viewedChangelog = 1))
++    }
++
++    override suspend fun updatePostViewMode(postViewMode: Int) {
++        val current = state.value ?: APP_SETTINGS_DEFAULT
++        state.postValue(current.copy(postViewMode = postViewMode))
++    }
++}
+Index: app/src/androidTest/java/com/jerboa/TestActivity.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/androidTest/java/com/jerboa/TestActivity.kt b/app/src/androidTest/java/com/jerboa/TestActivity.kt
+new file mode 100644
+--- /dev/null	(date 1764589389778)
++++ b/app/src/androidTest/java/com/jerboa/TestActivity.kt	(date 1764589389778)
+@@ -0,0 +1,5 @@
++package com.jerboa
++
++import androidx.activity.ComponentActivity
++
++class TestActivity : ComponentActivity()
+Index: app/src/androidTest/java/com/jerboa/FakeAccountDao.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/androidTest/java/com/jerboa/FakeAccountDao.kt b/app/src/androidTest/java/com/jerboa/FakeAccountDao.kt
+new file mode 100644
+--- /dev/null	(date 1764588709669)
++++ b/app/src/androidTest/java/com/jerboa/FakeAccountDao.kt	(date 1764588709669)
+@@ -0,0 +1,42 @@
++package com.jerboa
++
++import androidx.lifecycle.LiveData
++import androidx.lifecycle.MutableLiveData
++import com.jerboa.db.Account
++import com.jerboa.db.AccountDao
++
++class FakeAccountDao : AccountDao {
++    // In-memory storage
++    private val accountsState = MutableLiveData<List<Account>>(emptyList())
++    private var currentAccountId: Int? = null
++
++    override fun getAll(): LiveData<List<Account>> = accountsState
++
++    override fun getAllSync(): List<Account> = accountsState.value ?: emptyList()
++
++    override suspend fun insert(account: Account) {
++        val current = accountsState.value ?: emptyList()
++        accountsState.postValue(current + account)
++    }
++
++    override suspend fun update(account: Account) {
++        val current = accountsState.value ?: emptyList()
++        accountsState.postValue(current.map { if (it.id == account.id) account else it })
++    }
++
++    override suspend fun removeCurrent() {
++        currentAccountId = null
++    }
++
++    override suspend fun setCurrent(accountId: Int) {
++        if ((accountsState.value ?: emptyList()).any { it.id == accountId }) {
++            currentAccountId = accountId
++        }
++    }
++
++    override suspend fun delete(account: Account) {
++        val current = accountsState.value ?: emptyList()
++        accountsState.postValue(current.filter { it.id != account.id })
++        if (currentAccountId == account.id) currentAccountId = null
++    }
++}
+Index: app/src/main/AndroidManifest.xml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/main/AndroidManifest.xml b/app/src/main/AndroidManifest.xml
+--- a/app/src/main/AndroidManifest.xml	(revision 5ebdf46e2a85ab6ad267edb07f75337f80f99caf)
++++ b/app/src/main/AndroidManifest.xml	(date 1764589414684)
+@@ -123,6 +123,11 @@
+               <!--#INSTANCE_LIST_END#-->
+             </intent-filter>
+         </activity>
++
++        <activity
++            android:name="com.jerboa.TestActivity"
++            android:exported="true"/>
++
+     </application>
+ 
+ </manifest>

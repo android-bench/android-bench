@@ -1,0 +1,205 @@
+diff --git a/app/src/main/kotlin/at/bitfire/davdroid/ui/setup/AdvancedLogin.kt b/app/src/main/kotlin/at/bitfire/davdroid/ui/setup/AdvancedLogin.kt
+index aab7496c..4c481120 100644
+--- a/app/src/main/kotlin/at/bitfire/davdroid/ui/setup/AdvancedLogin.kt
++++ b/app/src/main/kotlin/at/bitfire/davdroid/ui/setup/AdvancedLogin.kt
+@@ -96,6 +96,7 @@ fun AdvancedLoginScreen(
+     onLogin: () -> Unit = {}
+ ) {
+     val focusRequester = remember { FocusRequester() }
++
+     Assistant(
+         nextLabel = stringResource(R.string.login_login),
+         nextEnabled = canContinue,
+@@ -110,6 +111,19 @@ fun AdvancedLoginScreen(
+                     .padding(vertical = 8.dp)
+             )
+ 
++            val manualUrl = Constants.MANUAL_URL.buildUpon()
++                .appendPath(Constants.MANUAL_PATH_ACCOUNTS_COLLECTIONS)
++                .fragment(Constants.MANUAL_FRAGMENT_SERVICE_DISCOVERY)
++                .build()
++            val urlInfo = HtmlCompat.fromHtml(stringResource(R.string.login_base_url_info, manualUrl), HtmlCompat.FROM_HTML_MODE_COMPACT)
++            Text(
++                text = urlInfo.toAnnotatedString(),
++                style = MaterialTheme.typography.bodyLarge,
++                modifier = Modifier
++                    .fillMaxWidth()
++                    .padding(top = 8.dp, bottom = 16.dp)
++            )
++
+             OutlinedTextField(
+                 value = url,
+                 onValueChange = onSetUrl,
+@@ -128,19 +142,6 @@ fun AdvancedLoginScreen(
+                     .focusRequester(focusRequester)
+             )
+ 
+-            val manualUrl = Constants.MANUAL_URL.buildUpon()
+-                .appendPath(Constants.MANUAL_PATH_ACCOUNTS_COLLECTIONS)
+-                .fragment(Constants.MANUAL_FRAGMENT_SERVICE_DISCOVERY)
+-                .build()
+-            val urlInfo = HtmlCompat.fromHtml(stringResource(R.string.login_base_url_info, manualUrl), HtmlCompat.FROM_HTML_MODE_COMPACT)
+-            Text(
+-                text = urlInfo.toAnnotatedString(),
+-                style = MaterialTheme.typography.bodyLarge,
+-                modifier = Modifier
+-                    .fillMaxWidth()
+-                    .padding(top = 8.dp, bottom = 16.dp)
+-            )
+-
+             OutlinedTextField(
+                 value = username,
+                 onValueChange = onSetUsername,
+@@ -165,7 +166,7 @@ fun AdvancedLoginScreen(
+                 },
+                 keyboardOptions = KeyboardOptions(
+                     keyboardType = KeyboardType.Password,
+-                    imeAction = ImeAction.Next
++                    imeAction = ImeAction.Done
+                 ),
+                 modifier = Modifier.fillMaxWidth()
+             )
+diff --git a/app/src/main/kotlin/at/bitfire/davdroid/ui/setup/EmailLogin.kt b/app/src/main/kotlin/at/bitfire/davdroid/ui/setup/EmailLogin.kt
+index 7b971cc4..99896907 100644
+--- a/app/src/main/kotlin/at/bitfire/davdroid/ui/setup/EmailLogin.kt
++++ b/app/src/main/kotlin/at/bitfire/davdroid/ui/setup/EmailLogin.kt
+@@ -81,6 +81,8 @@ fun EmailLoginScreen(
+     canContinue: Boolean,
+     onLogin: () -> Unit = {}
+ ) {
++    val focusRequester = remember { FocusRequester() }
++
+     Assistant(
+         nextLabel = stringResource(R.string.login_login),
+         nextEnabled = canContinue,
+@@ -95,7 +97,19 @@ fun EmailLoginScreen(
+                     .padding(vertical = 8.dp)
+             )
+ 
+-            val focusRequester = remember { FocusRequester() }
++            val manualUrl = Constants.MANUAL_URL.buildUpon()
++                .appendPath(Constants.MANUAL_PATH_ACCOUNTS_COLLECTIONS)
++                .fragment(Constants.MANUAL_FRAGMENT_SERVICE_DISCOVERY)
++                .build()
++            val emailInfo = HtmlCompat.fromHtml(stringResource(R.string.login_email_address_info, manualUrl), HtmlCompat.FROM_HTML_MODE_COMPACT)
++            Text(
++                text = emailInfo.toAnnotatedString(),
++                style = MaterialTheme.typography.bodyLarge,
++                modifier = Modifier
++                    .fillMaxWidth()
++                    .padding(top = 8.dp, bottom = 16.dp)
++            )
++
+             OutlinedTextField(
+                 value = email,
+                 onValueChange = onSetEmail,
+@@ -112,22 +126,6 @@ fun EmailLoginScreen(
+                     .fillMaxWidth()
+                     .focusRequester(focusRequester)
+             )
+-            LaunchedEffect(Unit) {
+-                focusRequester.requestFocus()
+-            }
+-
+-            val manualUrl = Constants.MANUAL_URL.buildUpon()
+-                .appendPath(Constants.MANUAL_PATH_ACCOUNTS_COLLECTIONS)
+-                .fragment(Constants.MANUAL_FRAGMENT_SERVICE_DISCOVERY)
+-                .build()
+-            val emailInfo = HtmlCompat.fromHtml(stringResource(R.string.login_email_address_info, manualUrl), HtmlCompat.FROM_HTML_MODE_COMPACT)
+-            Text(
+-                text = emailInfo.toAnnotatedString(),
+-                style = MaterialTheme.typography.bodyLarge,
+-                modifier = Modifier
+-                    .fillMaxWidth()
+-                    .padding(top = 8.dp, bottom = 16.dp)
+-            )
+ 
+             PasswordTextField(
+                 password = password,
+@@ -140,13 +138,17 @@ fun EmailLoginScreen(
+                     keyboardType = KeyboardType.Password,
+                     imeAction = ImeAction.Done
+                 ),
+-                keyboardActions = KeyboardActions(
+-                    onDone = { if (canContinue) onLogin() }
+-                ),
++                keyboardActions = KeyboardActions {
++                    if (canContinue) onLogin()
++                },
+                 modifier = Modifier.fillMaxWidth()
+             )
+         }
+     }
++
++    LaunchedEffect(Unit) {
++        focusRequester.requestFocus()
++    }
+ }
+ 
+ 
+diff --git a/app/src/main/kotlin/at/bitfire/davdroid/ui/setup/UrlLogin.kt b/app/src/main/kotlin/at/bitfire/davdroid/ui/setup/UrlLogin.kt
+index f60e4171..6bf91cee 100644
+--- a/app/src/main/kotlin/at/bitfire/davdroid/ui/setup/UrlLogin.kt
++++ b/app/src/main/kotlin/at/bitfire/davdroid/ui/setup/UrlLogin.kt
+@@ -88,6 +88,7 @@ fun UrlLoginScreen(
+     onLogin: () -> Unit = {}
+ ) {
+     val focusRequester = remember { FocusRequester() }
++
+     Assistant(
+         nextLabel = stringResource(R.string.login_login),
+         nextEnabled = canContinue,
+@@ -102,6 +103,19 @@ fun UrlLoginScreen(
+                     .padding(vertical = 8.dp)
+             )
+ 
++            val manualUrl = Constants.MANUAL_URL.buildUpon()
++                .appendPath(Constants.MANUAL_PATH_ACCOUNTS_COLLECTIONS)
++                .fragment(Constants.MANUAL_FRAGMENT_SERVICE_DISCOVERY)
++                .build()
++            val urlInfo = HtmlCompat.fromHtml(stringResource(R.string.login_base_url_info, manualUrl), HtmlCompat.FROM_HTML_MODE_COMPACT)
++            Text(
++                text = urlInfo.toAnnotatedString(),
++                style = MaterialTheme.typography.bodyLarge,
++                modifier = Modifier
++                    .fillMaxWidth()
++                    .padding(top = 8.dp, bottom = 16.dp)
++            )
++
+             OutlinedTextField(
+                 value = url,
+                 onValueChange = onSetUrl,
+@@ -120,19 +134,6 @@ fun UrlLoginScreen(
+                     .focusRequester(focusRequester)
+             )
+ 
+-            val manualUrl = Constants.MANUAL_URL.buildUpon()
+-                .appendPath(Constants.MANUAL_PATH_ACCOUNTS_COLLECTIONS)
+-                .fragment(Constants.MANUAL_FRAGMENT_SERVICE_DISCOVERY)
+-                .build()
+-            val urlInfo = HtmlCompat.fromHtml(stringResource(R.string.login_base_url_info, manualUrl), HtmlCompat.FROM_HTML_MODE_COMPACT)
+-            Text(
+-                text = urlInfo.toAnnotatedString(),
+-                style = MaterialTheme.typography.bodyLarge,
+-                modifier = Modifier
+-                    .fillMaxWidth()
+-                    .padding(top = 8.dp, bottom = 16.dp)
+-            )
+-
+             OutlinedTextField(
+                 value = username,
+                 onValueChange = onSetUsername,
+@@ -159,9 +160,9 @@ fun UrlLoginScreen(
+                     keyboardType = KeyboardType.Password,
+                     imeAction = ImeAction.Done
+                 ),
+-                keyboardActions = KeyboardActions(
+-                    onDone = { onLogin() }
+-                ),
++                keyboardActions = KeyboardActions {
++                    if (canContinue) onLogin()
++                },
+                 modifier = Modifier.fillMaxWidth()
+             )
+         }
+

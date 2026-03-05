@@ -1,0 +1,175 @@
+diff --git a/modules/features/podcasts/src/main/java/au/com/shiftyjelly/pocketcasts/podcasts/view/ProfileEpisodeListViewModel.kt b/modules/features/podcasts/src/main/java/au/com/shiftyjelly/pocketcasts/podcasts/view/ProfileEpisodeListViewModel.kt
+index a728975e7..f66d612ff 100644
+--- a/modules/features/podcasts/src/main/java/au/com/shiftyjelly/pocketcasts/podcasts/view/ProfileEpisodeListViewModel.kt
++++ b/modules/features/podcasts/src/main/java/au/com/shiftyjelly/pocketcasts/podcasts/view/ProfileEpisodeListViewModel.kt
+@@ -1,10 +1,12 @@
+ package au.com.shiftyjelly.pocketcasts.podcasts.view
+ 
++import androidx.annotation.StringRes
+ import androidx.lifecycle.ViewModel
+ import androidx.lifecycle.viewModelScope
+ import au.com.shiftyjelly.pocketcasts.analytics.AnalyticsEvent
+ import au.com.shiftyjelly.pocketcasts.analytics.AnalyticsTracker
+ import au.com.shiftyjelly.pocketcasts.models.entity.PodcastEpisode
++import au.com.shiftyjelly.pocketcasts.podcasts.view.ProfileEpisodeListFragment.Mode
+ import au.com.shiftyjelly.pocketcasts.repositories.playback.PlaybackManager
+ import au.com.shiftyjelly.pocketcasts.repositories.podcast.EpisodeManager
+ import au.com.shiftyjelly.pocketcasts.utils.featureflag.Feature
+@@ -14,11 +16,16 @@ import javax.inject.Inject
+ import kotlin.coroutines.CoroutineContext
+ import kotlinx.coroutines.CoroutineScope
+ import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.ExperimentalCoroutinesApi
+ import kotlinx.coroutines.flow.MutableStateFlow
+ import kotlinx.coroutines.flow.StateFlow
+ import kotlinx.coroutines.flow.asStateFlow
++import kotlinx.coroutines.flow.combine
++import kotlinx.coroutines.flow.flatMapLatest
++import kotlinx.coroutines.flow.stateIn
+ import kotlinx.coroutines.launch
+ import kotlinx.coroutines.reactive.asFlow
++import au.com.shiftyjelly.pocketcasts.localization.R as LR
+ 
+ @HiltViewModel
+ class ProfileEpisodeListViewModel @Inject constructor(
+@@ -28,32 +35,43 @@ class ProfileEpisodeListViewModel @Inject constructor(
+ ) : ViewModel(), CoroutineScope {
+     override val coroutineContext: CoroutineContext
+         get() = Dispatchers.Default
++
+     private val _searchQueryFlow = MutableStateFlow("")
+     val searchQueryFlow = _searchQueryFlow.asStateFlow()
+ 
+     private val _state: MutableStateFlow<State> = MutableStateFlow(State.Loading)
+     val state: StateFlow<State> = _state
+ 
+-    fun setup(mode: ProfileEpisodeListFragment.Mode) {
++    @OptIn(ExperimentalCoroutinesApi::class)
++    fun setup(mode: Mode) {
+         val episodeListFlowable = when (mode) {
+-            is ProfileEpisodeListFragment.Mode.Downloaded -> episodeManager.observeDownloadEpisodes()
+-            is ProfileEpisodeListFragment.Mode.Starred -> episodeManager.observeStarredEpisodes()
+-            is ProfileEpisodeListFragment.Mode.History -> episodeManager.observePlaybackHistoryEpisodes()
++            is Mode.Downloaded -> episodeManager.observeDownloadEpisodes()
++            is Mode.Starred -> episodeManager.observeStarredEpisodes()
++            is Mode.History -> episodeManager.observePlaybackHistoryEpisodes()
+         }
+         viewModelScope.launch {
+-            episodeListFlowable.asFlow()
+-                .collect { episodeList ->
+-                    _state.value = if (episodeList.isEmpty()) {
+-                        State.Empty
+-                    } else {
+-                        State.Loaded(
+-                            showSearch = mode.showSearch &&
+-                                FeatureFlag.isEnabled(Feature.SEARCH_IN_LISTENING_HISTORY) &&
+-                                (episodeList.isNotEmpty() || searchQueryFlow.value.isNotEmpty()),
+-                            results = episodeList,
+-                        )
+-                    }
++            val searchResultsFlow = _searchQueryFlow
++                .flatMapLatest { searchQuery ->
++                    episodeManager.filteredPlaybackHistoryEpisodesFlow(searchQuery)
++                }
++            combine(
++                episodeListFlowable.asFlow(),
++                searchResultsFlow,
++            ) { episodeList, searchResults ->
++                val searchQuery = searchQueryFlow.value
++                val results = if (searchQuery.isNotEmpty()) searchResults else episodeList
++                val showSearchBar = mode.showSearch &&
++                    FeatureFlag.isEnabled(Feature.SEARCH_IN_LISTENING_HISTORY) &&
++                    (results.isNotEmpty() || searchQuery.isNotEmpty())
++                _state.value = if (results.isEmpty()) {
++                    State.Empty
++                } else {
++                    State.Loaded(
++                        showSearch = showSearchBar,
++                        results = results,
++                    )
+                 }
++            }.stateIn(viewModelScope)
+         }
+     }
+ 
+diff --git a/modules/features/podcasts/src/main/java/au/com/shiftyjelly/pocketcasts/podcasts/view/ProflieEpisodeListSearchBar.kt b/modules/features/podcasts/src/main/java/au/com/shiftyjelly/pocketcasts/podcasts/view/ProflieEpisodeListSearchBar.kt
+index d69ee1feb..ebebe927d 100644
+--- a/modules/features/podcasts/src/main/java/au/com/shiftyjelly/pocketcasts/podcasts/view/ProflieEpisodeListSearchBar.kt
++++ b/modules/features/podcasts/src/main/java/au/com/shiftyjelly/pocketcasts/podcasts/view/ProflieEpisodeListSearchBar.kt
+@@ -3,6 +3,7 @@ package au.com.shiftyjelly.pocketcasts.podcasts.view
+ import androidx.compose.foundation.layout.fillMaxWidth
+ import androidx.compose.foundation.layout.padding
+ import androidx.compose.runtime.Composable
++import androidx.compose.runtime.getValue
+ import androidx.compose.runtime.remember
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.focus.FocusRequester
+@@ -22,17 +23,20 @@ fun ProfileEpisodeListSearchBar(
+     viewModel: ProfileEpisodeListViewModel = hiltViewModel<ProfileEpisodeListViewModel>(),
+ ) {
+     AppTheme(activeTheme) {
+-        val searchQueryFlow = viewModel.searchQueryFlow.collectAsStateWithLifecycle()
++        val searchQueryFlow by viewModel.searchQueryFlow.collectAsStateWithLifecycle()
++        val state by viewModel.state.collectAsStateWithLifecycle()
+         val focusRequester = remember { FocusRequester() }
+-        SearchBar(
+-            text = searchQueryFlow.value,
+-            placeholder = stringResource(R.string.search),
+-            onTextChanged = { viewModel.updateSearchQuery(it) },
+-            onSearch = {},
+-            modifier = Modifier
+-                .fillMaxWidth()
+-                .padding(horizontal = 16.dp, vertical = 8.dp)
+-                .focusRequester(focusRequester),
+-        )
++        if ((state as? ProfileEpisodeListViewModel.State.Loaded)?.showSearch == true) {
++            SearchBar(
++                text = searchQueryFlow,
++                placeholder = stringResource(R.string.search),
++                onTextChanged = { viewModel.updateSearchQuery(it) },
++                onSearch = {},
++                modifier = Modifier
++                    .fillMaxWidth()
++                    .padding(horizontal = 16.dp, vertical = 8.dp)
++                    .focusRequester(focusRequester),
++            )
++        }
+     }
+ }
+diff --git a/modules/services/localization/src/main/res/values/strings.xml b/modules/services/localization/src/main/res/values/strings.xml
+index 1ab57623b..95d43031f 100644
+--- a/modules/services/localization/src/main/res/values/strings.xml
++++ b/modules/services/localization/src/main/res/values/strings.xml
+@@ -81,6 +81,8 @@
+     <string name="renew_your_subscription">Renew your Subscription</string>
+     <string name="removed">Removed</string>
+     <string name="search">Search</string>
++    <string name="search_episodes_not_found_title">No episodes found</string>
++    <string name="search_episodes_not_found_summary">We couldn\'t find any episode for that search. Try another keyword.</string>
+     <string name="selected">Selected</string>
+     <string name="sort_newest_to_oldest">Newest to oldest</string>
+     <string name="sort_oldest_to_newest">Oldest to newest</string>
+diff --git a/modules/services/model/src/main/java/au/com/shiftyjelly/pocketcasts/models/db/dao/EpisodeDao.kt b/modules/services/model/src/main/java/au/com/shiftyjelly/pocketcasts/models/db/dao/EpisodeDao.kt
+index b3eaa584b..ba1838ea9 100644
+--- a/modules/services/model/src/main/java/au/com/shiftyjelly/pocketcasts/models/db/dao/EpisodeDao.kt
++++ b/modules/services/model/src/main/java/au/com/shiftyjelly/pocketcasts/models/db/dao/EpisodeDao.kt
+@@ -277,11 +277,16 @@ abstract class EpisodeDao {
+     @Query("SELECT * FROM podcast_episodes WHERE last_playback_interaction_date IS NOT NULL AND last_playback_interaction_date > 0 ORDER BY last_playback_interaction_date DESC LIMIT 1000")
+     abstract fun observePlaybackHistory(): Flowable<List<PodcastEpisode>>
+ 
+-    // TODO: This is stubbed. Implement this
+     @Query(
+         """
+         SELECT podcast_episodes.*
+-        FROM podcast_episodes WHERE podcast_episodes.title LIKE :query
++        FROM podcast_episodes
++        LEFT JOIN podcasts ON podcast_episodes.podcast_id = podcasts.uuid
++        WHERE last_playback_interaction_date IS NOT NULL
++          AND last_playback_interaction_date > 0
++          AND (UPPER(podcast_episodes.title) LIKE '%' || UPPER(:query) || '%'  ESCAPE '\'
++               OR UPPER(podcasts.title) LIKE '%' || UPPER(:query) || '%'  ESCAPE '\')
++        ORDER BY last_playback_interaction_date DESC
+     """,
+     )
+     abstract fun filteredPlaybackHistoryFlow(query: String): Flow<List<PodcastEpisode>>
+

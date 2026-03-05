@@ -1,0 +1,14 @@
+diff --git a/lottie/src/test/java/com/airbnb/lottie/LottieDrawableTest.java b/lottie/src/test/java/com/airbnb/lottie/LottieDrawableTest.java
+index 7d3f2e61..0132d8d5 100644
+--- a/lottie/src/test/java/com/airbnb/lottie/LottieDrawableTest.java
++++ b/lottie/src/test/java/com/airbnb/lottie/LottieDrawableTest.java
+@@ -67,7 +67,7 @@ public class LottieDrawableTest extends BaseTest {
+     LottieDrawable drawable = new LottieDrawable();
+     drawable.setComposition(composition);
+     drawable.setMaxProgress(0.25f);
+-    assertEquals(121.99f, drawable.getMaxFrame());
++    assertEquals(123f, drawable.getMaxFrame());
+   }
+ 
+   @Test
+

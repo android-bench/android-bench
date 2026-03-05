@@ -1,0 +1,121 @@
+Subject: [PATCH] DroidKaigi__conference-app-2023-pr_896
+---
+Index: feature/floor-map/src/test/java/io/github/droidkaigi/confsched2023/FloorMapScreenTest.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/feature/floor-map/src/test/java/io/github/droidkaigi/confsched2023/FloorMapScreenTest.kt b/feature/floor-map/src/test/java/io/github/droidkaigi/confsched2023/FloorMapScreenTest.kt
+--- a/feature/floor-map/src/test/java/io/github/droidkaigi/confsched2023/FloorMapScreenTest.kt	(revision e6d7a19402e91cd77192a5845f113cb254db922d)
++++ b/feature/floor-map/src/test/java/io/github/droidkaigi/confsched2023/FloorMapScreenTest.kt	(date 1766127353600)
+@@ -48,4 +48,13 @@
+             checkScreenCapture()
+         }
+     }
++
++    @Test
++    fun checkFloorMapMovesWhenScrolled() {
++        floorMapScreenRobot {
++            setupScreenContent()
++            checkScrollableComponents()
++            checkFirstSideEventPositionAfterScrollingUp()
++        }
++    }
+ }
+Index: core/testing/src/main/java/io/github/droidkaigi/confsched2023/testing/robot/FloorMapScreenRobot.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/core/testing/src/main/java/io/github/droidkaigi/confsched2023/testing/robot/FloorMapScreenRobot.kt b/core/testing/src/main/java/io/github/droidkaigi/confsched2023/testing/robot/FloorMapScreenRobot.kt
+--- a/core/testing/src/main/java/io/github/droidkaigi/confsched2023/testing/robot/FloorMapScreenRobot.kt	(revision e6d7a19402e91cd77192a5845f113cb254db922d)
++++ b/core/testing/src/main/java/io/github/droidkaigi/confsched2023/testing/robot/FloorMapScreenRobot.kt	(date 1766127439800)
+@@ -2,14 +2,24 @@
+ 
+ import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi
+ import androidx.compose.material3.windowsizeclass.calculateWindowSizeClass
++import androidx.compose.ui.geometry.Offset
++import androidx.compose.ui.semantics.SemanticsActions
++import androidx.compose.ui.semantics.SemanticsNode
++import androidx.compose.ui.test.SemanticsNodeInteraction
+ import androidx.compose.ui.test.isRoot
+ import androidx.compose.ui.test.junit4.AndroidComposeTestRule
++import androidx.compose.ui.test.onAllNodesWithText
++import androidx.compose.ui.test.onFirst
+ import androidx.compose.ui.test.onNodeWithTag
++import androidx.compose.ui.test.onRoot
+ import androidx.compose.ui.test.performClick
++import androidx.compose.ui.test.performTouchInput
++import androidx.compose.ui.test.swipe
+ import com.github.takahirom.roborazzi.captureRoboImage
+ import io.github.droidkaigi.confsched2023.designsystem.theme.KaigiTheme
+ import io.github.droidkaigi.confsched2023.floormap.FloorMapScreen
+ import io.github.droidkaigi.confsched2023.floormap.component.FloorLevelSwitcherGroundTestTag
++import io.github.droidkaigi.confsched2023.model.SideEvents
+ import io.github.droidkaigi.confsched2023.testing.RobotTestRule
+ import io.github.droidkaigi.confsched2023.testing.coroutines.runTestWithLogging
+ import kotlinx.coroutines.test.TestDispatcher
+@@ -59,4 +69,63 @@
+             .onNodeWithTag(FloorLevelSwitcherGroundTestTag)
+             .performClick()
+     }
++
++    fun checkScrollableComponents() {
++        val scrollableViews = composeTestRule.onRoot()
++            .findScrollableDescendantsAtSameDepth()
++
++        assert(scrollableViews.size == 1) { "Should not have multiple scrollable views in the same depth." }
++    }
++
++    fun checkFirstSideEventPositionAfterScrollingUp() {
++        val firstSideEvent =
++            composeTestRule.onAllNodesWithText(SideEvents.first().title.currentLangTitle)
++                .onFirst()
++
++        val firstSideEventPositionBeforeScroll = firstSideEvent
++            .fetchSemanticsNode()
++            .boundsInRoot
++            .top
++
++        composeTestRule.onRoot()
++            .performTouchInput {
++                swipe(
++                    Offset(x = (width / 2).toFloat(), y = (height / 3) * 2f),
++                    Offset(x = (width / 2).toFloat(), y = height / 3f)
++                )
++            }
++
++        composeTestRule.waitForIdle()
++
++        val firstSideEventPositionAfterScroll = firstSideEvent
++            .fetchSemanticsNode()
++            .boundsInRoot
++            .top
++
++        assert(firstSideEventPositionBeforeScroll - firstSideEventPositionAfterScroll > 1f) {
++            "First SideEvent should move up after scrolling up"
++        }
++    }
++
++    fun SemanticsNodeInteraction.findScrollableDescendantsAtSameDepth(): List<SemanticsNode> {
++        val root = fetchSemanticsNode()
++
++        var currentLevel: List<SemanticsNode> = root.children
++
++        while (currentLevel.isNotEmpty()) {
++            val foundAtThisLevel = currentLevel.filter { node ->
++                val config = node.config
++                config.contains(SemanticsActions.ScrollBy) ||
++                    config.contains(SemanticsActions.ScrollToIndex)
++            }
++
++            if (foundAtThisLevel.isNotEmpty()) {
++                return foundAtThisLevel
++            }
++
++            currentLevel = currentLevel.flatMap { it.children }
++        }
++
++        return emptyList()
++    }
+ }

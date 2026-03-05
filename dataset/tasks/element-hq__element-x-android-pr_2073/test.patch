@@ -1,0 +1,100 @@
+Subject: [PATCH] element-hq__element-x-android-pr_2073
+---
+Index: features/roomlist/impl/build.gradle.kts
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/features/roomlist/impl/build.gradle.kts b/features/roomlist/impl/build.gradle.kts
+--- a/features/roomlist/impl/build.gradle.kts	(revision 9ec67e3cbb58fab804f8c3f238dc1d1f589d5e59)
++++ b/features/roomlist/impl/build.gradle.kts	(date 1768923413936)
+@@ -75,4 +75,7 @@
+     testImplementation(projects.features.networkmonitor.test)
+     testImplementation(projects.tests.testutils)
+     testImplementation(projects.features.leaveroom.test)
++
++    androidTestImplementation(libs.test.junit)
++    androidTestImplementation(libs.androidx.compose.ui.test.junit)
+ }
+Index: features/roomlist/impl/src/androidTest/kotlin/io/element/android/features/roomlist/impl/RoomListTopBarTests.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/features/roomlist/impl/src/androidTest/kotlin/io/element/android/features/roomlist/impl/RoomListTopBarTests.kt b/features/roomlist/impl/src/androidTest/kotlin/io/element/android/features/roomlist/impl/RoomListTopBarTests.kt
+new file mode 100644
+--- /dev/null	(date 1768981768836)
++++ b/features/roomlist/impl/src/androidTest/kotlin/io/element/android/features/roomlist/impl/RoomListTopBarTests.kt	(date 1768981768836)
+@@ -0,0 +1,72 @@
++
++package io.element.android.features.roomlist.impl
++
++import androidx.compose.ui.test.ExperimentalTestApi
++import androidx.compose.ui.test.SemanticsNodeInteraction
++import androidx.compose.ui.test.SemanticsNodeInteractionCollection
++import androidx.compose.ui.test.assertIsDisplayed
++import androidx.compose.ui.test.junit4.createComposeRule
++import androidx.compose.ui.test.onAllNodesWithText
++import androidx.compose.ui.test.onNodeWithText
++import androidx.compose.ui.test.onRoot
++import androidx.compose.ui.test.performTouchInput
++import androidx.compose.ui.test.swipeUp
++import androidx.test.platform.app.InstrumentationRegistry
++import io.element.android.features.roomlist.impl.components.DefaultRoomListTopBarPreview
++import org.junit.Rule
++import org.junit.Test
++
++class RoomListTopBarTests {
++
++    @get:Rule
++    val composeTestRule = createComposeRule()
++
++    @OptIn(ExperimentalTestApi::class)
++    @Test
++    fun checkTitleTextSize() {
++        val context = InstrumentationRegistry.getInstrumentation().targetContext
++
++        composeTestRule.setContent {
++            DefaultRoomListTopBarPreview()
++        }
++
++        composeTestRule.mainClock.autoAdvance = false
++
++        val titleHeightBefore = composeTestRule.onNodeWithText(context.getString(R.string.screen_roomlist_main_space_title))
++            .assertIsDisplayed()
++            .fetchSemanticsNode()
++            .boundsInRoot.height
++
++        composeTestRule.onRoot().performTouchInput {
++            swipeUp(endY = height * 0.7f)
++        }
++
++        val titleHeightBetween = composeTestRule.onAllNodesWithText(context.getString(R.string.screen_roomlist_main_space_title), useUnmergedTree = true)
++            .onTopMost()
++            .assertIsDisplayed()
++            .fetchSemanticsNode()
++            .boundsInRoot.height
++
++        composeTestRule.mainClock.autoAdvance = true
++
++        val titleHeightAfter = composeTestRule.onNodeWithText(context.getString(R.string.screen_roomlist_main_space_title))
++            .assertIsDisplayed()
++            .fetchSemanticsNode()
++            .boundsInRoot.height
++
++        assert(titleHeightBefore > titleHeightAfter) { "Title height should be smaller after scroll happens" }
++        assert(titleHeightBetween == titleHeightAfter) { "Title height in the top position should be the same throughout the scroll animation" }
++    }
++
++    private fun SemanticsNodeInteractionCollection.onTopMost(): SemanticsNodeInteraction {
++        val nodes = this
++            .fetchSemanticsNodes()
++
++        val topMostIndex = nodes
++            .withIndex()
++            .minBy { it.value.boundsInRoot.top }
++            .index
++
++        return this[topMostIndex]
++    }
++}

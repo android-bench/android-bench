@@ -1,0 +1,73 @@
+diff --git a/feature/account/setup/src/main/kotlin/app/k9mail/feature/account/setup/ui/AccountSetupViewModel.kt b/feature/account/setup/src/main/kotlin/app/k9mail/feature/account/setup/ui/AccountSetupViewModel.kt
+index b8908f22e0..9bfd867edb 100644
+--- a/feature/account/setup/src/main/kotlin/app/k9mail/feature/account/setup/ui/AccountSetupViewModel.kt
++++ b/feature/account/setup/src/main/kotlin/app/k9mail/feature/account/setup/ui/AccountSetupViewModel.kt
+@@ -62,31 +62,6 @@ class AccountSetupViewModel(
+         onNext()
+     }
+ 
+-    private fun onBack() {
+-        when (state.value.setupStep) {
+-            SetupStep.AUTO_CONFIG -> navigateBack()
+-            SetupStep.INCOMING_CONFIG -> changeToSetupStep(SetupStep.AUTO_CONFIG)
+-            SetupStep.INCOMING_VALIDATION -> {
+-                if (state.value.isAutomaticConfig) {
+-                    changeToSetupStep(SetupStep.AUTO_CONFIG)
+-                } else {
+-                    changeToSetupStep(SetupStep.INCOMING_CONFIG)
+-                }
+-            }
+-
+-            SetupStep.OUTGOING_CONFIG -> changeToSetupStep(SetupStep.INCOMING_VALIDATION)
+-            SetupStep.OUTGOING_VALIDATION -> {
+-                if (state.value.isAutomaticConfig) {
+-                    changeToSetupStep(SetupStep.AUTO_CONFIG)
+-                } else {
+-                    changeToSetupStep(SetupStep.OUTGOING_CONFIG)
+-                }
+-            }
+-
+-            SetupStep.OPTIONS -> changeToSetupStep(SetupStep.OUTGOING_VALIDATION)
+-        }
+-    }
+-
+     private fun onNext() {
+         when (state.value.setupStep) {
+             SetupStep.AUTO_CONFIG -> {
+@@ -125,6 +100,35 @@ class AccountSetupViewModel(
+         }
+     }
+ 
++    private fun onBack() {
++        when (state.value.setupStep) {
++            SetupStep.AUTO_CONFIG -> navigateBack()
++            SetupStep.INCOMING_CONFIG -> changeToSetupStep(SetupStep.AUTO_CONFIG)
++            SetupStep.INCOMING_VALIDATION -> {
++                if (state.value.isAutomaticConfig) {
++                    changeToSetupStep(SetupStep.AUTO_CONFIG)
++                } else {
++                    changeToSetupStep(SetupStep.INCOMING_CONFIG)
++                }
++            }
++
++            SetupStep.OUTGOING_CONFIG -> changeToSetupStep(SetupStep.INCOMING_CONFIG)
++            SetupStep.OUTGOING_VALIDATION -> {
++                if (state.value.isAutomaticConfig) {
++                    changeToSetupStep(SetupStep.AUTO_CONFIG)
++                } else {
++                    changeToSetupStep(SetupStep.OUTGOING_CONFIG)
++                }
++            }
++
++            SetupStep.OPTIONS -> if (state.value.isAutomaticConfig) {
++                changeToSetupStep(SetupStep.AUTO_CONFIG)
++            } else {
++                changeToSetupStep(SetupStep.OUTGOING_CONFIG)
++            }
++        }
++    }
++
+     private fun changeToSetupStep(setupStep: SetupStep) {
+         if (setupStep == SetupStep.AUTO_CONFIG) {
+             authStateStorage.updateAuthorizationState(authorizationState = null)
+

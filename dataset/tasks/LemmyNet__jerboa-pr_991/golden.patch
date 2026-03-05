@@ -1,0 +1,2434 @@
+diff --git a/app/src/main/java/com/jerboa/MainActivity.kt b/app/src/main/java/com/jerboa/MainActivity.kt
+index 21368068..c508a33e 100644
+--- a/app/src/main/java/com/jerboa/MainActivity.kt
++++ b/app/src/main/java/com/jerboa/MainActivity.kt
+@@ -11,9 +11,10 @@ import android.widget.Toast
+ import androidx.activity.compose.setContent
+ import androidx.activity.viewModels
+ import androidx.appcompat.app.AppCompatActivity
+-import androidx.compose.animation.ExperimentalAnimationApi
+ import androidx.compose.animation.slideInHorizontally
+ import androidx.compose.animation.slideOutHorizontally
++import androidx.compose.material3.DrawerValue
++import androidx.compose.material3.rememberDrawerState
+ import androidx.compose.runtime.LaunchedEffect
+ import androidx.compose.runtime.getValue
+ import androidx.compose.runtime.livedata.observeAsState
+@@ -94,7 +95,6 @@ class MainActivity : AppCompatActivity() {
+         AppSettingsViewModelFactory((application as JerboaApplication).appSettingsRepository)
+     }
+ 
+-    @OptIn(ExperimentalAnimationApi::class)
+     override fun onCreate(savedInstanceState: Bundle?) {
+         super.onCreate(savedInstanceState)
+ 
+@@ -148,6 +148,8 @@ class MainActivity : AppCompatActivity() {
+                     else -> {}
+                 }
+ 
++                val drawerState = rememberDrawerState(DrawerValue.Closed)
++
+                 NavHost(
+                     route = Route.Graph.ROOT,
+                     navController = navController,
+@@ -177,6 +179,7 @@ class MainActivity : AppCompatActivity() {
+                             siteViewModel = siteViewModel,
+                             appSettingsViewModel = appSettingsViewModel,
+                             appSettings = appSettings,
++                            drawerState = drawerState,
+                         )
+                     }
+ 
+@@ -306,6 +309,7 @@ class MainActivity : AppCompatActivity() {
+                             useCustomTabs = appSettings.useCustomTabs,
+                             usePrivateTabs = appSettings.usePrivateTabs,
+                             blurNSFW = appSettings.blurNSFW,
++                            drawerState = drawerState,
+                         )
+                     }
+ 
+@@ -337,6 +341,7 @@ class MainActivity : AppCompatActivity() {
+                             useCustomTabs = appSettings.useCustomTabs,
+                             usePrivateTabs = appSettings.usePrivateTabs,
+                             blurNSFW = appSettings.blurNSFW,
++                            drawerState = drawerState,
+                         )
+                     }
+ 
+@@ -356,6 +361,7 @@ class MainActivity : AppCompatActivity() {
+                             siteViewModel = siteViewModel,
+                             selectMode = args.select,
+                             blurNSFW = appSettings.blurNSFW,
++                            drawerState = drawerState,
+                         )
+                     }
+ 
+@@ -408,6 +414,7 @@ class MainActivity : AppCompatActivity() {
+                             accountViewModel = accountViewModel,
+                             siteViewModel = siteViewModel,
+                             blurNSFW = appSettings.blurNSFW,
++                            drawerState = drawerState,
+                         )
+                     }
+ 
+diff --git a/app/src/main/java/com/jerboa/Utils.kt b/app/src/main/java/com/jerboa/Utils.kt
+index 31a54d9d..1d8be194 100644
+--- a/app/src/main/java/com/jerboa/Utils.kt
++++ b/app/src/main/java/com/jerboa/Utils.kt
+@@ -22,7 +22,6 @@ import androidx.compose.foundation.ExperimentalFoundationApi
+ import androidx.compose.foundation.lazy.LazyListState
+ import androidx.compose.foundation.pager.PagerState
+ import androidx.compose.material3.DrawerState
+-import androidx.compose.material3.ExperimentalMaterial3Api
+ import androidx.compose.material3.TabPosition
+ import androidx.compose.runtime.Stable
+ import androidx.compose.runtime.mutableStateListOf
+@@ -470,7 +469,6 @@ val imageRegex = Regex(
+ )
+ 
+ // Todo is the scope.launch still necessary?
+-@OptIn(ExperimentalMaterial3Api::class)
+ fun closeDrawer(
+     scope: CoroutineScope,
+     drawerState: DrawerState,
+diff --git a/app/src/main/java/com/jerboa/ui/components/common/AppBars.kt b/app/src/main/java/com/jerboa/ui/components/common/AppBars.kt
+index 5c3abb7c..3091f5f3 100644
+--- a/app/src/main/java/com/jerboa/ui/components/common/AppBars.kt
++++ b/app/src/main/java/com/jerboa/ui/components/common/AppBars.kt
+@@ -14,13 +14,8 @@ import androidx.compose.foundation.lazy.LazyColumn
+ import androidx.compose.foundation.lazy.LazyListState
+ import androidx.compose.foundation.lazy.rememberLazyListState
+ import androidx.compose.material.icons.Icons
+-import androidx.compose.material.icons.filled.Bookmarks
+-import androidx.compose.material.icons.filled.Email
+-import androidx.compose.material.icons.filled.Home
+ import androidx.compose.material.icons.filled.KeyboardArrowDown
+ import androidx.compose.material.icons.filled.KeyboardArrowUp
+-import androidx.compose.material.icons.filled.Person
+-import androidx.compose.material.icons.filled.Search
+ import androidx.compose.material.icons.outlined.*
+ import androidx.compose.material3.*
+ import androidx.compose.runtime.Composable
+@@ -53,7 +48,7 @@ import com.jerboa.loginFirstToast
+ import com.jerboa.scrollToNextParentComment
+ import com.jerboa.scrollToPreviousParentComment
+ import com.jerboa.siFormat
+-import com.jerboa.ui.components.home.BottomNavTab
++import com.jerboa.ui.components.home.NavTab
+ import com.jerboa.ui.components.person.PersonProfileLink
+ import com.jerboa.ui.theme.*
+ import kotlinx.coroutines.CoroutineScope
+@@ -85,85 +80,53 @@ fun SimpleTopAppBar(
+ 
+ @Composable
+ fun BottomAppBarAll(
+-    selectedTab: BottomNavTab,
+-    onSelect: (BottomNavTab) -> Unit,
++    selectedTab: NavTab,
++    onSelect: (NavTab) -> Unit,
+     unreadCounts: Int,
+     showTextDescriptionsInNavbar: Boolean,
+-    showBottomNav: Boolean? = true,
+ ) {
+-    if (showBottomNav == true) {
+-        // Check for preview mode
+-        if (LocalContext.current is Activity) {
+-            val window = (LocalContext.current as Activity).window
+-            val colorScheme = MaterialTheme.colorScheme
++    // Check for preview mode
++    if (LocalContext.current is Activity) {
++        val window = (LocalContext.current as Activity).window
++        val colorScheme = MaterialTheme.colorScheme
+ 
+-            DisposableEffect(Unit) {
+-                window.navigationBarColor = colorScheme.surfaceColorAtElevation(3.dp).toArgb()
++        DisposableEffect(Unit) {
++            window.navigationBarColor = colorScheme.surfaceColorAtElevation(3.dp).toArgb()
+ 
+-                onDispose {
+-                    window.navigationBarColor = colorScheme.background.toArgb()
+-                }
++            onDispose {
++                window.navigationBarColor = colorScheme.background.toArgb()
+             }
+         }
++    }
+ 
+-        NavigationBar {
+-            for (tab in BottomNavTab.values()) {
+-                val selected = tab == selectedTab
+-                NavigationBarItem(
+-                    icon = {
+-                        InboxIconAndBadge(
+-                            iconBadgeCount = if (tab == BottomNavTab.Inbox) unreadCounts else null,
+-                            icon = if (selected) {
+-                                when (tab) {
+-                                    BottomNavTab.Home -> Icons.Filled.Home
+-                                    BottomNavTab.Search -> Icons.Filled.Search
+-                                    BottomNavTab.Inbox -> Icons.Filled.Email
+-                                    BottomNavTab.Saved -> Icons.Filled.Bookmarks
+-                                    BottomNavTab.Profile -> Icons.Filled.Person
+-                                }
+-                            } else {
+-                                when (tab) {
+-                                    BottomNavTab.Home -> Icons.Outlined.Home
+-                                    BottomNavTab.Search -> Icons.Outlined.Search
+-                                    BottomNavTab.Inbox -> Icons.Outlined.Email
+-                                    BottomNavTab.Saved -> Icons.Outlined.Bookmarks
+-                                    BottomNavTab.Profile -> Icons.Outlined.Person
+-                                }
+-                            },
+-                            contentDescription = stringResource(
+-                                when (tab) {
+-                                    BottomNavTab.Home -> R.string.bottomBar_home
+-                                    BottomNavTab.Search -> R.string.bottomBar_search
+-                                    BottomNavTab.Inbox -> R.string.bottomBar_inbox
+-                                    BottomNavTab.Saved -> R.string.bottomBar_bookmarks
+-                                    BottomNavTab.Profile -> R.string.bottomBar_profile
+-                                },
+-                            ),
++    NavigationBar {
++        for (tab in NavTab.values()) {
++            val selected = tab == selectedTab
++            NavigationBarItem(
++                icon = {
++                    InboxIconAndBadge(
++                        iconBadgeCount = if (tab == NavTab.Inbox) unreadCounts else null,
++                        icon = if (selected) {
++                            tab.iconFilled
++                        } else {
++                            tab.iconOutlined
++                        },
++                        contentDescription = stringResource(tab.contentDescriptionId),
++                    )
++                },
++                label = {
++                    if (showTextDescriptionsInNavbar) {
++                        Text(
++                            text = stringResource(tab.textId),
++                            color = MaterialTheme.colorScheme.onSurface,
+                         )
+-                    },
+-                    label =
+-                    {
+-                        if (showTextDescriptionsInNavbar) {
+-                            Text(
+-                                text = stringResource(
+-                                    when (tab) {
+-                                        BottomNavTab.Home -> R.string.bottomBar_label_home
+-                                        BottomNavTab.Search -> R.string.bottomBar_label_search
+-                                        BottomNavTab.Inbox -> R.string.bottomBar_label_inbox
+-                                        BottomNavTab.Saved -> R.string.bottomBar_label_bookmarks
+-                                        BottomNavTab.Profile -> R.string.bottomBar_label_profile
+-                                    },
+-                                ),
+-                                color = MaterialTheme.colorScheme.onSurface,
+-                            )
+-                        }
+-                    },
+-                    selected = selected,
+-                    onClick = {
+-                        onSelect(tab)
+-                    },
+-                )
+-            }
++                    }
++                },
++                selected = selected,
++                onClick = {
++                    onSelect(tab)
++                },
++            )
+         }
+     }
+ }
+@@ -172,11 +135,10 @@ fun BottomAppBarAll(
+ @Composable
+ fun BottomAppBarAllPreview() {
+     BottomAppBarAll(
+-        selectedTab = BottomNavTab.Home,
++        selectedTab = NavTab.Home,
+         onSelect = {},
+         unreadCounts = 30,
+         showTextDescriptionsInNavbar = true,
+-        showBottomNav = true,
+     )
+ }
+ 
+diff --git a/app/src/main/java/com/jerboa/ui/components/common/DrawerItems.kt b/app/src/main/java/com/jerboa/ui/components/common/DrawerItems.kt
+index 2c14bf0b..c6a238b6 100644
+--- a/app/src/main/java/com/jerboa/ui/components/common/DrawerItems.kt
++++ b/app/src/main/java/com/jerboa/ui/components/common/DrawerItems.kt
+@@ -33,6 +33,7 @@ fun IconAndTextDrawerItem(
+     onClick: () -> Unit,
+     more: Boolean = false,
+     highlight: Boolean = false,
++    contentDescription: String? = null,
+ ) {
+     val spacingMod = Modifier
+         .padding(LARGE_PADDING)
+@@ -57,7 +58,7 @@ fun IconAndTextDrawerItem(
+                     iconBadgeCount = iconBadgeCount,
+                     modifier = spacingMod.size(DRAWER_ITEM_SPACING),
+                     icon = ico,
+-                    contentDescription = null,
++                    contentDescription = contentDescription,
+                     tint = MaterialTheme.colorScheme.onSurface,
+                 )
+             }
+diff --git a/app/src/main/java/com/jerboa/ui/components/community/list/CommunityList.kt b/app/src/main/java/com/jerboa/ui/components/community/list/CommunityList.kt
+index 3b611110..2a452e8d 100644
+--- a/app/src/main/java/com/jerboa/ui/components/community/list/CommunityList.kt
++++ b/app/src/main/java/com/jerboa/ui/components/community/list/CommunityList.kt
+@@ -21,12 +21,9 @@ import androidx.compose.ui.graphics.Color
+ import androidx.compose.ui.res.stringResource
+ import androidx.compose.ui.text.input.ImeAction
+ import androidx.compose.ui.tooling.preview.Preview
+-import androidx.navigation.NavController
+-import androidx.navigation.compose.rememberNavController
+ import com.jerboa.R
+ import com.jerboa.datatypes.sampleCommunityView
+ import com.jerboa.datatypes.types.*
+-import com.jerboa.ui.components.common.DefaultBackButton
+ import com.jerboa.ui.components.common.simpleVerticalScrollbar
+ import com.jerboa.ui.components.community.CommunityLinkLarger
+ import com.jerboa.ui.components.community.CommunityLinkLargerWithUserCount
+@@ -34,7 +31,7 @@ import com.jerboa.ui.components.community.CommunityLinkLargerWithUserCount
+ @OptIn(ExperimentalMaterial3Api::class)
+ @Composable
+ fun CommunityListHeader(
+-    navController: NavController = rememberNavController(),
++    openDrawer: () -> Unit,
+     search: String,
+     onSearchChange: (search: String) -> Unit,
+ ) {
+@@ -56,7 +53,14 @@ fun CommunityListHeader(
+                 )
+             }
+         },
+-        navigationIcon = { DefaultBackButton(navController) },
++        navigationIcon = {
++            IconButton(onClick = openDrawer) {
++                Icon(
++                    Icons.Outlined.Menu,
++                    contentDescription = stringResource(R.string.home_menu),
++                )
++            }
++        },
+     )
+ }
+ 
+diff --git a/app/src/main/java/com/jerboa/ui/components/community/list/CommunityListActivity.kt b/app/src/main/java/com/jerboa/ui/components/community/list/CommunityListActivity.kt
+index 415175cb..dc328077 100644
+--- a/app/src/main/java/com/jerboa/ui/components/community/list/CommunityListActivity.kt
++++ b/app/src/main/java/com/jerboa/ui/components/community/list/CommunityListActivity.kt
+@@ -3,6 +3,7 @@ package com.jerboa.ui.components.community.list
+ import android.util.Log
+ import androidx.compose.foundation.layout.imePadding
+ import androidx.compose.foundation.layout.padding
++import androidx.compose.material3.DrawerState
+ import androidx.compose.material3.MaterialTheme
+ import androidx.compose.material3.Scaffold
+ import androidx.compose.material3.Surface
+@@ -47,6 +48,7 @@ fun CommunityListActivity(
+     selectMode: Boolean = false,
+     siteViewModel: SiteViewModel,
+     blurNSFW: Boolean,
++    drawerState: DrawerState,
+ ) {
+     Log.d("jerboa", "got to community list activity")
+ 
+@@ -66,7 +68,11 @@ fun CommunityListActivity(
+         Scaffold(
+             topBar = {
+                 CommunityListHeader(
+-                    navController = navController,
++                    openDrawer = {
++                        scope.launch {
++                            drawerState.open()
++                        }
++                    },
+                     search = search,
+                     onSearchChange = {
+                         search = it
+diff --git a/app/src/main/java/com/jerboa/ui/components/drawer/Drawer.kt b/app/src/main/java/com/jerboa/ui/components/drawer/Drawer.kt
+new file mode 100644
+index 00000000..981e724b
+--- /dev/null
++++ b/app/src/main/java/com/jerboa/ui/components/drawer/Drawer.kt
+@@ -0,0 +1,407 @@
++package com.jerboa.ui.components.drawer
++
++import androidx.compose.animation.AnimatedVisibility
++import androidx.compose.animation.expandVertically
++import androidx.compose.animation.shrinkVertically
++import androidx.compose.foundation.clickable
++import androidx.compose.foundation.layout.Arrangement
++import androidx.compose.foundation.layout.Box
++import androidx.compose.foundation.layout.Column
++import androidx.compose.foundation.layout.Row
++import androidx.compose.foundation.layout.fillMaxWidth
++import androidx.compose.foundation.layout.height
++import androidx.compose.foundation.layout.padding
++import androidx.compose.foundation.lazy.LazyColumn
++import androidx.compose.foundation.lazy.items
++import androidx.compose.foundation.lazy.rememberLazyListState
++import androidx.compose.material.icons.Icons
++import androidx.compose.material.icons.outlined.Add
++import androidx.compose.material.icons.outlined.Bookmarks
++import androidx.compose.material.icons.outlined.Close
++import androidx.compose.material.icons.outlined.ExpandLess
++import androidx.compose.material.icons.outlined.ExpandMore
++import androidx.compose.material.icons.outlined.LocationCity
++import androidx.compose.material.icons.outlined.Login
++import androidx.compose.material.icons.outlined.Person
++import androidx.compose.material.icons.outlined.Public
++import androidx.compose.material.icons.outlined.Settings
++import androidx.compose.material3.Divider
++import androidx.compose.material3.Icon
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.Text
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.getValue
++import androidx.compose.runtime.mutableStateOf
++import androidx.compose.runtime.saveable.rememberSaveable
++import androidx.compose.runtime.setValue
++import androidx.compose.ui.Alignment
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.res.stringResource
++import androidx.compose.ui.text.style.TextOverflow
++import androidx.compose.ui.tooling.preview.Preview
++import androidx.navigation.NavController
++import androidx.navigation.compose.rememberNavController
++import com.jerboa.R
++import com.jerboa.datatypes.samplePerson
++import com.jerboa.datatypes.types.Community
++import com.jerboa.datatypes.types.ListingType
++import com.jerboa.datatypes.types.MyUserInfo
++import com.jerboa.datatypes.types.Person
++import com.jerboa.db.Account
++import com.jerboa.db.AccountViewModel
++import com.jerboa.federatedNameShown
++import com.jerboa.ui.components.common.IconAndTextDrawerItem
++import com.jerboa.ui.components.common.LargerCircularIcon
++import com.jerboa.ui.components.common.PictrsBannerImage
++import com.jerboa.ui.components.common.simpleVerticalScrollbar
++import com.jerboa.ui.components.common.toLogin
++import com.jerboa.ui.components.community.CommunityLinkLarger
++import com.jerboa.ui.components.home.NavTab
++import com.jerboa.ui.components.person.PersonName
++import com.jerboa.ui.theme.DRAWER_BANNER_SIZE
++import com.jerboa.ui.theme.LARGE_PADDING
++import com.jerboa.ui.theme.SMALL_PADDING
++import com.jerboa.ui.theme.XL_PADDING
++import com.jerboa.ui.theme.muted
++
++@Composable
++fun Drawer(
++    myUserInfo: MyUserInfo?,
++    unreadCount: Int,
++    navController: NavController = rememberNavController(),
++    accountViewModel: AccountViewModel,
++    onSwitchAccountClick: (account: Account) -> Unit,
++    onSignOutClick: () -> Unit,
++    onClickListingType: (ListingType) -> Unit,
++    onCommunityClick: (community: Community) -> Unit,
++    onClickSettings: () -> Unit,
++    isOpen: Boolean,
++    blurNSFW: Boolean,
++    showBottomNav: Boolean,
++    closeDrawer: () -> Unit,
++    onSelectTab: (NavTab) -> Unit,
++) {
++    var showAccountAddMode by rememberSaveable { mutableStateOf(false) }
++
++    if (!isOpen) showAccountAddMode = false
++
++    DrawerHeader(
++        myPerson = myUserInfo?.local_user_view?.person,
++        showAccountAddMode = showAccountAddMode,
++        onClickShowAccountAddMode = { showAccountAddMode = !showAccountAddMode },
++        showAvatar = myUserInfo?.local_user_view?.local_user?.show_avatars ?: true,
++    )
++    // Drawer items
++    DrawerContent(
++        accountViewModel = accountViewModel,
++        unreadCount = unreadCount,
++        myUserInfo = myUserInfo,
++        showAccountAddMode = showAccountAddMode,
++        navController = navController,
++        onSwitchAccountClick = onSwitchAccountClick,
++        onSignOutClick = onSignOutClick,
++        onClickListingType = onClickListingType,
++        onCommunityClick = onCommunityClick,
++        onClickSettings = onClickSettings,
++        blurNSFW = blurNSFW,
++        showBottomNav = showBottomNav,
++        closeDrawer = closeDrawer,
++        onSelectTab = onSelectTab,
++    )
++}
++
++@Composable
++fun DrawerContent(
++    showAccountAddMode: Boolean,
++    navController: NavController,
++    accountViewModel: AccountViewModel,
++    onSwitchAccountClick: (account: Account) -> Unit,
++    onSignOutClick: () -> Unit,
++    onClickListingType: (ListingType) -> Unit,
++    onCommunityClick: (community: Community) -> Unit,
++    onClickSettings: () -> Unit,
++    myUserInfo: MyUserInfo?,
++    unreadCount: Int,
++    blurNSFW: Boolean,
++    showBottomNav: Boolean,
++    closeDrawer: () -> Unit,
++    onSelectTab: (NavTab) -> Unit,
++) {
++    AnimatedVisibility(
++        visible = showAccountAddMode,
++        enter = expandVertically(),
++        exit = shrinkVertically(),
++    ) {
++        Divider()
++        DrawerAddAccountMode(
++            accountViewModel = accountViewModel,
++            navController = navController,
++            onSwitchAccountClick = onSwitchAccountClick,
++            onSignOutClick = onSignOutClick,
++        )
++    }
++
++    Divider()
++    DrawerItemsMain(
++        myUserInfo = myUserInfo,
++        onClickListingType = onClickListingType,
++        onCommunityClick = onCommunityClick,
++        unreadCount = unreadCount,
++        onClickSettings = onClickSettings,
++        blurNSFW = blurNSFW,
++        showBottomNav = showBottomNav,
++        onSelectTab = onSelectTab,
++        closeDrawer = closeDrawer,
++    )
++}
++
++@Composable
++fun DrawerItemsMain(
++    myUserInfo: MyUserInfo?,
++    onClickSettings: () -> Unit,
++    onClickListingType: (ListingType) -> Unit,
++    onCommunityClick: (community: Community) -> Unit,
++    unreadCount: Int,
++    blurNSFW: Boolean,
++    showBottomNav: Boolean,
++    closeDrawer: () -> Unit,
++    onSelectTab: (NavTab) -> Unit,
++) {
++    val listState = rememberLazyListState()
++
++    val follows = myUserInfo?.follows
++
++    LazyColumn(
++        state = listState,
++        modifier = Modifier.simpleVerticalScrollbar(listState),
++    ) {
++        if (!follows.isNullOrEmpty()) {
++            item {
++                IconAndTextDrawerItem(
++                    text = stringResource(R.string.home_subscribed),
++                    icon = Icons.Outlined.Bookmarks,
++                    onClick = { onClickListingType(ListingType.Subscribed) },
++                )
++            }
++        }
++        item {
++            IconAndTextDrawerItem(
++                text = stringResource(R.string.home_local),
++                icon = Icons.Outlined.LocationCity,
++                onClick = { onClickListingType(ListingType.Local) },
++            )
++        }
++        item {
++            IconAndTextDrawerItem(
++                text = stringResource(R.string.home_all),
++                icon = Icons.Outlined.Public,
++                onClick = { onClickListingType(ListingType.All) },
++            )
++        }
++        item {
++            Divider()
++        }
++
++        if (!showBottomNav) {
++            items(NavTab.values()) {
++                IconAndTextDrawerItem(
++                    text = stringResource(it.textId),
++                    icon = it.iconOutlined,
++                    onClick = {
++                        onSelectTab(it)
++                        closeDrawer()
++                    },
++                    iconBadgeCount = if (it == NavTab.Inbox) unreadCount else null,
++                    contentDescription = stringResource(id = it.contentDescriptionId),
++                )
++            }
++
++            item {
++                Divider()
++            }
++        }
++        item {
++            IconAndTextDrawerItem(
++                text = stringResource(R.string.home_settings),
++                icon = Icons.Outlined.Settings,
++                onClick = onClickSettings,
++            )
++        }
++        item {
++            myUserInfo?.also {
++                Divider()
++            }
++        }
++
++        follows?.also { follows ->
++            item {
++                Text(
++                    text = stringResource(R.string.home_subscriptions),
++                    modifier = Modifier.padding(LARGE_PADDING),
++                    color = MaterialTheme.colorScheme.onBackground.muted,
++                )
++            }
++            items(
++                follows,
++                key = { follow -> follow.community.id },
++            ) { follow ->
++                CommunityLinkLarger(
++                    community = follow.community,
++                    onClick = onCommunityClick,
++                    showDefaultIcon = true,
++                    blurNSFW = blurNSFW,
++                )
++            }
++        }
++    }
++}
++
++@Preview
++@Composable
++fun DrawerItemsMainPreview() {
++    DrawerItemsMain(
++        myUserInfo = null,
++        onClickListingType = {},
++        onCommunityClick = {},
++        onClickSettings = {},
++        unreadCount = 2,
++        blurNSFW = true,
++        showBottomNav = false,
++        closeDrawer = {},
++        onSelectTab = {},
++    )
++}
++
++@Composable
++fun DrawerAddAccountMode(
++    navController: NavController = rememberNavController(),
++    accountViewModel: AccountViewModel?,
++    onSwitchAccountClick: (account: Account) -> Unit,
++    onSignOutClick: () -> Unit,
++) {
++    val accountsWithoutCurrent = accountViewModel?.allAccounts?.value?.toMutableList()
++    val currentAccount = accountsWithoutCurrent?.firstOrNull { it.current }
++    accountsWithoutCurrent?.remove(currentAccount)
++
++    Column {
++        IconAndTextDrawerItem(
++            text = stringResource(R.string.home_add_account),
++            icon = Icons.Outlined.Add,
++            onClick = { navController.toLogin() },
++        )
++        accountsWithoutCurrent?.forEach {
++            IconAndTextDrawerItem(
++                text = stringResource(R.string.home_switch_to, it.name, it.instance),
++                icon = Icons.Outlined.Login,
++                onClick = { onSwitchAccountClick(it) },
++            )
++        }
++        currentAccount?.also {
++            IconAndTextDrawerItem(
++                text = stringResource(R.string.home_sign_out),
++                icon = Icons.Outlined.Close,
++                onClick = onSignOutClick,
++            )
++        }
++    }
++}
++
++@Preview
++@Composable
++fun DrawerAddAccountModePreview() {
++    DrawerAddAccountMode(
++        onSignOutClick = {},
++        onSwitchAccountClick = {},
++        accountViewModel = null,
++    )
++}
++
++@Composable
++fun DrawerHeader(
++    myPerson: Person?,
++    onClickShowAccountAddMode: () -> Unit,
++    showAccountAddMode: Boolean = false,
++    showAvatar: Boolean,
++) {
++    val sizeMod = Modifier
++        .fillMaxWidth()
++        .height(DRAWER_BANNER_SIZE)
++
++    Box(
++        modifier = sizeMod
++            .clickable(onClick = onClickShowAccountAddMode),
++    ) {
++        myPerson?.banner?.also {
++            PictrsBannerImage(
++                url = it,
++            )
++        }
++        // banner
++        Row(
++            horizontalArrangement = Arrangement.SpaceBetween,
++            verticalAlignment = Alignment.CenterVertically,
++            modifier = sizeMod
++                .padding(XL_PADDING),
++        ) {
++            Box(modifier = Modifier.weight(0.9f)) {
++                AvatarAndAccountName(myPerson, showAvatar)
++            }
++            Icon(
++                modifier = Modifier.weight(0.1f),
++                imageVector = if (showAccountAddMode) {
++                    Icons.Outlined.ExpandLess
++                } else {
++                    Icons.Outlined.ExpandMore
++                },
++                contentDescription = if (showAccountAddMode) {
++                    stringResource(R.string.moreOptions)
++                } else {
++                    stringResource(R.string.lessOptions)
++                },
++            )
++        }
++    }
++}
++
++@Composable
++fun AvatarAndAccountName(myPerson: Person?, showAvatar: Boolean) {
++    Row(
++        verticalAlignment = Alignment.CenterVertically,
++        horizontalArrangement = Arrangement.spacedBy(SMALL_PADDING),
++    ) {
++        if (showAvatar) {
++            myPerson?.avatar?.also {
++                LargerCircularIcon(icon = it)
++            }
++        }
++        Column() {
++            PersonName(
++                person = myPerson,
++                color = MaterialTheme.colorScheme.onSurface,
++            )
++            Text(
++                text = myPerson?.let { federatedNameShown(it) } ?: "",
++                color = MaterialTheme.colorScheme.tertiary,
++                style = MaterialTheme.typography.labelSmall,
++                overflow = TextOverflow.Ellipsis,
++                maxLines = 2,
++            )
++        }
++    }
++}
++
++@Preview
++@Composable
++fun AvatarAndAccountNamePreview() {
++    AvatarAndAccountName(myPerson = samplePerson, showAvatar = true)
++}
++
++@Preview
++@Composable
++fun DrawerHeaderPreview() {
++    DrawerHeader(
++        myPerson = samplePerson,
++        onClickShowAccountAddMode = {},
++        showAvatar = true,
++    )
++}
+diff --git a/app/src/main/java/com/jerboa/ui/components/drawer/DrawerActivity.kt b/app/src/main/java/com/jerboa/ui/components/drawer/DrawerActivity.kt
+new file mode 100644
+index 00000000..29a90cc2
+--- /dev/null
++++ b/app/src/main/java/com/jerboa/ui/components/drawer/DrawerActivity.kt
+@@ -0,0 +1,107 @@
++package com.jerboa.ui.components.drawer
++
++import androidx.activity.compose.BackHandler
++import androidx.compose.material3.DrawerState
++import androidx.compose.runtime.Composable
++import androidx.navigation.NavController
++import com.jerboa.api.ApiState
++import com.jerboa.closeDrawer
++import com.jerboa.db.AccountViewModel
++import com.jerboa.fetchHomePosts
++import com.jerboa.fetchInitialData
++import com.jerboa.model.HomeViewModel
++import com.jerboa.model.SiteViewModel
++import com.jerboa.ui.components.common.getCurrentAccount
++import com.jerboa.ui.components.common.toCommunity
++import com.jerboa.ui.components.common.toHome
++import com.jerboa.ui.components.common.toSettings
++import com.jerboa.ui.components.home.NavTab
++import kotlinx.coroutines.CoroutineScope
++
++@Composable
++fun MainDrawer(
++    siteViewModel: SiteViewModel,
++    navController: NavController,
++    accountViewModel: AccountViewModel,
++    homeViewModel: HomeViewModel,
++    scope: CoroutineScope,
++    drawerState: DrawerState,
++    onSelectTab: (NavTab) -> Unit,
++    blurNSFW: Boolean,
++    showBottomNav: Boolean,
++) {
++    val accounts = accountViewModel.allAccounts.value
++    val account = getCurrentAccount(accountViewModel)
++
++    BackHandler(drawerState.isOpen) {
++        closeDrawer(scope, drawerState)
++    }
++
++    Drawer(
++        myUserInfo = when (val res = siteViewModel.siteRes) {
++            is ApiState.Success -> res.data.my_user
++            else -> null
++        },
++        unreadCount = siteViewModel.getUnreadCountTotal(),
++        accountViewModel = accountViewModel,
++        navController = navController,
++        isOpen = drawerState.isOpen,
++        onSwitchAccountClick = { acct ->
++            accountViewModel.removeCurrent()
++            accountViewModel.setCurrent(acct.id)
++
++            fetchInitialData(
++                account = acct,
++                siteViewModel = siteViewModel,
++            )
++            fetchHomePosts(
++                account = acct,
++                homeViewModel = homeViewModel,
++            )
++
++            closeDrawer(scope, drawerState)
++        },
++        onSignOutClick = {
++            accounts?.also { accts ->
++                account?.also {
++                    accountViewModel.delete(it)
++                    val updatedList = accts.toMutableList()
++                    updatedList.remove(it)
++
++                    if (updatedList.isNotEmpty()) {
++                        accountViewModel.setCurrent(updatedList[0].id)
++                    } else { // Could still be on a page that requires a account
++                        navController.toHome()
++                    }
++                    fetchInitialData(
++                        account = updatedList.getOrNull(0),
++                        siteViewModel = siteViewModel,
++                    )
++                    fetchHomePosts(
++                        account = updatedList.getOrNull(0),
++                        homeViewModel = homeViewModel,
++                    )
++
++                    closeDrawer(scope, drawerState)
++                }
++            }
++        },
++        onClickListingType = { listingType ->
++            homeViewModel.updateListingType(listingType)
++            homeViewModel.resetPosts(account)
++            closeDrawer(scope, drawerState)
++        },
++        onCommunityClick = { community ->
++            navController.toCommunity(id = community.id)
++            closeDrawer(scope, drawerState)
++        },
++        onClickSettings = {
++            navController.toSettings()
++            closeDrawer(scope, drawerState)
++        },
++        blurNSFW = blurNSFW,
++        showBottomNav = showBottomNav,
++        onSelectTab = onSelectTab,
++        closeDrawer = { closeDrawer(scope, drawerState) },
++    )
++}
+diff --git a/app/src/main/java/com/jerboa/ui/components/home/BottomNavActivity.kt b/app/src/main/java/com/jerboa/ui/components/home/BottomNavActivity.kt
+index e3e9cbd1..0102e3d8 100644
+--- a/app/src/main/java/com/jerboa/ui/components/home/BottomNavActivity.kt
++++ b/app/src/main/java/com/jerboa/ui/components/home/BottomNavActivity.kt
+@@ -1,15 +1,24 @@
+ package com.jerboa.ui.components.home
+ 
+-import androidx.compose.animation.ExperimentalAnimationApi
+ import androidx.compose.foundation.layout.ExperimentalLayoutApi
+ import androidx.compose.foundation.layout.WindowInsets
+ import androidx.compose.foundation.layout.isImeVisible
+ import androidx.compose.foundation.layout.padding
+-import androidx.compose.material3.DrawerValue
++import androidx.compose.material.icons.Icons
++import androidx.compose.material.icons.filled.Bookmarks
++import androidx.compose.material.icons.filled.Email
++import androidx.compose.material.icons.filled.Home
++import androidx.compose.material.icons.filled.Person
++import androidx.compose.material.icons.filled.Search
++import androidx.compose.material.icons.outlined.Bookmarks
++import androidx.compose.material.icons.outlined.Email
++import androidx.compose.material.icons.outlined.Home
++import androidx.compose.material.icons.outlined.Person
++import androidx.compose.material.icons.outlined.Search
++import androidx.compose.material3.DrawerState
+ import androidx.compose.material3.ModalDrawerSheet
+ import androidx.compose.material3.ModalNavigationDrawer
+ import androidx.compose.material3.Scaffold
+-import androidx.compose.material3.rememberDrawerState
+ import androidx.compose.runtime.Composable
+ import androidx.compose.runtime.getValue
+ import androidx.compose.runtime.mutableStateOf
+@@ -18,6 +27,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
+ import androidx.compose.runtime.setValue
+ import androidx.compose.ui.ExperimentalComposeUiApi
+ import androidx.compose.ui.Modifier
++import androidx.compose.ui.graphics.vector.ImageVector
+ import androidx.compose.ui.platform.LocalContext
+ import androidx.compose.ui.semantics.semantics
+ import androidx.compose.ui.semantics.testTagsAsResourceId
+@@ -28,6 +38,7 @@ import androidx.navigation.compose.NavHost
+ import androidx.navigation.compose.composable
+ import androidx.navigation.compose.rememberNavController
+ import arrow.core.Either
++import com.jerboa.R
+ import com.jerboa.api.ApiState
+ import com.jerboa.db.AccountViewModel
+ import com.jerboa.db.AppSettings
+@@ -40,17 +51,27 @@ import com.jerboa.ui.components.common.BottomAppBarAll
+ import com.jerboa.ui.components.common.InitializeRoute
+ import com.jerboa.ui.components.common.getCurrentAccount
+ import com.jerboa.ui.components.community.list.CommunityListActivity
++import com.jerboa.ui.components.drawer.MainDrawer
+ import com.jerboa.ui.components.inbox.InboxActivity
+ import com.jerboa.ui.components.person.PersonProfileActivity
+ 
+-enum class BottomNavTab {
+-    Home, Search, Inbox, Saved, Profile;
++enum class NavTab(
++    val textId: Int,
++    val iconOutlined: ImageVector,
++    val iconFilled: ImageVector,
++    val contentDescriptionId: Int,
++) {
++    Home(R.string.bottomBar_label_home, Icons.Outlined.Home, Icons.Filled.Home, R.string.bottomBar_home),
++    Search(R.string.bottomBar_label_search, Icons.Outlined.Search, Icons.Filled.Search, R.string.bottomBar_search),
++    Inbox(R.string.bottomBar_label_inbox, Icons.Outlined.Email, Icons.Filled.Email, R.string.bottomBar_inbox),
++    Saved(R.string.bottomBar_label_bookmarks, Icons.Outlined.Bookmarks, Icons.Filled.Bookmarks, R.string.bottomBar_bookmarks),
++    Profile(R.string.bottomBar_label_profile, Icons.Outlined.Person, Icons.Filled.Person, R.string.bottomBar_profile),
++    ;
+ 
+     fun needsLogin() = this == Inbox || this == Saved || this == Profile
+ }
+ 
+ @OptIn(
+-    ExperimentalAnimationApi::class,
+     ExperimentalLayoutApi::class,
+     ExperimentalComposeUiApi::class,
+ )
+@@ -61,27 +82,26 @@ fun BottomNavActivity(
+     siteViewModel: SiteViewModel,
+     appSettingsViewModel: AppSettingsViewModel,
+     appSettings: AppSettings,
++    drawerState: DrawerState,
+ ) {
+     val account = getCurrentAccount(accountViewModel)
+     val ctx = LocalContext.current
+     val scope = rememberCoroutineScope()
+ 
+     val bottomNavController = rememberNavController()
+-    var selectedTab by rememberSaveable { mutableStateOf(BottomNavTab.Home) }
+-    val onSelectTab = { tab: BottomNavTab ->
++    var selectedTab by rememberSaveable { mutableStateOf(NavTab.Home) }
++    val onSelectTab = { tab: NavTab ->
+         if (tab.needsLogin() && account == null) {
+             loginFirstToast(ctx)
+         } else {
+             selectedTab = tab
+             bottomNavController.navigate(tab.name) {
+                 launchSingleTop = true
+-                popUpTo(0) // To make back button close the app.
++                popUpTo(bottomNavController.graph.id) // To make back button close the app.
+             }
+         }
+     }
+ 
+-    val drawerState = rememberDrawerState(DrawerValue.Closed)
+-
+     val homeViewModel: HomeViewModel = viewModel()
+     if (siteViewModel.siteRes is ApiState.Success) {
+         InitializeRoute(homeViewModel) {
+@@ -92,7 +112,7 @@ fun BottomNavActivity(
+     }
+ 
+     ModalNavigationDrawer(
+-        gesturesEnabled = selectedTab == BottomNavTab.Home,
++        gesturesEnabled = true,
+         drawerState = drawerState,
+         drawerContent = {
+             ModalDrawerSheet(
+@@ -104,8 +124,9 @@ fun BottomNavActivity(
+                         homeViewModel = homeViewModel,
+                         scope = scope,
+                         drawerState = drawerState,
+-                        onSelectTab = if (appSettings.showBottomNav) onSelectTab else null,
++                        onSelectTab = onSelectTab,
+                         blurNSFW = appSettings.blurNSFW,
++                        showBottomNav = appSettings.showBottomNav,
+                     )
+                 },
+             )
+@@ -114,17 +135,18 @@ fun BottomNavActivity(
+         content = {
+             Scaffold(
+                 bottomBar = {
+-                    BottomAppBarAll(
+-                        showBottomNav = appSettings.showBottomNav,
+-                        selectedTab = selectedTab,
+-                        unreadCounts = siteViewModel.getUnreadCountTotal(),
+-                        showTextDescriptionsInNavbar = appSettings.showTextDescriptionsInNavbar,
+-                        onSelect = onSelectTab,
+-                    )
++                    if (appSettings.showBottomNav) {
++                        BottomAppBarAll(
++                            selectedTab = selectedTab,
++                            unreadCounts = siteViewModel.getUnreadCountTotal(),
++                            showTextDescriptionsInNavbar = appSettings.showTextDescriptionsInNavbar,
++                            onSelect = onSelectTab,
++                        )
++                    }
+                 },
+             ) { padding ->
+                 val bottomPadding =
+-                    if (selectedTab == BottomNavTab.Search && WindowInsets.isImeVisible) {
++                    if (selectedTab == NavTab.Search && WindowInsets.isImeVisible) {
+                         0.dp
+                     } else {
+                         padding.calculateBottomPadding()
+@@ -132,10 +154,10 @@ fun BottomNavActivity(
+ 
+                 NavHost(
+                     navController = bottomNavController,
+-                    startDestination = BottomNavTab.Home.name,
++                    startDestination = NavTab.Home.name,
+                     modifier = Modifier.padding(bottom = bottomPadding),
+                 ) {
+-                    composable(route = BottomNavTab.Home.name) {
++                    composable(route = NavTab.Home.name) {
+                         HomeActivity(
+                             navController = navController,
+                             homeViewModel = homeViewModel,
+@@ -150,26 +172,28 @@ fun BottomNavActivity(
+                         )
+                     }
+ 
+-                    composable(route = BottomNavTab.Search.name) {
++                    composable(route = NavTab.Search.name) {
+                         CommunityListActivity(
+                             navController = navController,
+                             accountViewModel = accountViewModel,
+                             selectMode = false,
+                             siteViewModel = siteViewModel,
+                             blurNSFW = appSettings.blurNSFW,
++                            drawerState = drawerState,
+                         )
+                     }
+ 
+-                    composable(route = BottomNavTab.Inbox.name) {
++                    composable(route = NavTab.Inbox.name) {
+                         InboxActivity(
+                             navController = navController,
+                             accountViewModel = accountViewModel,
+                             siteViewModel = siteViewModel,
+                             blurNSFW = appSettings.blurNSFW,
++                            drawerState = drawerState,
+                         )
+                     }
+ 
+-                    composable(route = BottomNavTab.Saved.name) {
++                    composable(route = NavTab.Saved.name) {
+                         PersonProfileActivity(
+                             personArg = Either.Left(account!!.id),
+                             savedMode = true,
+@@ -181,10 +205,11 @@ fun BottomNavActivity(
+                             useCustomTabs = appSettings.useCustomTabs,
+                             usePrivateTabs = appSettings.usePrivateTabs,
+                             blurNSFW = appSettings.blurNSFW,
++                            drawerState = drawerState,
+                         )
+                     }
+ 
+-                    composable(route = BottomNavTab.Profile.name) {
++                    composable(route = NavTab.Profile.name) {
+                         PersonProfileActivity(
+                             personArg = Either.Left(account!!.id),
+                             savedMode = false,
+@@ -196,6 +221,7 @@ fun BottomNavActivity(
+                             useCustomTabs = appSettings.useCustomTabs,
+                             usePrivateTabs = appSettings.usePrivateTabs,
+                             blurNSFW = appSettings.blurNSFW,
++                            drawerState = drawerState,
+                         )
+                     }
+                 }
+diff --git a/app/src/main/java/com/jerboa/ui/components/home/Home.kt b/app/src/main/java/com/jerboa/ui/components/home/Home.kt
+index f9cb2bbb..b1b1b70f 100644
+--- a/app/src/main/java/com/jerboa/ui/components/home/Home.kt
++++ b/app/src/main/java/com/jerboa/ui/components/home/Home.kt
+@@ -1,43 +1,16 @@
+ package com.jerboa.ui.components.home
+ 
+-import androidx.compose.animation.AnimatedVisibility
+-import androidx.compose.animation.expandVertically
+-import androidx.compose.animation.shrinkVertically
+-import androidx.compose.foundation.clickable
+-import androidx.compose.foundation.layout.Arrangement
+-import androidx.compose.foundation.layout.Box
+ import androidx.compose.foundation.layout.Column
+-import androidx.compose.foundation.layout.Row
+-import androidx.compose.foundation.layout.fillMaxWidth
+-import androidx.compose.foundation.layout.height
+ import androidx.compose.foundation.layout.padding
+-import androidx.compose.foundation.lazy.LazyColumn
+-import androidx.compose.foundation.lazy.items
+-import androidx.compose.foundation.lazy.rememberLazyListState
+ import androidx.compose.material.icons.Icons
+-import androidx.compose.material.icons.outlined.Add
+-import androidx.compose.material.icons.outlined.Bookmarks
+-import androidx.compose.material.icons.outlined.Close
+-import androidx.compose.material.icons.outlined.Email
+-import androidx.compose.material.icons.outlined.ExpandLess
+-import androidx.compose.material.icons.outlined.ExpandMore
+ import androidx.compose.material.icons.outlined.FilterList
+ import androidx.compose.material.icons.outlined.Info
+-import androidx.compose.material.icons.outlined.List
+-import androidx.compose.material.icons.outlined.LocationCity
+-import androidx.compose.material.icons.outlined.Login
+ import androidx.compose.material.icons.outlined.Menu
+ import androidx.compose.material.icons.outlined.MoreVert
+-import androidx.compose.material.icons.outlined.Person
+-import androidx.compose.material.icons.outlined.Public
+ import androidx.compose.material.icons.outlined.Refresh
+-import androidx.compose.material.icons.outlined.Settings
+ import androidx.compose.material.icons.outlined.Sort
+ import androidx.compose.material.icons.outlined.ViewAgenda
+ import androidx.compose.material3.AlertDialog
+-import androidx.compose.material3.Divider
+-import androidx.compose.material3.DrawerState
+-import androidx.compose.material3.DrawerValue
+ import androidx.compose.material3.ExperimentalMaterial3Api
+ import androidx.compose.material3.Icon
+ import androidx.compose.material3.IconButton
+@@ -46,15 +19,11 @@ import androidx.compose.material3.Text
+ import androidx.compose.material3.TopAppBar
+ import androidx.compose.material3.TopAppBarDefaults
+ import androidx.compose.material3.TopAppBarScrollBehavior
+-import androidx.compose.material3.rememberDrawerState
+ import androidx.compose.runtime.Composable
+ import androidx.compose.runtime.getValue
+ import androidx.compose.runtime.mutableStateOf
+ import androidx.compose.runtime.remember
+-import androidx.compose.runtime.rememberCoroutineScope
+-import androidx.compose.runtime.saveable.rememberSaveable
+ import androidx.compose.runtime.setValue
+-import androidx.compose.ui.Alignment
+ import androidx.compose.ui.ExperimentalComposeUiApi
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.platform.LocalContext
+@@ -62,415 +31,24 @@ import androidx.compose.ui.platform.testTag
+ import androidx.compose.ui.res.stringResource
+ import androidx.compose.ui.semantics.semantics
+ import androidx.compose.ui.semantics.testTagsAsResourceId
+-import androidx.compose.ui.text.style.TextOverflow
+ import androidx.compose.ui.tooling.preview.Preview
+ import androidx.navigation.NavController
+ import androidx.navigation.compose.rememberNavController
+ import com.jerboa.PostViewMode
+ import com.jerboa.R
+-import com.jerboa.api.ApiState
+-import com.jerboa.datatypes.samplePerson
+-import com.jerboa.datatypes.types.Community
+-import com.jerboa.datatypes.types.GetSiteResponse
+ import com.jerboa.datatypes.types.ListingType
+-import com.jerboa.datatypes.types.MyUserInfo
+-import com.jerboa.datatypes.types.Person
+ import com.jerboa.datatypes.types.SortType
+ import com.jerboa.datatypes.types.Tagline
+-import com.jerboa.db.Account
+-import com.jerboa.db.AccountViewModel
+-import com.jerboa.federatedNameShown
+ import com.jerboa.getLocalizedListingTypeName
+ import com.jerboa.getLocalizedSortingTypeShortName
+ import com.jerboa.ui.components.common.IconAndTextDrawerItem
+-import com.jerboa.ui.components.common.LargerCircularIcon
+ import com.jerboa.ui.components.common.ListingTypeOptionsDialog
+ import com.jerboa.ui.components.common.MyMarkdownText
+-import com.jerboa.ui.components.common.PictrsBannerImage
+ import com.jerboa.ui.components.common.PostViewModeDialog
+ import com.jerboa.ui.components.common.SortOptionsDialog
+ import com.jerboa.ui.components.common.SortTopOptionsDialog
+-import com.jerboa.ui.components.common.simpleVerticalScrollbar
+-import com.jerboa.ui.components.common.toLogin
+ import com.jerboa.ui.components.common.toSiteSideBar
+-import com.jerboa.ui.components.community.CommunityLinkLarger
+-import com.jerboa.ui.components.person.PersonName
+-import com.jerboa.ui.theme.DRAWER_BANNER_SIZE
+ import com.jerboa.ui.theme.LARGE_PADDING
+-import com.jerboa.ui.theme.SMALL_PADDING
+-import com.jerboa.ui.theme.XL_PADDING
+-import com.jerboa.ui.theme.muted
+-import kotlinx.coroutines.CoroutineScope
+-import kotlinx.coroutines.launch
+-
+-@Composable
+-fun Drawer(
+-    siteRes: ApiState<GetSiteResponse>,
+-    unreadCount: Int,
+-    navController: NavController = rememberNavController(),
+-    accountViewModel: AccountViewModel,
+-    onSwitchAccountClick: (account: Account) -> Unit,
+-    onSignOutClick: () -> Unit,
+-    onClickListingType: (ListingType) -> Unit,
+-    onCommunityClick: (community: Community) -> Unit,
+-    onClickProfile: () -> Unit,
+-    onClickInbox: () -> Unit,
+-    onClickSaved: () -> Unit,
+-    onClickSettings: () -> Unit,
+-    onClickCommunities: () -> Unit,
+-    isOpen: Boolean,
+-    blurNSFW: Boolean,
+-) {
+-    var showAccountAddMode by rememberSaveable { mutableStateOf(false) }
+-
+-    if (!isOpen) showAccountAddMode = false
+-
+-    val myUserInfo = when (siteRes) {
+-        is ApiState.Success -> siteRes.data.my_user
+-        else -> null
+-    }
+-
+-    DrawerHeader(
+-        myPerson = myUserInfo?.local_user_view?.person,
+-        showAccountAddMode = showAccountAddMode,
+-        onClickShowAccountAddMode = { showAccountAddMode = !showAccountAddMode },
+-        showAvatar = myUserInfo?.local_user_view?.local_user?.show_avatars ?: true,
+-    )
+-    // Drawer items
+-    DrawerContent(
+-        accountViewModel = accountViewModel,
+-        unreadCount = unreadCount,
+-        myUserInfo = myUserInfo,
+-        showAccountAddMode = showAccountAddMode,
+-        navController = navController,
+-        onSwitchAccountClick = onSwitchAccountClick,
+-        onSignOutClick = onSignOutClick,
+-        onClickListingType = onClickListingType,
+-        onCommunityClick = onCommunityClick,
+-        onClickProfile = onClickProfile,
+-        onClickInbox = onClickInbox,
+-        onClickSaved = onClickSaved,
+-        onClickSettings = onClickSettings,
+-        onClickCommunities = onClickCommunities,
+-        blurNSFW = blurNSFW,
+-    )
+-}
+-
+-@Composable
+-fun DrawerContent(
+-    showAccountAddMode: Boolean,
+-    navController: NavController,
+-    accountViewModel: AccountViewModel,
+-    onSwitchAccountClick: (account: Account) -> Unit,
+-    onSignOutClick: () -> Unit,
+-    onClickListingType: (ListingType) -> Unit,
+-    onCommunityClick: (community: Community) -> Unit,
+-    onClickProfile: () -> Unit,
+-    onClickInbox: () -> Unit,
+-    onClickSaved: () -> Unit,
+-    onClickSettings: () -> Unit,
+-    onClickCommunities: () -> Unit,
+-    myUserInfo: MyUserInfo?,
+-    unreadCount: Int,
+-    blurNSFW: Boolean,
+-) {
+-    AnimatedVisibility(
+-        visible = showAccountAddMode,
+-        enter = expandVertically(),
+-        exit = shrinkVertically(),
+-    ) {
+-        Divider()
+-        DrawerAddAccountMode(
+-            accountViewModel = accountViewModel,
+-            navController = navController,
+-            onSwitchAccountClick = onSwitchAccountClick,
+-            onSignOutClick = onSignOutClick,
+-        )
+-    }
+-
+-    Divider()
+-    DrawerItemsMain(
+-        myUserInfo = myUserInfo,
+-        onClickListingType = onClickListingType,
+-        onCommunityClick = onCommunityClick,
+-        onClickProfile = onClickProfile,
+-        onClickInbox = onClickInbox,
+-        onClickSaved = onClickSaved,
+-        unreadCount = unreadCount,
+-        onClickSettings = onClickSettings,
+-        onClickCommunities = onClickCommunities,
+-        blurNSFW = blurNSFW,
+-    )
+-}
+-
+-@Composable
+-fun DrawerItemsMain(
+-    myUserInfo: MyUserInfo?,
+-    onClickSaved: () -> Unit,
+-    onClickProfile: () -> Unit,
+-    onClickInbox: () -> Unit,
+-    onClickSettings: () -> Unit,
+-    onClickCommunities: () -> Unit,
+-    onClickListingType: (ListingType) -> Unit,
+-    onCommunityClick: (community: Community) -> Unit,
+-    unreadCount: Int,
+-    blurNSFW: Boolean,
+-) {
+-    val listState = rememberLazyListState()
+-
+-    val follows = myUserInfo?.follows
+-
+-    LazyColumn(
+-        state = listState,
+-        modifier = Modifier.simpleVerticalScrollbar(listState),
+-    ) {
+-        if (!follows.isNullOrEmpty()) {
+-            item {
+-                IconAndTextDrawerItem(
+-                    text = stringResource(R.string.home_subscribed),
+-                    icon = Icons.Outlined.Bookmarks,
+-                    onClick = { onClickListingType(ListingType.Subscribed) },
+-                )
+-            }
+-        }
+-        item {
+-            IconAndTextDrawerItem(
+-                text = stringResource(R.string.home_local),
+-                icon = Icons.Outlined.LocationCity,
+-                onClick = { onClickListingType(ListingType.Local) },
+-            )
+-        }
+-        item {
+-            IconAndTextDrawerItem(
+-                text = stringResource(R.string.home_all),
+-                icon = Icons.Outlined.Public,
+-                onClick = { onClickListingType(ListingType.All) },
+-            )
+-        }
+-        item {
+-            myUserInfo?.also {
+-                IconAndTextDrawerItem(
+-                    text = stringResource(R.string.home_saved),
+-                    icon = Icons.Outlined.Bookmarks,
+-                    onClick = onClickSaved,
+-                )
+-            }
+-        }
+-        item {
+-            IconAndTextDrawerItem(
+-                text = stringResource(R.string.home_communities),
+-                icon = Icons.Outlined.List,
+-                onClick = onClickCommunities,
+-            )
+-        }
+-        item {
+-            Divider()
+-        }
+-        item {
+-            myUserInfo?.also {
+-                IconAndTextDrawerItem(
+-                    text = stringResource(R.string.home_profile),
+-                    icon = Icons.Outlined.Person,
+-                    onClick = onClickProfile,
+-                )
+-            }
+-        }
+-        item {
+-            myUserInfo?.also {
+-                IconAndTextDrawerItem(
+-                    text = stringResource(R.string.home_inbox),
+-                    icon = Icons.Outlined.Email,
+-                    onClick = onClickInbox,
+-                    iconBadgeCount = unreadCount,
+-                )
+-            }
+-        }
+-        item {
+-            IconAndTextDrawerItem(
+-                text = stringResource(R.string.home_settings),
+-                icon = Icons.Outlined.Settings,
+-                onClick = onClickSettings,
+-            )
+-        }
+-        item {
+-            myUserInfo?.also {
+-                Divider()
+-            }
+-        }
+-
+-        follows?.also { follows ->
+-            item {
+-                Text(
+-                    text = stringResource(R.string.home_subscriptions),
+-                    modifier = Modifier.padding(LARGE_PADDING),
+-                    color = MaterialTheme.colorScheme.onBackground.muted,
+-                )
+-            }
+-            items(
+-                follows,
+-                key = { follow -> follow.community.id },
+-            ) { follow ->
+-                CommunityLinkLarger(
+-                    community = follow.community,
+-                    onClick = onCommunityClick,
+-                    showDefaultIcon = true,
+-                    blurNSFW = blurNSFW,
+-                )
+-            }
+-        }
+-    }
+-}
+-
+-@Preview
+-@Composable
+-fun DrawerItemsMainPreview() {
+-    DrawerItemsMain(
+-        myUserInfo = null,
+-        onClickListingType = {},
+-        onClickProfile = {},
+-        onClickInbox = {},
+-        onCommunityClick = {},
+-        onClickSaved = {},
+-        onClickSettings = {},
+-        onClickCommunities = {},
+-        unreadCount = 2,
+-        blurNSFW = true,
+-    )
+-}
+-
+-@Composable
+-fun DrawerAddAccountMode(
+-    navController: NavController = rememberNavController(),
+-    accountViewModel: AccountViewModel?,
+-    onSwitchAccountClick: (account: Account) -> Unit,
+-    onSignOutClick: () -> Unit,
+-) {
+-    val accountsWithoutCurrent = accountViewModel?.allAccounts?.value?.toMutableList()
+-    val currentAccount = accountsWithoutCurrent?.firstOrNull { it.current }
+-    accountsWithoutCurrent?.remove(currentAccount)
+-
+-    Column {
+-        IconAndTextDrawerItem(
+-            text = stringResource(R.string.home_add_account),
+-            icon = Icons.Outlined.Add,
+-            onClick = { navController.toLogin() },
+-        )
+-        accountsWithoutCurrent?.forEach {
+-            IconAndTextDrawerItem(
+-                text = stringResource(R.string.home_switch_to, it.name, it.instance),
+-                icon = Icons.Outlined.Login,
+-                onClick = { onSwitchAccountClick(it) },
+-            )
+-        }
+-        currentAccount?.also {
+-            IconAndTextDrawerItem(
+-                text = stringResource(R.string.home_sign_out),
+-                icon = Icons.Outlined.Close,
+-                onClick = onSignOutClick,
+-            )
+-        }
+-    }
+-}
+-
+-@Preview
+-@Composable
+-fun DrawerAddAccountModePreview() {
+-    DrawerAddAccountMode(
+-        onSignOutClick = {},
+-        onSwitchAccountClick = {},
+-        accountViewModel = null,
+-    )
+-}
+-
+-@Composable
+-fun DrawerHeader(
+-    myPerson: Person?,
+-    onClickShowAccountAddMode: () -> Unit,
+-    showAccountAddMode: Boolean = false,
+-    showAvatar: Boolean,
+-) {
+-    val sizeMod = Modifier
+-        .fillMaxWidth()
+-        .height(DRAWER_BANNER_SIZE)
+-
+-    Box(
+-        modifier = sizeMod
+-            .clickable(onClick = onClickShowAccountAddMode),
+-    ) {
+-        myPerson?.banner?.also {
+-            PictrsBannerImage(
+-                url = it,
+-            )
+-        }
+-        // banner
+-        Row(
+-            horizontalArrangement = Arrangement.SpaceBetween,
+-            verticalAlignment = Alignment.CenterVertically,
+-            modifier = sizeMod
+-                .padding(XL_PADDING),
+-        ) {
+-            Box(modifier = Modifier.weight(0.9f)) {
+-                AvatarAndAccountName(myPerson, showAvatar)
+-            }
+-            Icon(
+-                modifier = Modifier.weight(0.1f),
+-                imageVector = if (showAccountAddMode) {
+-                    Icons.Outlined.ExpandLess
+-                } else {
+-                    Icons.Outlined.ExpandMore
+-                },
+-                contentDescription = if (showAccountAddMode) {
+-                    stringResource(R.string.moreOptions)
+-                } else {
+-                    stringResource(R.string.lessOptions)
+-                },
+-            )
+-        }
+-    }
+-}
+-
+-@Composable
+-fun AvatarAndAccountName(myPerson: Person?, showAvatar: Boolean) {
+-    Row(
+-        verticalAlignment = Alignment.CenterVertically,
+-        horizontalArrangement = Arrangement.spacedBy(SMALL_PADDING),
+-    ) {
+-        if (showAvatar) {
+-            myPerson?.avatar?.also {
+-                LargerCircularIcon(icon = it)
+-            }
+-        }
+-        Column() {
+-            PersonName(
+-                person = myPerson,
+-                color = MaterialTheme.colorScheme.onSurface,
+-            )
+-            Text(
+-                text = myPerson?.let { federatedNameShown(it) } ?: "",
+-                color = MaterialTheme.colorScheme.tertiary,
+-                style = MaterialTheme.typography.labelSmall,
+-                overflow = TextOverflow.Ellipsis,
+-                maxLines = 2,
+-            )
+-        }
+-    }
+-}
+-
+-@Preview
+-@Composable
+-fun AvatarAndAccountNamePreview() {
+-    AvatarAndAccountName(myPerson = samplePerson, showAvatar = true)
+-}
+-
+-@Preview
+-@Composable
+-fun DrawerHeaderPreview() {
+-    DrawerHeader(
+-        myPerson = samplePerson,
+-        onClickShowAccountAddMode = {},
+-        showAvatar = true,
+-    )
+-}
+ 
+ @Composable
+ fun HomeHeaderTitle(
+@@ -493,8 +71,7 @@ fun HomeHeaderTitle(
+ @OptIn(ExperimentalMaterial3Api::class)
+ @Composable
+ fun HomeHeader(
+-    scope: CoroutineScope,
+-    drawerState: DrawerState,
++    openDrawer: () -> Unit,
+     onClickSortType: (SortType) -> Unit,
+     onClickListingType: (ListingType) -> Unit,
+     onClickRefresh: () -> Unit,
+@@ -579,11 +156,7 @@ fun HomeHeader(
+             )
+         },
+         navigationIcon = {
+-            IconButton(onClick = {
+-                scope.launch {
+-                    drawerState.open()
+-                }
+-            }) {
++            IconButton(onClick = openDrawer) {
+                 Icon(
+                     Icons.Outlined.Menu,
+                     contentDescription = stringResource(R.string.home_menu),
+@@ -624,11 +197,8 @@ fun HomeHeader(
+ @Preview
+ @Composable
+ fun HomeHeaderPreview() {
+-    val scope = rememberCoroutineScope()
+-    val drawerState = rememberDrawerState(DrawerValue.Closed)
+     HomeHeader(
+-        scope,
+-        drawerState,
++        openDrawer = {},
+         onClickSortType = {},
+         onClickListingType = {},
+         onClickRefresh = {},
+diff --git a/app/src/main/java/com/jerboa/ui/components/home/HomeActivity.kt b/app/src/main/java/com/jerboa/ui/components/home/HomeActivity.kt
+index d42f4ea7..5372393d 100644
+--- a/app/src/main/java/com/jerboa/ui/components/home/HomeActivity.kt
++++ b/app/src/main/java/com/jerboa/ui/components/home/HomeActivity.kt
+@@ -2,7 +2,6 @@ package com.jerboa.ui.components.home
+ 
+ import android.content.Context
+ import android.util.Log
+-import androidx.activity.compose.BackHandler
+ import androidx.activity.compose.ReportDrawn
+ import androidx.compose.foundation.layout.Box
+ import androidx.compose.foundation.layout.Column
+@@ -43,7 +42,6 @@ import androidx.navigation.NavController
+ import com.jerboa.R
+ import com.jerboa.VoteType
+ import com.jerboa.api.ApiState
+-import com.jerboa.closeDrawer
+ import com.jerboa.datatypes.types.BlockCommunity
+ import com.jerboa.datatypes.types.BlockPerson
+ import com.jerboa.datatypes.types.CreatePostLike
+@@ -54,8 +52,6 @@ import com.jerboa.datatypes.types.Tagline
+ import com.jerboa.db.Account
+ import com.jerboa.db.AccountViewModel
+ import com.jerboa.db.AppSettingsViewModel
+-import com.jerboa.fetchHomePosts
+-import com.jerboa.fetchInitialData
+ import com.jerboa.isLoading
+ import com.jerboa.isRefreshing
+ import com.jerboa.loginFirstToast
+@@ -75,19 +71,16 @@ import com.jerboa.ui.components.common.getCurrentAccount
+ import com.jerboa.ui.components.common.getPostViewMode
+ import com.jerboa.ui.components.common.rootChannel
+ import com.jerboa.ui.components.common.toCommunity
+-import com.jerboa.ui.components.common.toCommunityList
+ import com.jerboa.ui.components.common.toCreatePost
+-import com.jerboa.ui.components.common.toInbox
+ import com.jerboa.ui.components.common.toPost
+ import com.jerboa.ui.components.common.toPostEdit
+ import com.jerboa.ui.components.common.toPostReport
+ import com.jerboa.ui.components.common.toProfile
+-import com.jerboa.ui.components.common.toSettings
+ import com.jerboa.ui.components.post.PostListings
+ import com.jerboa.ui.components.post.edit.PostEditReturn
+ import kotlinx.collections.immutable.persistentListOf
+ import kotlinx.collections.immutable.toImmutableList
+-import kotlinx.coroutines.CoroutineScope
++import kotlinx.coroutines.launch
+ 
+ @OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
+ @Composable
+@@ -124,9 +117,14 @@ fun HomeActivity(
+         snackbarHost = { SnackbarHost(snackbarHostState) },
+         topBar = {
+             MainTopBar(
+-                scope = scope,
+-                postListState = postListState,
+-                drawerState = drawerState,
++                openDrawer = {
++                    scope.launch {
++                        drawerState.open()
++                    }
++                },
++                scrollToTop = {
++                    scrollToTop(scope, postListState)
++                },
+                 homeViewModel = homeViewModel,
+                 appSettingsViewModel = appSettingsViewModel,
+                 account = account,
+@@ -215,7 +213,13 @@ fun MainPostListingsContent(
+ 
+     Box(modifier = Modifier.pullRefresh(pullRefreshState)) {
+         // zIndex needed bc some elements of a post get drawn above it.
+-        PullRefreshIndicator(homeViewModel.postsRes.isRefreshing(), pullRefreshState, Modifier.align(Alignment.TopCenter).zIndex(100f))
++        PullRefreshIndicator(
++            homeViewModel.postsRes.isRefreshing(),
++            pullRefreshState,
++            Modifier
++                .align(Alignment.TopCenter)
++                .zIndex(100f),
++        )
+         // Can't be in ApiState.Loading, because of infinite scrolling
+         if (homeViewModel.postsRes.isLoading()) {
+             LoadingBar(padding = padding)
+@@ -345,129 +349,11 @@ fun MainPostListingsContent(
+     }
+ }
+ 
+-@Composable
+-fun MainDrawer(
+-    siteViewModel: SiteViewModel,
+-    navController: NavController,
+-    accountViewModel: AccountViewModel,
+-    homeViewModel: HomeViewModel,
+-    scope: CoroutineScope,
+-    drawerState: DrawerState,
+-    onSelectTab: ((BottomNavTab) -> Unit)?,
+-    blurNSFW: Boolean,
+-) {
+-    val ctx = LocalContext.current
+-
+-    val accounts = accountViewModel.allAccounts.value
+-    val account = getCurrentAccount(accountViewModel)
+-
+-    BackHandler(drawerState.isOpen) {
+-        closeDrawer(scope, drawerState)
+-    }
+-
+-    Drawer(
+-        siteRes = siteViewModel.siteRes,
+-        unreadCount = siteViewModel.getUnreadCountTotal(),
+-        accountViewModel = accountViewModel,
+-        navController = navController,
+-        isOpen = drawerState.isOpen,
+-        onSwitchAccountClick = { acct ->
+-            accountViewModel.removeCurrent()
+-            accountViewModel.setCurrent(acct.id)
+-
+-            fetchInitialData(
+-                account = acct,
+-                siteViewModel = siteViewModel,
+-            )
+-            fetchHomePosts(
+-                account = acct,
+-                homeViewModel = homeViewModel,
+-            )
+-
+-            closeDrawer(scope, drawerState)
+-        },
+-        onSignOutClick = {
+-            accounts?.also { accts ->
+-                account?.also {
+-                    accountViewModel.delete(it)
+-                    val updatedList = accts.toMutableList()
+-                    updatedList.remove(it)
+-
+-                    if (updatedList.isNotEmpty()) {
+-                        accountViewModel.setCurrent(updatedList[0].id)
+-                    }
+-                    fetchInitialData(
+-                        account = updatedList.getOrNull(0),
+-                        siteViewModel = siteViewModel,
+-                    )
+-                    fetchHomePosts(
+-                        account = updatedList.getOrNull(0),
+-                        homeViewModel = homeViewModel,
+-                    )
+-
+-                    closeDrawer(scope, drawerState)
+-                }
+-            }
+-        },
+-        onClickListingType = { listingType ->
+-            homeViewModel.updateListingType(listingType)
+-            homeViewModel.resetPosts(account)
+-            closeDrawer(scope, drawerState)
+-        },
+-        onCommunityClick = { community ->
+-            navController.toCommunity(id = community.id)
+-            closeDrawer(scope, drawerState)
+-        },
+-        onClickProfile = {
+-            onSelectTab?.invoke(BottomNavTab.Profile) ?: run {
+-                account?.id?.also {
+-                    navController.toProfile(id = it)
+-                } ?: run {
+-                    loginFirstToast(ctx)
+-                }
+-            }
+-            closeDrawer(scope, drawerState)
+-        },
+-        onClickSaved = {
+-            onSelectTab?.invoke(BottomNavTab.Saved) ?: run {
+-                account?.id?.also {
+-                    navController.toProfile(id = it, saved = true)
+-                } ?: run {
+-                    loginFirstToast(ctx)
+-                }
+-            }
+-            closeDrawer(scope, drawerState)
+-        },
+-        onClickInbox = {
+-            onSelectTab?.invoke(BottomNavTab.Inbox) ?: run {
+-                account?.also {
+-                    navController.toInbox()
+-                } ?: run {
+-                    loginFirstToast(ctx)
+-                }
+-            }
+-            closeDrawer(scope, drawerState)
+-        },
+-        onClickSettings = {
+-            navController.toSettings()
+-            closeDrawer(scope, drawerState)
+-        },
+-        onClickCommunities = {
+-            onSelectTab?.invoke(BottomNavTab.Search) ?: run {
+-                navController.toCommunityList()
+-            }
+-            closeDrawer(scope, drawerState)
+-        },
+-        blurNSFW = blurNSFW,
+-    )
+-}
+-
+ @OptIn(ExperimentalMaterial3Api::class)
+ @Composable
+ fun MainTopBar(
+-    scope: CoroutineScope,
+-    postListState: LazyListState,
+-    drawerState: DrawerState,
++    scrollToTop: () -> Unit,
++    openDrawer: () -> Unit,
+     homeViewModel: HomeViewModel,
+     appSettingsViewModel: AppSettingsViewModel,
+     account: Account?,
+@@ -476,20 +362,19 @@ fun MainTopBar(
+ ) {
+     Column {
+         HomeHeader(
+-            scope = scope,
++            openDrawer = openDrawer,
+             scrollBehavior = scrollBehavior,
+-            drawerState = drawerState,
+             navController = navController,
+             selectedSortType = homeViewModel.sortType,
+             selectedListingType = homeViewModel.listingType,
+             selectedPostViewMode = getPostViewMode(appSettingsViewModel),
+             onClickSortType = { sortType ->
+-                scrollToTop(scope, postListState)
++                scrollToTop()
+                 homeViewModel.updateSortType(sortType)
+                 homeViewModel.resetPosts(account)
+             },
+             onClickListingType = { listingType ->
+-                scrollToTop(scope, postListState)
++                scrollToTop()
+                 homeViewModel.updateListingType(listingType)
+                 homeViewModel.resetPosts(account)
+             },
+@@ -497,7 +382,7 @@ fun MainTopBar(
+                 appSettingsViewModel.updatedPostViewMode(it.ordinal)
+             },
+             onClickRefresh = {
+-                scrollToTop(scope, postListState)
++                scrollToTop()
+                 homeViewModel.resetPosts(account)
+             },
+         )
+diff --git a/app/src/main/java/com/jerboa/ui/components/inbox/Inbox.kt b/app/src/main/java/com/jerboa/ui/components/inbox/Inbox.kt
+index ba81ae06..70f73d15 100644
+--- a/app/src/main/java/com/jerboa/ui/components/inbox/Inbox.kt
++++ b/app/src/main/java/com/jerboa/ui/components/inbox/Inbox.kt
+@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
+ import androidx.compose.material.icons.Icons
+ import androidx.compose.material.icons.outlined.DoneAll
+ import androidx.compose.material.icons.outlined.FilterList
++import androidx.compose.material.icons.outlined.Menu
+ import androidx.compose.material3.ExperimentalMaterial3Api
+ import androidx.compose.material3.Icon
+ import androidx.compose.material3.IconButton
+@@ -20,17 +21,14 @@ import androidx.compose.runtime.remember
+ import androidx.compose.runtime.setValue
+ import androidx.compose.ui.platform.LocalContext
+ import androidx.compose.ui.res.stringResource
+-import androidx.navigation.NavController
+-import androidx.navigation.compose.rememberNavController
+ import com.jerboa.R
+ import com.jerboa.UnreadOrAll
+ import com.jerboa.getLocalizedUnreadOrAllName
+-import com.jerboa.ui.components.common.DefaultBackButton
+ import com.jerboa.ui.components.common.UnreadOrAllOptionsDialog
+ 
+ @Composable
+ fun InboxHeader(
+-    navController: NavController = rememberNavController(),
++    openDrawer: () -> Unit,
+     selectedUnreadOrAll: UnreadOrAll,
+     onClickUnreadOrAll: (UnreadOrAll) -> Unit,
+     onClickMarkAllAsRead: () -> Unit,
+@@ -58,7 +56,14 @@ fun InboxHeader(
+                 selectedUnreadOrAll = selectedUnreadOrAll,
+             )
+         },
+-        navigationIcon = { DefaultBackButton(navController) },
++        navigationIcon = {
++            IconButton(onClick = openDrawer) {
++                Icon(
++                    Icons.Outlined.Menu,
++                    contentDescription = stringResource(R.string.home_menu),
++                )
++            }
++        },
+         actions = {
+             IconButton(onClick = {
+                 showUnreadOrAllOptions = !showUnreadOrAllOptions
+diff --git a/app/src/main/java/com/jerboa/ui/components/inbox/InboxActivity.kt b/app/src/main/java/com/jerboa/ui/components/inbox/InboxActivity.kt
+index 36393233..f1fbe50b 100644
+--- a/app/src/main/java/com/jerboa/ui/components/inbox/InboxActivity.kt
++++ b/app/src/main/java/com/jerboa/ui/components/inbox/InboxActivity.kt
+@@ -64,6 +64,7 @@ import kotlinx.coroutines.launch
+ @Composable
+ fun InboxActivity(
+     navController: NavController,
++    drawerState: DrawerState,
+     siteViewModel: SiteViewModel,
+     accountViewModel: AccountViewModel,
+     blurNSFW: Boolean,
+@@ -100,7 +101,11 @@ fun InboxActivity(
+             InboxHeader(
+                 scrollBehavior = scrollBehavior,
+                 unreadCount = unreadCount,
+-                navController = navController,
++                openDrawer = {
++                    scope.launch {
++                        drawerState.open()
++                    }
++                },
+                 selectedUnreadOrAll = unreadOrAllFromBool(inboxViewModel.unreadOnly),
+                 onClickUnreadOrAll = { unreadOrAll ->
+                     account?.also { acct ->
+@@ -418,7 +423,11 @@ fun InboxTabs(
+                             }
+                         },
+                     )
+-                    Box(modifier = Modifier.pullRefresh(refreshState).fillMaxSize()) {
++                    Box(
++                        modifier = Modifier
++                            .pullRefresh(refreshState)
++                            .fillMaxSize(),
++                    ) {
+                         PullRefreshIndicator(
+                             refreshing,
+                             refreshState,
+@@ -584,7 +593,11 @@ fun InboxTabs(
+                             }
+                         },
+                     )
+-                    Box(modifier = Modifier.pullRefresh(refreshState).fillMaxSize()) {
++                    Box(
++                        modifier = Modifier
++                            .pullRefresh(refreshState)
++                            .fillMaxSize(),
++                    ) {
+                         PullRefreshIndicator(
+                             refreshing,
+                             refreshState,
+diff --git a/app/src/main/java/com/jerboa/ui/components/person/PersonProfile.kt b/app/src/main/java/com/jerboa/ui/components/person/PersonProfile.kt
+index 18e0ba81..c0c28c62 100644
+--- a/app/src/main/java/com/jerboa/ui/components/person/PersonProfile.kt
++++ b/app/src/main/java/com/jerboa/ui/components/person/PersonProfile.kt
+@@ -28,15 +28,12 @@ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.platform.LocalContext
+ import androidx.compose.ui.res.stringResource
+ import androidx.compose.ui.tooling.preview.Preview
+-import androidx.navigation.NavController
+-import androidx.navigation.compose.rememberNavController
+ import com.jerboa.R
+ import com.jerboa.datatypes.samplePersonView
+ import com.jerboa.datatypes.types.PersonView
+ import com.jerboa.datatypes.types.SortType
+ import com.jerboa.getLocalizedSortingTypeShortName
+ import com.jerboa.personNameShown
+-import com.jerboa.ui.components.common.DefaultBackButton
+ import com.jerboa.ui.components.common.DotSpacer
+ import com.jerboa.ui.components.common.IconAndTextDrawerItem
+ import com.jerboa.ui.components.common.ImageViewerDialog
+@@ -160,7 +157,7 @@ fun PersonProfileHeader(
+     onBlockPersonClick: () -> Unit,
+     onReportPersonClick: () -> Unit,
+     selectedSortType: SortType,
+-    navController: NavController = rememberNavController(),
++    openDrawer: () -> Unit,
+     scrollBehavior: TopAppBarScrollBehavior,
+ ) {
+     var showSortOptions by remember { mutableStateOf(false) }
+@@ -215,7 +212,14 @@ fun PersonProfileHeader(
+                 selectedSortType = selectedSortType,
+             )
+         },
+-        navigationIcon = { DefaultBackButton(navController) },
++        navigationIcon = {
++            IconButton(onClick = openDrawer) {
++                Icon(
++                    Icons.Outlined.Menu,
++                    contentDescription = stringResource(R.string.home_menu),
++                )
++            }
++        },
+         actions = {
+             IconButton(onClick = {
+                 showSortOptions = !showSortOptions
+diff --git a/app/src/main/java/com/jerboa/ui/components/person/PersonProfileActivity.kt b/app/src/main/java/com/jerboa/ui/components/person/PersonProfileActivity.kt
+index c6303086..59c17a02 100644
+--- a/app/src/main/java/com/jerboa/ui/components/person/PersonProfileActivity.kt
++++ b/app/src/main/java/com/jerboa/ui/components/person/PersonProfileActivity.kt
+@@ -101,6 +101,7 @@ fun PersonProfileActivity(
+     useCustomTabs: Boolean,
+     usePrivateTabs: Boolean,
+     blurNSFW: Boolean,
++    drawerState: DrawerState,
+ ) {
+     Log.d("jerboa", "got to person activity")
+ 
+@@ -134,6 +135,12 @@ fun PersonProfileActivity(
+         }
+     }
+ 
++    fun openDrawer() {
++        scope.launch {
++            drawerState.open()
++        }
++    }
++
+     InitializeRoute(personProfileViewModel) {
+         val personId = personArg.fold({ it }, { null })
+         val personName = personArg.fold({ null }, { it })
+@@ -167,7 +174,7 @@ fun PersonProfileActivity(
+                         onClickSortType = {},
+                         onBlockPersonClick = {},
+                         onReportPersonClick = {},
+-                        navController = navController,
++                        openDrawer = ::openDrawer,
+                     )
+                 }
+                 is ApiState.Holder -> {
+@@ -216,7 +223,7 @@ fun PersonProfileActivity(
+                                 navController.toPostReport(id = firstPost.post.id)
+                             }
+                         },
+-                        navController = navController,
++                        openDrawer = ::openDrawer,
+                     )
+                 }
+                 else -> {}
+diff --git a/app/src/main/res/values-da/strings.xml b/app/src/main/res/values-da/strings.xml
+index 49731338..94f36a2e 100644
+--- a/app/src/main/res/values-da/strings.xml
++++ b/app/src/main/res/values-da/strings.xml
+@@ -38,7 +38,6 @@
+     <string name="dialogs_top_week">Populært denne uge</string>
+     <string name="dialogs_top_month">Populært denne måned</string>
+     <string name="dialogs_top_year">Populært i år</string>
+-    <string name="dialogs_top_all_time">Populært gennem tiderne</string>
+     <string name="dialogs_subscribed">Abonneret</string>
+     <string name="dialogs_local">Lokalt</string>
+     <string name="dialogs_all">Alle</string>
+@@ -70,9 +69,6 @@
+     <string name="home_subscribed">Abonneret</string>
+     <string name="home_local">Lokalt</string>
+     <string name="home_all">Alle</string>
+-    <string name="home_saved">Gemt</string>
+-    <string name="home_profile">Profil</string>
+-    <string name="home_inbox">Indbakke</string>
+     <string name="home_settings">Indstillinger</string>
+     <string name="home_subscriptions">Abonnementer</string>
+     <string name="home_add_account">Tilføj konto</string>
+diff --git a/app/src/main/res/values-de/strings.xml b/app/src/main/res/values-de/strings.xml
+index aac01578..47164882 100644
+--- a/app/src/main/res/values-de/strings.xml
++++ b/app/src/main/res/values-de/strings.xml
+@@ -38,7 +38,6 @@
+     <string name="dialogs_top_week">Top der Woche</string>
+     <string name="dialogs_top_month">Top des Monats</string>
+     <string name="dialogs_top_year">Top des Jahres</string>
+-    <string name="dialogs_top_all_time">Top aller Zeiten</string>
+     <string name="dialogs_subscribed">Abonniert</string>
+     <string name="dialogs_local">Lokal</string>
+     <string name="dialogs_all">Alle</string>
+@@ -71,9 +70,6 @@
+     <string name="home_subscribed">Abonniert</string>
+     <string name="home_local">Lokal</string>
+     <string name="home_all">Alle</string>
+-    <string name="home_saved">Gespeichert</string>
+-    <string name="home_profile">Profil</string>
+-    <string name="home_inbox">Posteingang</string>
+     <string name="home_settings">Einstellungen</string>
+     <string name="home_subscriptions">Abonnements</string>
+     <string name="home_add_account">Account hinzufügen</string>
+@@ -257,7 +253,6 @@
+     <string name="sorttype_topall">Top über alles</string>
+     <string name="sorttype_mostcomments">Meiste Kommentare</string>
+     <string name="sorttype_newcomments">Neue Kommentare</string>
+-    <string name="home_communities">Communities</string>
+     <string name="bottomBar_search">Zur Suche springen</string>
+     <string name="bottomBar_label_search">Suche</string>
+     <string name="bottomBar_label_home">Startseite</string>
+diff --git a/app/src/main/res/values-el/strings.xml b/app/src/main/res/values-el/strings.xml
+index 1c6827ed..102f1ce0 100644
+--- a/app/src/main/res/values-el/strings.xml
++++ b/app/src/main/res/values-el/strings.xml
+@@ -124,7 +124,6 @@
+     <string name="dialogs_new_comments">Νέα Σχόλια</string>
+     <string name="dialogs_subscribed">Συνδρομές</string>
+     <string name="dialogs_top">Κορυφαία</string>
+-    <string name="dialogs_top_all_time">Κορυφαία όλων των εποχών</string>
+     <string name="dialogs_top_day">Κορυφαία της Ημέρας</string>
+     <string name="dialogs_top_month">Κορυφαία του Μήνα</string>
+     <string name="dialogs_top_week">Κορυφαία της Εβδομάδας</string>
+@@ -138,14 +137,10 @@
+     <string name="homeHeader_filter">Επιλογή ροής</string>
+     <string name="home_add_account">Προσθήκη Λογαριασμού</string>
+     <string name="home_all">Όλα</string>
+-    <string name="home_communities">Κοινότητες</string>
+-    <string name="home_inbox">Εισερχόμενα</string>
+     <string name="home_local">Τοπικά</string>
+     <string name="home_menu">Μενού</string>
+     <string name="home_post_view_mode">Αλλαγή Τρόπου Εμφάνισης Των Ανάρτησεων</string>
+-    <string name="home_profile">Λογαριασμός</string>
+     <string name="home_refresh">Ανανέωση</string>
+-    <string name="home_saved">Αποθηκευμένα</string>
+     <string name="home_settings">Ρυθμίσεις</string>
+     <string name="home_sign_out">Αποσύνδεση</string>
+     <string name="home_site_info">Πληροφορίες Ιστότοπου</string>
+diff --git a/app/src/main/res/values-es/strings.xml b/app/src/main/res/values-es/strings.xml
+index 06a8241f..7645b053 100644
+--- a/app/src/main/res/values-es/strings.xml
++++ b/app/src/main/res/values-es/strings.xml
+@@ -42,7 +42,6 @@
+     <string name="dialogs_top_week">Mejores de la Semana</string>
+     <string name="dialogs_top_month">Mejores del mes</string>
+     <string name="dialogs_top_year">Mejores del año</string>
+-    <string name="dialogs_top_all_time">Mejores de todo el tiempo</string>
+     <string name="dialogs_subscribed">Suscritos</string>
+     <string name="dialogs_local">Locales</string>
+     <string name="dialogs_all">Todos</string>
+@@ -75,10 +74,6 @@
+     <string name="home_subscribed">Suscrito</string>
+     <string name="home_local">Locales</string>
+     <string name="home_all">Todos</string>
+-    <string name="home_saved">Guardados</string>
+-    <string name="home_communities">Comunidades</string>
+-    <string name="home_profile">Perfil</string>
+-    <string name="home_inbox">Bandeja de entrada</string>
+     <string name="home_settings">Ajustes</string>
+     <string name="home_subscriptions">Suscripciones</string>
+     <string name="home_add_account">Agregar cuenta</string>
+diff --git a/app/src/main/res/values-fr/strings.xml b/app/src/main/res/values-fr/strings.xml
+index 4118a4cf..a3e23fe8 100644
+--- a/app/src/main/res/values-fr/strings.xml
++++ b/app/src/main/res/values-fr/strings.xml
+@@ -35,7 +35,6 @@
+     <string name="dialogs_top_week">Top hebdomadaire</string>
+     <string name="dialogs_top_month">Top mensuel</string>
+     <string name="dialogs_top_year">Top annuel</string>
+-    <string name="dialogs_top_all_time">Top de tous les temps</string>
+     <string name="dialogs_subscribed">Communautés abonnées</string>
+     <string name="dialogs_local">Communautés locales</string>
+     <string name="dialogs_all">Toutes les communautés</string>
+@@ -67,9 +66,6 @@
+     <string name="home_subscribed">Communautés abonnées</string>
+     <string name="home_local">Communautés locales</string>
+     <string name="home_all">Toutes les communautés</string>
+-    <string name="home_saved">Publications/commentaires enregistrés</string>
+-    <string name="home_profile">Profil</string>
+-    <string name="home_inbox">Messages</string>
+     <string name="home_settings">Paramètres</string>
+     <string name="home_subscriptions">Abonnements</string>
+     <string name="home_add_account">Ajouter un compte</string>
+@@ -260,7 +256,6 @@
+     <string name="postListing_reply">Répondre à la publication</string>
+     <string name="privateMessage_reply">Répondre au message</string>
+     <string name="topAppBar_back">Précédent</string>
+-    <string name="home_communities">Abonnements</string>
+     <string name="bottomBar_label_bookmarks">Enregistrés</string>
+     <string name="bottomBar_label_home">Accueil</string>
+     <string name="bottomBar_label_inbox">Messages</string>
+diff --git a/app/src/main/res/values-it/strings.xml b/app/src/main/res/values-it/strings.xml
+index 5bbb2fbe..4f52ef36 100644
+--- a/app/src/main/res/values-it/strings.xml
++++ b/app/src/main/res/values-it/strings.xml
+@@ -115,7 +115,6 @@
+     <string name="dialogs_new_comments">Nuovi commenti</string>
+     <string name="dialogs_subscribed">Iscrizioni</string>
+     <string name="dialogs_top">Top</string>
+-    <string name="dialogs_top_all_time">Top di sempre</string>
+     <string name="dialogs_top_day">Top del giorno</string>
+     <string name="dialogs_top_month">Top del mese</string>
+     <string name="dialogs_top_week">Top della settimana</string>
+@@ -126,14 +125,10 @@
+     <string name="homeHeader_filter">Seleziona filtro</string>
+     <string name="home_add_account">Aggiungi profilo</string>
+     <string name="home_all">Tutti</string>
+-    <string name="home_communities">Comunità</string>
+-    <string name="home_inbox">Posta in arrivo</string>
+     <string name="home_local">Locali</string>
+     <string name="home_menu">Menù</string>
+     <string name="home_post_view_mode">Formato post</string>
+-    <string name="home_profile">Profilo</string>
+     <string name="home_refresh">Aggiorna</string>
+-    <string name="home_saved">Salvati</string>
+     <string name="home_settings">Impostazioni</string>
+     <string name="home_sign_out">Esci</string>
+     <string name="home_site_info">Info istanza</string>
+diff --git a/app/src/main/res/values-ja/strings.xml b/app/src/main/res/values-ja/strings.xml
+index 9b0d663c..fce0f581 100644
+--- a/app/src/main/res/values-ja/strings.xml
++++ b/app/src/main/res/values-ja/strings.xml
+@@ -38,7 +38,6 @@
+     <string name="dialogs_top_week">今週の人気順</string>
+     <string name="dialogs_top_month">今月の人気順</string>
+     <string name="dialogs_top_year">今年の人気順</string>
+-    <string name="dialogs_top_all_time">すべての期間の人気順</string>
+     <string name="dialogs_subscribed">登録済み</string>
+     <string name="dialogs_local">ローカル</string>
+     <string name="dialogs_all">すべて</string>
+@@ -70,10 +69,6 @@
+     <string name="home_subscribed">登録済み</string>
+     <string name="home_local">ローカル</string>
+     <string name="home_all">すべて</string>
+-    <string name="home_saved">保存済み</string>
+-    <string name="home_communities">コミュニティ一覧</string>
+-    <string name="home_profile">ユーザー</string>
+-    <string name="home_inbox">受信トレイ</string>
+     <string name="home_settings">設定</string>
+     <string name="home_subscriptions">登録コミュニティ</string>
+     <string name="home_add_account">アカウントを連携</string>
+diff --git a/app/src/main/res/values-ko/strings.xml b/app/src/main/res/values-ko/strings.xml
+index ece1dfa5..56ad00d1 100644
+--- a/app/src/main/res/values-ko/strings.xml
++++ b/app/src/main/res/values-ko/strings.xml
+@@ -123,7 +123,6 @@
+     <string name="dialogs_new_comments">신규 댓글</string>
+     <string name="dialogs_subscribed">구독함</string>
+     <string name="dialogs_top">최고</string>
+-    <string name="dialogs_top_all_time">전체 최고</string>
+     <string name="dialogs_top_day">일 최고</string>
+     <string name="dialogs_top_month">월 최고</string>
+     <string name="dialogs_top_week">주 최고</string>
+@@ -137,14 +136,10 @@
+     <string name="homeHeader_filter">목록 필터 선택</string>
+     <string name="home_add_account">계정 추가</string>
+     <string name="home_all">전체</string>
+-    <string name="home_communities">커뮤니티</string>
+-    <string name="home_inbox">수신함</string>
+     <string name="home_local">로컬</string>
+     <string name="home_menu">메뉴</string>
+     <string name="home_post_view_mode">게시물 표시 모드</string>
+-    <string name="home_profile">프로필</string>
+     <string name="home_refresh">새로고침</string>
+-    <string name="home_saved">저장됨</string>
+     <string name="home_settings">설정</string>
+     <string name="home_sign_out">로그아웃</string>
+     <string name="home_site_info">사이트 정보</string>
+diff --git a/app/src/main/res/values-nl/strings.xml b/app/src/main/res/values-nl/strings.xml
+index f99dfbbd..8ceb987f 100644
+--- a/app/src/main/res/values-nl/strings.xml
++++ b/app/src/main/res/values-nl/strings.xml
+@@ -54,7 +54,6 @@
+     <string name="dialogs_top_week">Top Week</string>
+     <string name="dialogs_top_month">Top Maand</string>
+     <string name="dialogs_top_year">Top Jaar</string>
+-    <string name="dialogs_top_all_time">Top Aller Tijden</string>
+     <string name="dialogs_subscribed">Geabonneerd</string>
+     <string name="dialogs_local">Lokaal</string>
+     <string name="dialogs_all">Alles</string>
+@@ -93,10 +92,6 @@
+     <string name="home_subscribed">Geabonneerd</string>
+     <string name="home_local">Lokaal</string>
+     <string name="home_all">Alle</string>
+-    <string name="home_saved">Opgeslagen</string>
+-    <string name="home_profile">Profiel</string>
+-    <string name="home_communities">Communities</string>
+-    <string name="home_inbox">Inbox</string>
+     <string name="home_settings">Instellingen</string>
+     <string name="home_subscriptions">Abonnementen</string>
+     <string name="floating_createPost">Maak bericht</string>
+diff --git a/app/src/main/res/values-pl/strings.xml b/app/src/main/res/values-pl/strings.xml
+index 0664dbf1..3d39860d 100644
+--- a/app/src/main/res/values-pl/strings.xml
++++ b/app/src/main/res/values-pl/strings.xml
+@@ -38,7 +38,6 @@
+     <string name="dialogs_top_week">Top Tygodnia</string>
+     <string name="dialogs_top_month">Top Miesiąca</string>
+     <string name="dialogs_top_year">Top Roku</string>
+-    <string name="dialogs_top_all_time">Top Wszechczasów</string>
+     <string name="dialogs_subscribed">Zasubskrybowano</string>
+     <string name="dialogs_local">Lokalne</string>
+     <string name="dialogs_all">Wszystkie</string>
+@@ -70,10 +69,6 @@
+     <string name="home_subscribed">Zasubskrybowano</string>
+     <string name="home_local">Lokalne</string>
+     <string name="home_all">Wszystkie</string>
+-    <string name="home_saved">Zapisane</string>
+-    <string name="home_communities">Społeczności</string>
+-    <string name="home_profile">Profil</string>
+-    <string name="home_inbox">Skrzynka Odbiorcza</string>
+     <string name="home_settings">Ustawienia</string>
+     <string name="home_subscriptions">Subskrypcje</string>
+     <string name="home_add_account">Dodaj Konto</string>
+diff --git a/app/src/main/res/values-pt-rBR/strings.xml b/app/src/main/res/values-pt-rBR/strings.xml
+index f252a232..4f1ef5d2 100644
+--- a/app/src/main/res/values-pt-rBR/strings.xml
++++ b/app/src/main/res/values-pt-rBR/strings.xml
+@@ -35,7 +35,6 @@
+     <string name="dialogs_top_week">Melhor da Semana</string>
+     <string name="dialogs_top_month">Melhor do Mês</string>
+     <string name="dialogs_top_year">Melhor do Ano</string>
+-    <string name="dialogs_top_all_time">Melhor de Sempre</string>
+     <string name="dialogs_subscribed">Participando</string>
+     <string name="dialogs_local">Local</string>
+     <string name="dialogs_all">Tudo</string>
+@@ -67,9 +66,6 @@
+     <string name="home_subscribed">Participando</string>
+     <string name="home_local">Local</string>
+     <string name="home_all">Tudo</string>
+-    <string name="home_saved">Guardado</string>
+-    <string name="home_profile">Perfil</string>
+-    <string name="home_inbox">Caixa de Entrada</string>
+     <string name="home_settings">Configurações</string>
+     <string name="home_subscriptions">Participa das Comunidades</string>
+     <string name="home_add_account">Adicionar Conta</string>
+diff --git a/app/src/main/res/values-ru/strings.xml b/app/src/main/res/values-ru/strings.xml
+index ac140828..f74d50ea 100644
+--- a/app/src/main/res/values-ru/strings.xml
++++ b/app/src/main/res/values-ru/strings.xml
+@@ -55,7 +55,6 @@
+     <string name="dialogs_new_comments">Недавно прокомментированное</string>
+     <string name="dialogs_subscribed">Подписки</string>
+     <string name="dialogs_top">Лучшее</string>
+-    <string name="dialogs_top_all_time">Лучшее за все время</string>
+     <string name="dialogs_top_day">Лучшее за день</string>
+     <string name="dialogs_top_month">Лучшее за месяц</string>
+     <string name="dialogs_top_week">Лучшее за неделю</string>
+@@ -67,14 +66,10 @@
+     <string name="homeHeader_filter">Выберите фильтр постов</string>
+     <string name="home_add_account">Добавить аккаунт</string>
+     <string name="home_all">Все посты</string>
+-    <string name="home_communities">Сообщества</string>
+-    <string name="home_inbox">Сообщения</string>
+     <string name="home_local">Локальные посты</string>
+     <string name="home_menu">Меню</string>
+     <string name="home_post_view_mode">Режим отображения постов</string>
+-    <string name="home_profile">Профиль</string>
+     <string name="home_refresh">Обновить</string>
+-    <string name="home_saved">Закладки</string>
+     <string name="home_settings">Настройки</string>
+     <string name="home_sign_out">Выйти</string>
+     <string name="home_site_info">Информация о сайте</string>
+diff --git a/app/src/main/res/values-se/strings.xml b/app/src/main/res/values-se/strings.xml
+index 05f2e2f3..dc38e7b2 100644
+--- a/app/src/main/res/values-se/strings.xml
++++ b/app/src/main/res/values-se/strings.xml
+@@ -38,7 +38,6 @@
+     <string name="dialogs_top_week">Poppis i veckan</string>
+     <string name="dialogs_top_month">Poppis den här månaden</string>
+     <string name="dialogs_top_year">Poppis i år</string>
+-    <string name="dialogs_top_all_time">Poppis genom tiderna</string>
+     <string name="dialogs_subscribed">Prenumererade</string>
+     <string name="dialogs_local">Lokala</string>
+     <string name="dialogs_all">Samtliga</string>
+@@ -70,9 +69,6 @@
+     <string name="home_subscribed">Prenumererade</string>
+     <string name="home_local">Lokala</string>
+     <string name="home_all">Samtliga</string>
+-    <string name="home_saved">Sparade</string>
+-    <string name="home_profile">Profil</string>
+-    <string name="home_inbox">Inkorg</string>
+     <string name="home_settings">Inställningar</string>
+     <string name="home_subscriptions">Prenumerationer</string>
+     <string name="home_add_account">Lägg till konto</string>
+diff --git a/app/src/main/res/values-uk/strings.xml b/app/src/main/res/values-uk/strings.xml
+index 6ced062e..88a73b28 100644
+--- a/app/src/main/res/values-uk/strings.xml
++++ b/app/src/main/res/values-uk/strings.xml
+@@ -124,7 +124,6 @@
+     <string name="dialogs_new_comments">Нові коментарі</string>
+     <string name="dialogs_subscribed">Підписки</string>
+     <string name="dialogs_top">Нагору</string>
+-    <string name="dialogs_top_all_time">Найкраще за весь час</string>
+     <string name="dialogs_top_day">Найкраще за день</string>
+     <string name="dialogs_top_month">Найкраще за місяць</string>
+     <string name="dialogs_top_week">Найкраще за тиждень</string>
+@@ -138,14 +137,10 @@
+     <string name="homeHeader_filter">Вибрати канал</string>
+     <string name="home_add_account">Додати обліковий запис</string>
+     <string name="home_all">Усі</string>
+-    <string name="home_communities">Спільноти</string>
+-    <string name="home_inbox">Вхідні</string>
+     <string name="home_local">Місцеві</string>
+     <string name="home_menu">Меню</string>
+     <string name="home_post_view_mode">Режим перегляду допису</string>
+-    <string name="home_profile">Профіль</string>
+     <string name="home_refresh">Оновити</string>
+-    <string name="home_saved">Збережено</string>
+     <string name="home_settings">Налаштування</string>
+     <string name="home_sign_out">Вийти</string>
+     <string name="home_site_info">Відомості про сайт</string>
+diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
+index ef1b6017..a12e085a 100644
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -124,7 +124,6 @@
+     <string name="dialogs_new_comments">New Comments</string>
+     <string name="dialogs_subscribed">Subscribed</string>
+     <string name="dialogs_top">Top</string>
+-    <string name="dialogs_top_all_time">Top All Time</string>
+     <string name="dialogs_top_day">Top Day</string>
+     <string name="dialogs_top_month">Top Month</string>
+     <string name="dialogs_top_week">Top Week</string>
+@@ -138,14 +137,10 @@
+     <string name="homeHeader_filter">Select feed</string>
+     <string name="home_add_account">Add Account</string>
+     <string name="home_all">All</string>
+-    <string name="home_communities">Communities</string>
+-    <string name="home_inbox">Inbox</string>
+     <string name="home_local">Local</string>
+     <string name="home_menu">Menu</string>
+     <string name="home_post_view_mode">Post View Mode</string>
+-    <string name="home_profile">Profile</string>
+     <string name="home_refresh">Refresh</string>
+-    <string name="home_saved">Saved</string>
+     <string name="home_settings">Settings</string>
+     <string name="home_sign_out">Sign Out</string>
+     <string name="home_site_info">Site Info</string>
+

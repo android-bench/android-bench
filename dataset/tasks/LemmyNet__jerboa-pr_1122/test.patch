@@ -1,0 +1,395 @@
+Subject: [PATCH] show score test4
+---
+Index: app/src/androidTest/java/com/jerboa/ScoreVisibilityTest.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/androidTest/java/com/jerboa/ScoreVisibilityTest.kt b/app/src/androidTest/java/com/jerboa/ScoreVisibilityTest.kt
+new file mode 100644
+--- /dev/null	(date 1769414780546)
++++ b/app/src/androidTest/java/com/jerboa/ScoreVisibilityTest.kt	(date 1769414780546)
+@@ -0,0 +1,131 @@
++package com.jerboa
++
++import androidx.compose.ui.test.*
++import androidx.compose.ui.test.junit4.createAndroidComposeRule
++import androidx.test.ext.junit.runners.AndroidJUnit4
++import com.jerboa.FakeAPI.Companion.sampleCommentScore
++import com.jerboa.FakeAPI.Companion.sampleInboxScore
++import com.jerboa.FakeAPI.Companion.samplePostViewCounts
++import com.jerboa.FakeAPI.Companion.testPost
++import com.jerboa.api.API
++import com.jerboa.api.DEFAULT_INSTANCE
++import com.jerboa.db.AppDB
++import com.jerboa.db.entity.Account
++import kotlinx.coroutines.runBlocking
++import org.junit.After
++import org.junit.Before
++import org.junit.Rule
++import org.junit.Test
++import org.junit.runner.RunWith
++
++
++@RunWith(AndroidJUnit4::class)
++class ScoreVisibilityTest {
++
++    private val testUser = "Tester"
++
++    @get:Rule
++    val composeTestRule = createAndroidComposeRule<MainActivity>()
++
++    private val fakeApi = FakeAPI()
++
++    @Before
++    fun setup() {
++        API.mockApi = fakeApi
++
++        val context = composeTestRule.activity.applicationContext
++        val db = AppDB.getDatabase(context)
++
++        runBlocking {
++            db.accountDao().insert(
++                Account(
++                    id = 1, current = true, instance = DEFAULT_INSTANCE, name = testUser,
++                    jwt = "jwt", defaultListingType = 0, defaultSortType = 0,
++                    verificationState = 8 // CHECKS_COMPLETE, we "trick" the app into believing the account has already passed all security checks
++                    // AccountVerificationState.CHECKS_COMPLETE
++                )
++            )
++        }
++    }
++
++    @After
++    fun tearDown() {
++        API.mockApi = null
++    }
++
++    @Test
++    fun testTogglingShowScoresHidesScoresOnHomeCommentsInbox() {
++
++        val doneText = composeTestRule.activity.getString(R.string.dialogs_done)
++        composeTestRule.onAllNodesWithText(doneText, ignoreCase = true).apply {
++            if (fetchSemanticsNodes().isNotEmpty()) onFirst().performClick()
++        }
++
++        val inboxLabel = composeTestRule.activity.getString(R.string.bottomBar_label_inbox)
++        composeTestRule.onNodeWithText(inboxLabel).performClick()
++        composeTestRule.waitForIdle()
++        composeTestRule.onAllNodesWithText(sampleInboxScore.toString())
++            .onFirst()
++            .assertIsDisplayed()
++
++        val homeLabel = composeTestRule.activity.getString(R.string.bottomBar_label_home)
++        composeTestRule.onNodeWithText(homeLabel).performClick()
++        composeTestRule.waitForIdle()
++        composeTestRule.onAllNodesWithText(samplePostViewCounts.toString())
++            .onFirst()
++            .assertIsDisplayed()
++
++        composeTestRule.onAllNodesWithText(testPost, substring = true).onFirst()
++            .performClick()
++        composeTestRule.waitForIdle()
++        composeTestRule.onAllNodesWithText(sampleCommentScore.toString())
++            .onFirst()
++            .assertIsDisplayed()
++
++        composeTestRule.onNodeWithTag("jerboa:back").performClick()
++
++        composeTestRule.onRoot().performTouchInput { swipeRight() }
++        val settingsText = composeTestRule.activity.getString(R.string.home_settings)
++        composeTestRule.onNodeWithText(settingsText).performClick()
++
++        composeTestRule.waitForIdle()
++
++        composeTestRule.onNodeWithText(
++            "$testUser ${composeTestRule.activity.getString(R.string.settings_activity_settings)}",
++            ignoreCase = true
++        ).performClick()
++
++        val toggle = composeTestRule.onNodeWithText(
++            composeTestRule.activity.getString(R.string.account_settings_show_scores),
++            ignoreCase = true
++        )
++        toggle.performScrollTo()
++        toggle.performClick()
++        composeTestRule.waitForIdle()
++
++        // Important: save before going back.
++        val saveSettings = composeTestRule.onNodeWithText(
++            composeTestRule.activity.getString(R.string.account_settings_save_settings),
++            ignoreCase = true
++        )
++        saveSettings.performScrollTo().performClick()
++
++        composeTestRule.onNodeWithTag("jerboa:back").performClick()
++        composeTestRule.onNodeWithTag("jerboa:back").performClick()
++
++        composeTestRule.waitForIdle()
++
++        composeTestRule.onNodeWithText(inboxLabel).performClick()
++        composeTestRule.waitForIdle()
++        composeTestRule.onAllNodesWithText(sampleInboxScore.toString()).assertCountEquals(0)
++
++        composeTestRule.onNodeWithText(homeLabel).performClick()
++        composeTestRule.waitForIdle()
++        composeTestRule.onAllNodesWithText(samplePostViewCounts.toString()).assertCountEquals(0)
++
++        composeTestRule.onAllNodesWithText(testPost, substring = true).onFirst()
++            .performClick()
++        composeTestRule.waitForIdle()
++        composeTestRule.onAllNodesWithText(sampleCommentScore.toString()).assertCountEquals(0)
++    }
++}
+Index: app/src/androidTest/java/com/jerboa/FakeAPI.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/androidTest/java/com/jerboa/FakeAPI.kt b/app/src/androidTest/java/com/jerboa/FakeAPI.kt
+new file mode 100644
+--- /dev/null	(date 1769411105504)
++++ b/app/src/androidTest/java/com/jerboa/FakeAPI.kt	(date 1769411105504)
+@@ -0,0 +1,211 @@
++package com.jerboa
++
++import com.jerboa.api.API
++import com.jerboa.datatypes.*
++import com.jerboa.datatypes.types.*
++import okhttp3.MultipartBody
++import retrofit2.Response
++
++class FakeAPI : API {
++    var showScoresServerSide = true
++
++    companion object {
++        const val samplePostViewCounts = 888
++        const val sampleCommentScore = 77
++        const val sampleInboxScore = 6
++        const val versionLemy = "0.18.0"
++        const val testPost = "Test post"
++    }
++
++    override suspend fun getSite(form: Map<String, String>): Response<GetSiteResponse> {
++        val mockUser = MyUserInfo(
++            local_user_view = LocalUserView(
++                local_user = LocalUser(
++                    id = 1,
++                    person_id = 1,
++                    show_nsfw = true,
++                    theme = "dark",
++                    default_sort_type = SortType.Active,
++                    default_listing_type = ListingType.All,
++                    interface_language = "en",
++                    show_avatars = true,
++                    send_notifications_to_email = false,
++                    validator_time = "",
++                    show_scores = showScoresServerSide, // Respect the internal state
++                    show_bot_accounts = true,
++                    show_read_posts = true,
++                    show_new_post_notifs = true,
++                    email_verified = true,
++                    accepted_application = true
++                ),
++                person = samplePerson,
++                counts = samplePersonAggregates
++            ),
++            follows = emptyList(), moderates = emptyList(), community_blocks = emptyList(),
++            person_blocks = emptyList(), discussion_languages = emptyList()
++        )
++
++        return Response.success(
++            GetSiteResponse(
++                site_view = sampleSiteView,
++                admins = emptyList(),
++                version = versionLemy,
++                my_user = mockUser,
++                all_languages = emptyList(),
++                discussion_languages = emptyList(),
++                taglines = emptyList(),
++                custom_emojis = emptyList()
++            )
++        )
++    }
++
++    override suspend fun saveUserSettings(form: SaveUserSettings): Response<LoginResponse> {
++        form.show_scores?.let { showScoresServerSide = it }
++        return Response.success(
++            LoginResponse(
++                jwt = "jwt",
++                registration_created = false,
++                verify_email_sent = false
++            )
++        )
++    }
++
++    override suspend fun getPost(form: Map<String, String>) = Response.success(
++        GetPostResponse(
++            samplePostView,
++            sampleCommunityView,
++            emptyList(),
++            emptyList()
++        )
++    )
++
++    override suspend fun getPosts(form: Map<String, String>): Response<GetPostsResponse> {
++        val page = form["page"]?.toInt() ?: 1
++        val post = samplePostView.copy(
++            post = samplePostView.post.copy(id = 99 * page, name = testPost),
++            counts = samplePostView.counts.copy(score = samplePostViewCounts)
++        )
++        return Response.success(GetPostsResponse(posts = listOf(post)))
++    }
++
++    override suspend fun getComments(form: Map<String, String>): Response<GetCommentsResponse> {
++        val page = form["page"]?.toInt() ?: 1
++        val comment = sampleCommentView.copy(
++            comment = sampleCommentView.comment.copy(id = 101 * page),
++            counts = sampleCommentView.counts.copy(score = sampleCommentScore)
++        )
++        return Response.success(GetCommentsResponse(comments = listOf(comment)))
++    }
++
++    override suspend fun getReplies(form: Map<String, String>): Response<GetRepliesResponse> {
++        val page = form["page"]?.toInt() ?: 1
++        val id = 1000 + page
++        val reply = sampleCommentReplyView.copy(
++            comment_reply = sampleCommentReplyView.comment_reply.copy(id = id),
++            counts = sampleCommentReplyView.counts.copy(score = sampleInboxScore)
++        )
++        return Response.success(GetRepliesResponse(replies = listOf(reply)))
++    }
++
++    override suspend fun getPersonMentions(form: Map<String, String>): Response<GetPersonMentionsResponse> {
++        val page = form["page"]?.toInt() ?: 1
++        val id = 2000 + page
++        val mention = samplePersonMentionView.copy(
++            person_mention = samplePersonMentionView.person_mention.copy(id = id),
++            counts = samplePersonMentionView.counts.copy(score = sampleInboxScore)
++        )
++        return Response.success(GetPersonMentionsResponse(mentions = listOf(mention)))
++    }
++
++    override suspend fun uploadImage(
++        url: String,
++        token: String,
++        filePart: MultipartBody.Part
++    ): Response<PictrsImages> {
++        TODO("Not yet implemented")
++    }
++
++    override suspend fun getCommunity(form: Map<String, String>): Response<GetCommunityResponse> {
++        TODO("Not yet implemented")
++    }
++
++    override suspend fun login(form: Login): Response<LoginResponse> = TODO()
++    override suspend fun likePost(form: CreatePostLike) =
++        Response.success(PostResponse(samplePostView))
++
++    override suspend fun likeComment(form: CreateCommentLike) =
++        Response.success(CommentResponse(sampleCommentView, emptyList()))
++
++    override suspend fun createComment(form: CreateComment) =
++        Response.success(CommentResponse(sampleCommentView, emptyList()))
++
++    override suspend fun editComment(form: EditComment) =
++        Response.success(CommentResponse(sampleCommentView, emptyList()))
++
++    override suspend fun deleteComment(form: DeleteComment) =
++        Response.success(CommentResponse(sampleCommentView, emptyList()))
++
++    override suspend fun savePost(form: SavePost) = Response.success(PostResponse(samplePostView))
++    override suspend fun saveComment(form: SaveComment) =
++        Response.success(CommentResponse(sampleCommentView, emptyList()))
++
++    override suspend fun getPersonDetails(form: Map<String, String>) = Response.success(
++        GetPersonDetailsResponse(
++            samplePersonView,
++            emptyList(),
++            emptyList(),
++            emptyList()
++        )
++    )
++
++    override suspend fun markCommentReplyAsRead(form: MarkCommentReplyAsRead) =
++        Response.success(CommentReplyResponse(sampleCommentReplyView))
++
++    override suspend fun markPersonMentionAsRead(form: MarkPersonMentionAsRead) =
++        Response.success(PersonMentionResponse(samplePersonMentionView))
++
++    override suspend fun markPrivateMessageAsRead(form: MarkPrivateMessageAsRead) =
++        Response.success(PrivateMessageResponse(samplePrivateMessageView))
++
++    override suspend fun markAllAsRead(form: MarkAllAsRead) =
++        Response.success(GetRepliesResponse(emptyList()))
++
++    override suspend fun getPrivateMessages(form: Map<String, String>) =
++        Response.success(PrivateMessagesResponse(emptyList()))
++
++    override suspend fun createPrivateMessage(form: CreatePrivateMessage) =
++        Response.success(PrivateMessageResponse(samplePrivateMessageView))
++
++    override suspend fun getUnreadCount(form: Map<String, String>) =
++        Response.success(GetUnreadCountResponse(0, 0, 0))
++
++    override suspend fun followCommunity(form: FollowCommunity) =
++        Response.success(CommunityResponse(sampleCommunityView, emptyList()))
++
++    override suspend fun createPost(form: CreatePost): Response<PostResponse> {
++        TODO()
++    }
++
++    override suspend fun editPost(form: EditPost) = Response.success(PostResponse(samplePostView))
++    override suspend fun deletePost(form: DeletePost) =
++        Response.success(PostResponse(samplePostView))
++
++    override suspend fun search(form: Map<String, String>): Response<SearchResponse> {
++        TODO()
++    }
++
++    override suspend fun getSiteMetadata(form: Map<String, String>) =
++        Response.success(GetSiteMetadataResponse(SiteMetadata()))
++
++    override suspend fun createCommentReport(form: CreateCommentReport): Response<CommentReportResponse> =
++        TODO()
++
++    override suspend fun createPostReport(form: CreatePostReport): Response<PostReportResponse> =
++        TODO()
++
++    override suspend fun blockPerson(form: BlockPerson) =
++        Response.success(BlockPersonResponse(samplePersonView, true))
++
++    override suspend fun blockCommunity(form: BlockCommunity) =
++        Response.success(BlockCommunityResponse(sampleCommunityView, true))
++}
+Index: app/src/main/java/com/jerboa/api/Http.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/main/java/com/jerboa/api/Http.kt b/app/src/main/java/com/jerboa/api/Http.kt
+--- a/app/src/main/java/com/jerboa/api/Http.kt	(revision 1caa9f8077c550190e70e89909387f5ebd909d8d)
++++ b/app/src/main/java/com/jerboa/api/Http.kt	(date 1769409794629)
+@@ -246,6 +246,7 @@
+ 
+     companion object {
+         private var api: API? = null
++        var mockApi: API? = null
+         var errorHandler: (Exception) -> Exception? = { it }
+ 
+         var currentInstance: String = DEFAULT_INSTANCE
+@@ -272,12 +273,14 @@
+         }
+ 
+         fun changeLemmyInstance(instance: String): API {
++            if (mockApi != null) return mockApi!!
+             currentInstance = instance
+             api = buildApi(buildUrl())
+             return api!!
+         }
+ 
+         fun getInstance(): API {
++            if (mockApi != null) return mockApi!!
+             if (api == null) {
+                 api = buildApi(buildUrl())
+             }
