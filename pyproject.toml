@@ -71,6 +71,7 @@ task_validator = "utils.task_validator.validate_task:main"
 test = "pytest:main"
 dataset = "utils.explorer.commands:app"
 prebuild_checks = "utils.docker.prebuild:main"
+results = "results.generate_task_html:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

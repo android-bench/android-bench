@@ -170,6 +170,7 @@ def score_patches(
         if not tasks:
             logger.error(f"Task with key {task_key} not found.")
             return
+        all_instance_ids = {task_key}
 
     score_out_path = run_dir / f"{start_index}_to_{end_index-1}_{output_file}"
     os.makedirs(score_out_path.parent, exist_ok=True)
@@ -325,9 +326,8 @@ def score_patches(
             )
 
             # Write updated scores to file after each completion, sorted by instance_id
-            if not task_key:
-                _write_scores_to_file(scores, score_out_path)
-                logger.info(f"Scores written to {score_out_path}")
+            _write_scores_to_file(scores, score_out_path)
+            logger.info(f"Scores written to {score_out_path}")
 
 
 def main(

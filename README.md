@@ -17,9 +17,11 @@ The repository provides the tooling to evaluate a model's ability to act as an A
 - Python 3.14+
 - [uv](https://docs.astral.sh/uv/) (Fast Python package installer)
 - Docker
+- API keys for the models to benchmark
+
+> Note that using local images (v1 limitation) is **disk and memory intensive**, with base, repo, and task imags sometimes requiring +40GB of free space *each*.
 
 ## Setup
-
 ```bash
 git clone https://github.com/android-bench/android-bench.git
 cd android-bench
@@ -101,6 +103,14 @@ This project uses `pytest` for unit and integration testing. Run the CI test sui
 pytest --log-cli-level=INFO --verbose
 ```
 > You must have a Gemini API key configured for the test suite to pass.
+
+## Visualize Results
+To visualize the results, you can use the HTML summary, generated with the following command:
+
+```bash
+results --input-dir our
+```
+> Remember to change the input-dir to the directory of your choice if you decide to store the results elsewhere.
 
 ## Detailed Documentation
 For more comprehensive guides and architectural details, refer to the following resources:
