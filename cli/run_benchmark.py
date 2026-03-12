@@ -35,7 +35,7 @@ def main():
         "--tasks-filter",
         "--tasks_filter",
         type=str,
-        default="dataset/tasks/verified_tasks.yaml",
+        default="dataset/tasks/v1_tasks.yaml",
         help="YAML file of tasks to filter run",
     )
     parser.add_argument(
