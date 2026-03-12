@@ -13,7 +13,7 @@ python utils/explorer/generate_task_summary.py
 Then, launch the interactive explorer:
 
 ```bash
-uv run dataset
+./android-bench.sh dataset
 ```
 
 ## Interactive Explore Wizard
@@ -37,10 +37,10 @@ Displays tasks in an enriched table view with advanced filtering.
 
 ```bash
 # Filter by complexity and show expanded metadata
-uv run dataset browse --estimate high --expanded
+./android-bench.sh dataset browse --estimate high --expanded
 
 # Search for specific keywords in Task IDs or summaries
-uv run dataset browse --search "Deep link"
+./android-bench.sh dataset browse --search "Deep link"
 ```
 
 **Key Options:**
@@ -54,7 +54,7 @@ uv run dataset browse --search "Deep link"
 Provides a deep dive into a specific task's requirements and environment.
 
 ```bash
-uv run dataset inspect <task_id>
+./android-bench.sh dataset inspect <task_id>
 ```
 
 **Features:**
