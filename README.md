@@ -51,6 +51,9 @@ If you run into authentication issues, we recommend you check their [troubleshoo
 
 ## Usage
 
+### Dockerized CLI
+Android Bench now uses a containerized execution environment. All commands should be run through the `./android-bench.sh` wrapper script, which transparently executes them inside an isolated Docker container containing all necessary dependencies.
+
 ### Workflow Overview
 The benchmarking process has two stages:
 1.  **Inference (Agent)**: The agent reads the issue description and generates a code patch.
@@ -119,13 +122,24 @@ We host the evaluation results, including trajectories and generated patches use
 >
 > ```bash
 > # Downloads and extracts gemini-3.1-pro-preview to results/v1_20260305/gemini-3.1-pro-preview
-> download_results --models gemini-3.1-pro-preview --dir results/v1_20260305
+> ./android-bench.sh download_results --models gemini-3.1-pro-preview --dir results/v1_20260305
 > ```
 
 Once decompressed, you can generate the HTML summary for any of the leaderboard models using the `results` script:
 
 ```bash
-results --input-dir results/v1_20260305/gemini-3.1-pro-preview
+./android-bench.sh results --input-dir results/v1_20260305/gemini-3.1-pro-preview
+```
+
+## Cleaning Up Resources
+Android Bench generates several Docker images during execution which can consume significant disk space. You can use the `cleanup` command to free up resources:
+
+```bash
+# Remove only task-specific images and stopped containers
+./android-bench.sh cleanup
+
+# Remove ALL images (including base environment images) and prune build cache
+./android-bench.sh cleanup --all
 ```
 
 ## Detailed Documentation
