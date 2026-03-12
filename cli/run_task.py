@@ -55,7 +55,11 @@ def main():
 
     args = parser.parse_args()
 
-    username = os.getlogin()
+    try:
+        username = os.getlogin()
+    except OSError:
+        import pwd
+        username = pwd.getpwuid(os.getuid()).pw_name
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
     if "/" in args.model:
