@@ -29,7 +29,7 @@ def load_all_tasks(
         filter_tasks: Path to a filtering file containing array of instance_ids. If the path is prefixed
             with '!', the filter is negated, meaning tasks in the file will be excluded.
 
-    To call the negation filter from shell, you need to wrap the argument, for example:  --tasks-filter '!./tasks/verified_tasks.yaml'
+    To call the negation filter from shell, you need to wrap the argument, for example:  --tasks-filter '!./tasks/v1_tasks.yaml'
 
     Returns:
         List of Task objects sorted by instance_id.
