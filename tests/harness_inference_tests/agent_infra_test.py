@@ -269,4 +269,3 @@ def test_sanitize_model_name():
     )
     assert sanitize_model_name_for_path("openai/gpt-4") == "openai-gpt-4"
     assert sanitize_model_name_for_path("model") == "model"
-
