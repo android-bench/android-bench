@@ -35,7 +35,7 @@ uv run setup_env
 ```
 
 The `setup_env` takes care of the following:
-1.  Ensuring all dependencies are installed.
+1.  Installs all dependencies.
 2.  Configures the oracle agent with golden patches for testing.
 3.  Generates the `summary.json` for the dataset explorer.
 4.  Detects your host architecture (x86/AMD64 or ARM64) and builds the Docker images or exits gracefully if incompatible.
@@ -105,12 +105,34 @@ pytest --log-cli-level=INFO --verbose
 > You must have a Gemini API key configured for the test suite to pass.
 
 ## Visualize Results
-To visualize the results, you can use the HTML summary, generated with the following command:
+To visualize the results, you can generate an HTML summary which can help you understand what were the scores, see the patches, trajectories, and variations between multiple runs where available. 
+
+Generate the HTML summary with the following command:
 
 ```bash
-results --input-dir our
+results --input-dir out
 ```
 > Remember to change the input-dir to the directory of your choice if you decide to store the results elsewhere.
+
+### Reviewing the results used in the current Leaderboard
+If you'd like to deep-dive on the runs used for the current leaderboard, you must access the official release assets.
+
+We host the evaluation results, including trajectories and generated patches used to compute the leaderboard scores, via GitHub Releases on this repository. Due to GitHub's individual asset limits, we compress and split files exceeding 2GB into chunks.
+
+> [!IMPORTANT]
+> **To access and analyze the leaderboard results:**
+> Run the built-in downloader to automatically fetch and extract the results for the models you're interested in:
+>
+> ```bash
+> # Downloads and extracts gemini-3.1-pro-preview to results/v1_20260305/gemini-3.1-pro-preview
+> download_results --models gemini-3.1-pro-preview --dir results/v1_20260305
+> ```
+
+Once decompressed, you can generate the HTML summary for any of the leaderboard models using the `results` script:
+
+```bash
+results --input-dir results/v1_20260305/gemini-3.1-pro-preview
+```
 
 ## Detailed Documentation
 For more comprehensive guides and architectural details, refer to the following resources:

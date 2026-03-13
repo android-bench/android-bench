@@ -72,6 +72,7 @@ test = "pytest:main"
 dataset = "utils.explorer.commands:app"
 prebuild_checks = "utils.docker.prebuild:main"
 results = "results.generate_task_html:main"
+download_results = "utils.download_results:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
