@@ -25,7 +25,6 @@ category_ids:
 - compose
 - android-apis
 - material
-- AUTOMATIC
 app_category: Social
 task_type: feature
 description: |-

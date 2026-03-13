@@ -24,8 +24,6 @@ modified_at: '2025-11-19T22:04:52.816957Z'
 category_ids:
 - compose
 - kmp
-- performance
-- sysUI-edgeToEdge
 app_category: Library
 task_type: bugfix
 description: |-

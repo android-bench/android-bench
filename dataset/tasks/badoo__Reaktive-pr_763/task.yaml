@@ -23,7 +23,6 @@ modified_at: '2025-12-05T16:16:42.991339Z'
 category_ids:
 - kmp
 - buildGradle
-- AUTOMATIC
 app_category: Library
 task_type: feature
 description: |-

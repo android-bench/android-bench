@@ -23,7 +23,6 @@ created_at: '2025-11-17T09:41:26.251334Z'
 modified_at: '2025-11-26T15:36:38.568645Z'
 category_ids:
 - android-apis
-- securityPrivacy
 app_category: Social
 task_type: bugfix
 description: |-

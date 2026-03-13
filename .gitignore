@@ -117,7 +117,7 @@ instance/
 .DS_Store
 
 dataset/*.jsonl
-
+!harness/inference/vendor/evergreen.json
 !gob_tools/pull_request_filter/*.json
 !tests/harness_evaluation_integration_test/data/*.json
 !tests/harness_evaluation_integration_test/data/out/

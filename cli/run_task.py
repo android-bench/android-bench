@@ -58,10 +58,7 @@ def main():
     username = os.getlogin()
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
-    if "/" in args.model:
-        model_name = args.model.split("/")[1]
-    else:
-        model_name = args.model
+    model_name = args.model.replace("://", "_").replace("/", "_")
 
     # Mimic run_benchmark.py run name generation
     run_name = f"{username}_{timestamp}_{model_name}_run_1"

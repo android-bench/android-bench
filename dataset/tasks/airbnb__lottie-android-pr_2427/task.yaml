@@ -22,7 +22,7 @@ repository:
 created_at: '2025-09-19T21:52:17.485903Z'
 modified_at: '2025-11-19T22:04:52.816957Z'
 category_ids:
-- performance
+- animation
 app_category: Library
 task_type: bugfix
 description: |-

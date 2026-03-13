@@ -24,9 +24,7 @@ modified_at: '2025-11-14T17:08:40.807000Z'
 category_ids:
 - android-apis
 - androidSdkUpdates
-- material
 - permissions
-- securityPrivacy
 app_category: News & Magazines
 task_type: bugfix
 description: |-
