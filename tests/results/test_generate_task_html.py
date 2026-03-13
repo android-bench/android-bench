@@ -341,7 +341,7 @@ class TestGenerateTaskData:
         golden_dir.mkdir()
 
         runs = discover_model_runs(tmp_path)
-        task_data = generate_task_data("instance-1", runs, tasks_dir, bq_data={})
+        task_data = generate_task_data("instance-1", runs, tasks_dir)
 
         assert len(task_data["model_results"]) == 2
         assert task_data["model_results"][0]["display_name"] == "model-a (run 1)"

@@ -62,7 +62,6 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from google.cloud import bigquery
 from common.constants import CONFIG_PROPERTIES_FILE, ROOT_DIR
 
 
@@ -114,12 +113,6 @@ def parse_args() -> argparse.Namespace:
         type=str,
         default=None,
         help="Generate HTML for a single task instance ID only",
-    )
-    parser.add_argument(
-        "--upload",
-        nargs="?",
-        const=True,
-        help="Upload the output directory to the summary folder. Optionally specify a folder name.",
     )
     parser.add_argument(
         "--reviews",
@@ -204,6 +197,24 @@ def load_patch(patch_path: Path, trim_binary: bool = True) -> str | None:
     if content and trim_binary:
         return trim_binary_diffs(content)
     return content
+
+
+def calculate_loc_from_patch(patch_content: str | None) -> dict[str, int]:
+    """Calculate lines of code added and deleted from patch content."""
+    additions = 0
+    deletions = 0
+    if not patch_content:
+        return {"code_additions": 0, "code_deletions": 0}
+
+    for line in patch_content.splitlines():
+        if line.startswith("+++") or line.startswith("---"):
+            continue
+        if line.startswith("+"):
+            additions += 1
+        elif line.startswith("-"):
+            deletions += 1
+
+    return {"code_additions": additions, "code_deletions": deletions}
 
 
 def load_task_yaml(tasks_dir: Path, instance_id: str) -> dict[str, Any] | None:
@@ -499,13 +510,12 @@ def generate_task_data(
     instance_id: str,
     model_runs: list[ModelRun],
     tasks_dir: Path,
-    bq_data: dict[str, Any] | None = None,
     reviews_results: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Generate all data needed for a single task HTML."""
     # Load task definition
     task_yaml = load_task_yaml(tasks_dir, instance_id)
-    task_bq_data = bq_data.get(instance_id) if bq_data else None
+    task_bq_data = None
 
     # Process multiple reviews files for this instance
     task_reviews_results = []
@@ -581,6 +591,14 @@ def generate_task_data(
                 "verifier_log": verifier_log,
             }
         )
+
+    if golden_patch:
+        task_bq_data = calculate_loc_from_patch(golden_patch)
+    elif model_results:
+        first_patch = next((r["patch"] for r in model_results if r["patch"]), None)
+        task_bq_data = calculate_loc_from_patch(first_patch)
+    else:
+        task_bq_data = {"code_additions": 0, "code_deletions": 0}
 
     return {
         "instance_id": instance_id,
@@ -1953,87 +1971,6 @@ def generate_index_html(
     index_path.write_text(html, encoding="utf-8")
 
 
-def query_bigquery(instance_ids: list[str]) -> dict[str, Any]:
-    if not instance_ids:
-        return {}
-
-    """Query BigQuery for code additions and deletions."""
-    client = bigquery.Client()
-    query = f"""
-        SELECT instance_id, changes.code_additions, changes.code_deletions
-        FROM android-bench.benchmark.TaskCandidateDimensions
-        WHERE instance_id IN ({",".join([f"'{id}'" for id in instance_ids])})
-    """
-    try:
-        query_job = client.query(query)
-        results = query_job.result()
-        return {row.instance_id: dict(row) for row in results}
-    except Exception as e:
-        print(f"Error querying BigQuery: {e}", file=sys.stderr)
-        return {}
-
-
-def upload_files(
-    output_dir: Path, folder_name: str | bool, instance_id: str | None = None
-):
-    """Copy the output directory to the destination using fileutil."""
-    if not output_dir.exists() or not output_dir.is_dir():
-        print(f"Error: Output directory {output_dir} does not exist.", file=sys.stderr)
-        return
-
-    # Determine destination folder name
-    if isinstance(folder_name, str):
-        final_folder_name = folder_name
-    else:
-        final_folder_name = datetime.now().strftime("%Y-%m-%d")
-
-    upload_dest_dir = (
-        Path("/google/data/rw/teams/android-bench/summary/") / final_folder_name
-    )
-
-    print(f"Uploading files from {output_dir} to {upload_dest_dir}...")
-    try:
-        # Create destination directory if it doesn't exist
-        upload_dest_dir.mkdir(parents=True, exist_ok=True)
-
-        # Use fileutil to copy the entire directory
-        # Command: fileutil cp -R -f -parallelism=30 [folder-with-summary] [the-specified folder]
-        if instance_id:
-            # Only upload the specific HTML file
-            source_path = str(output_dir / f"{instance_id}.html")
-            cmd = [
-                "fileutil",
-                "cp",
-                "-f",
-                source_path,
-                str(upload_dest_dir / f"{instance_id}.html"),
-            ]
-        else:
-            cmd = [
-                "fileutil",
-                "cp",
-                "-R",
-                "-f",
-                "-parallelism=30",
-                str(output_dir) + "/.",
-                str(upload_dest_dir),
-            ]
-        print(f"Executing command: {' '.join(cmd)}")
-        # Run command and pipe output to stdout/stderr
-        result = subprocess.run(cmd, text=True)
-
-        if result.returncode == 0:
-            print(f"Successfully uploaded to {upload_dest_dir}")
-        else:
-            print(
-                f"Error uploading files (exit code: {result.returncode})",
-                file=sys.stderr,
-            )
-
-    except Exception as e:
-        print(f"Error during upload: {e}", file=sys.stderr)
-
-
 def main():
     args = parse_args()
 
@@ -2120,13 +2057,12 @@ def main():
     csv_rows_by_run: dict[int, list[dict[str, Any]]] = {
         n: [] for n in runs_by_number.keys()
     }
-    bq_data = query_bigquery(list(instance_ids))
 
     input_dir_name = input_dir.name
     for instance_id in sorted(instance_ids):
         print(f"  Generating: {instance_id}")
         task_data = generate_task_data(
-            instance_id, model_runs, tasks_dir, bq_data, reviews_results
+            instance_id, model_runs, tasks_dir, reviews_results
         )
         html = generate_html(task_data, input_dir_name=input_dir_name)
 
@@ -2276,10 +2212,6 @@ def main():
     print(f"\nGenerated {len(instance_ids)} HTML files in {output_dir}")
     print(f"Generated index.csv with {len(csv_rows)} entries")
     print("Generated index.html")
-
-    if args.upload:
-        upload_files(output_dir, args.upload, instance_id=args.instance_id)
-
 
 if __name__ == "__main__":
     main()

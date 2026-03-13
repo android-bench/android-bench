@@ -14,8 +14,6 @@ classifiers = [
 ]
 dependencies = [
     "absl-py",
-    "google-cloud-storage",
-    "google-cloud-bigquery",
     "google-auth",
     "requests",
     "PyGithub",
