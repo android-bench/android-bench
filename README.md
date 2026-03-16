@@ -73,7 +73,7 @@ This launches an interactive wizard. You can also run specific subcommands direc
 - `dataset browse --category compose`
 - `dataset inspect <task_id>`
 
-For filtering and usage, see the [Task Visualizer Guide](docs/task_explorer.md).
+For filtering and usage, see the [Task Visualizer Guide](docs/task_visualizer.md).
 
 ### Running a Single Task
 > **Note on Docker Images**: Tasks run in isolated Docker containers. The very first time you run a task, the framework will build task-specific Docker images locally based on the dataset configurations.

@@ -34,6 +34,7 @@ from harness.evaluation.benchmark_worker import score_patch
 from common.config import BaseConfig
 from common.constants import AGENT_EXIT_STATUS_FILE, TASKS_DIR
 from common.models.benchmark import BenchmarkTask, PatchScore, Status
+from utils.docker.generate_docker_images import ensure_images_exist
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -151,6 +152,15 @@ def score_patches(
         end_index = len(tasks_data)
     tasks_data = tasks_data[start_index:end_index]
 
+    # Checking if the particular patch file exists for the specified task under the specified model
+    if task_key:
+        tasks_data = [
+            task for task in tasks_data if task.get("instance_id") == task_key
+        ]
+        if not tasks_data:
+            logger.error(f"Task with key {task_key} not found.")
+            return
+
     all_instance_ids = {json_data.get("instance_id") for json_data in tasks_data}
 
     tasks = []
@@ -164,13 +174,6 @@ def score_patches(
         task = BenchmarkTask.from_json(task_json, str(patch_dir), is_test_task=test_run)
         if task:
             tasks.append(task)
-    # Checking if the particular patch file exists for the specified task under the specified model
-    if task_key:
-        tasks = [task for task in tasks if task.instance_id == task_key]
-        if not tasks:
-            logger.error(f"Task with key {task_key} not found.")
-            return
-        all_instance_ids = {task_key}
 
     score_out_path = run_dir / f"{start_index}_to_{end_index-1}_{output_file}"
     os.makedirs(score_out_path.parent, exist_ok=True)
@@ -285,6 +288,15 @@ def score_patches(
             task_json["latency_details"] = (
                 asdict(task.latency_details) if task.latency_details else None
             )
+
+    if use_local_images:
+        logger.info("Ensuring all required docker images exist...")
+        ensure_images_exist(
+            filtered_task_data,
+            client,
+            tasks_dir,
+            max_workers=max_parallel_containers,
+        )
 
     with ThreadPoolExecutor(max_workers=max_parallel_containers) as executor:
         future_to_task = {
