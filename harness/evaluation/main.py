@@ -34,7 +34,6 @@ from harness.evaluation.benchmark_worker import score_patch
 from common.config import BaseConfig
 from common.constants import AGENT_EXIT_STATUS_FILE, TASKS_DIR
 from common.models.benchmark import BenchmarkTask, PatchScore, Status
-from utils.docker.generate_docker_images import ensure_images_exist
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -152,15 +151,6 @@ def score_patches(
         end_index = len(tasks_data)
     tasks_data = tasks_data[start_index:end_index]
 
-    # Checking if the particular patch file exists for the specified task under the specified model
-    if task_key:
-        tasks_data = [
-            task for task in tasks_data if task.get("instance_id") == task_key
-        ]
-        if not tasks_data:
-            logger.error(f"Task with key {task_key} not found.")
-            return
-
     all_instance_ids = {json_data.get("instance_id") for json_data in tasks_data}
 
     tasks = []
@@ -174,6 +164,13 @@ def score_patches(
         task = BenchmarkTask.from_json(task_json, str(patch_dir), is_test_task=test_run)
         if task:
             tasks.append(task)
+    # Checking if the particular patch file exists for the specified task under the specified model
+    if task_key:
+        tasks = [task for task in tasks if task.instance_id == task_key]
+        if not tasks:
+            logger.error(f"Task with key {task_key} not found.")
+            return
+        all_instance_ids = {task_key}
 
     score_out_path = run_dir / f"{start_index}_to_{end_index-1}_{output_file}"
     os.makedirs(score_out_path.parent, exist_ok=True)
@@ -367,32 +364,6 @@ def main(
     logger.info(f"Model: {model_name}")
     logger.info(f"Run directory: {run_dir}")
     logger.info("=" * 70)
-
-    if use_local_images:
-        try:
-            client = docker.DockerClient.from_env()
-            client.ping()
-            all_tasks = load_all_tasks(tasks_dir, tasks_filter)
-            tasks_data = [task.model_dump(mode="json") for task in all_tasks]
-            
-            _end_index = end_index if end_index > 0 else len(tasks_data)
-            tasks_data = tasks_data[start_index:_end_index]
-            
-            if task_key:
-                tasks_data = [
-                    task for task in tasks_data if task.get("instance_id") == task_key
-                ]
-
-            logger.info("Ensuring all required docker images exist...")
-            ensure_images_exist(
-                tasks_data,
-                client,
-                tasks_dir,
-                max_workers=max_parallel_containers,
-            )
-        except Exception as e:
-            logger.error(f"Error ensuring docker images exist: {e}")
-            return
 
     # Run verification for the single model
     score_patches(
