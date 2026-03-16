@@ -235,10 +235,10 @@ def _get_base_image_name(repo_url: str):
     return f'{repo_parts[-2]}-{repo_parts[-1].replace(".git", "")}'
 
 
-def generate_base_dockerfile(repo_url: str, tasks_dir: Path) -> Tuple[str, Path]:
+def generate_base_dockerfile(repo_url: str) -> Tuple[str, Path]:
     repo_name = _get_base_image_name(repo_url)
     image_name = f"{repo_name}-base".lower()
-    base_images_dir = tasks_dir / "base_images"
+    base_images_dir = Path(tmp_dir) / "base_images"
     base_images_dir.mkdir(parents=True, exist_ok=True)
     dockerfile_path = base_images_dir / f"{image_name}.dockerfile"
 
@@ -341,7 +341,7 @@ def ensure_images_exist(
             logger.info(f"Base image {image_name} already exists.")
         except Exception:
             logger.info(f"Base image {image_name} not found. Generating and building...")
-            _, dockerfile_path = generate_base_dockerfile(repo_url, tasks_dir)
+            _, dockerfile_path = generate_base_dockerfile(repo_url)
             base_images_to_build.append((image_name, str(dockerfile_path), tmp_dir))
 
     if base_images_to_build:
@@ -446,7 +446,7 @@ def main():
             # Generate base Dockerfiles
             repos = {task["repository"].get("url") for task in tasks}
             for repo_url in repos:
-                generate_base_dockerfile(repo_url, args.tasks_dir)
+                generate_base_dockerfile(repo_url)
 
             # Generate task Dockerfiles
             for task in tasks:
@@ -455,6 +455,9 @@ def main():
         except Exception as e:
             logger.error(f"Error generating Dockerfiles: {e}")
             sys.exit(1)
+        finally:
+            if os.path.exists(tmp_dir):
+                shutil.rmtree(tmp_dir)
 
     print("Finished")
 
