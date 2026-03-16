@@ -289,15 +289,6 @@ def score_patches(
                 asdict(task.latency_details) if task.latency_details else None
             )
 
-    if use_local_images:
-        logger.info("Ensuring all required docker images exist...")
-        ensure_images_exist(
-            filtered_task_data,
-            client,
-            tasks_dir,
-            max_workers=max_parallel_containers,
-        )
-
     with ThreadPoolExecutor(max_workers=max_parallel_containers) as executor:
         future_to_task = {
             executor.submit(
@@ -376,6 +367,32 @@ def main(
     logger.info(f"Model: {model_name}")
     logger.info(f"Run directory: {run_dir}")
     logger.info("=" * 70)
+
+    if use_local_images:
+        try:
+            client = docker.DockerClient.from_env()
+            client.ping()
+            all_tasks = load_all_tasks(tasks_dir, tasks_filter)
+            tasks_data = [task.model_dump(mode="json") for task in all_tasks]
+            
+            _end_index = end_index if end_index > 0 else len(tasks_data)
+            tasks_data = tasks_data[start_index:_end_index]
+            
+            if task_key:
+                tasks_data = [
+                    task for task in tasks_data if task.get("instance_id") == task_key
+                ]
+
+            logger.info("Ensuring all required docker images exist...")
+            ensure_images_exist(
+                tasks_data,
+                client,
+                tasks_dir,
+                max_workers=max_parallel_containers,
+            )
+        except Exception as e:
+            logger.error(f"Error ensuring docker images exist: {e}")
+            return
 
     # Run verification for the single model
     score_patches(
