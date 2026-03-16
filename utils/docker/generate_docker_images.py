@@ -26,6 +26,8 @@ import sys
 import threading
 import time
 from typing import Any, Dict, List, Tuple
+
+import docker
 from common.loader import load_all_tasks
 from common.logger import configure_logging
 from rich import print
@@ -228,6 +230,145 @@ def shell_commands_to_remove_all_commits_after_base_commit(before_commit_sha):
     git gc --prune=now --aggressive"""
 
 
+def _get_base_image_name(repo_url: str):
+    repo_parts = repo_url.split("/")
+    return f'{repo_parts[-2]}-{repo_parts[-1].replace(".git", "")}'
+
+
+def generate_base_dockerfile(repo_url: str) -> Tuple[str, Path]:
+    repo_name = _get_base_image_name(repo_url)
+    image_name = f"{repo_name}-base".lower()
+    base_images_dir = Path(tmp_dir) / "base_images"
+    base_images_dir.mkdir(parents=True, exist_ok=True)
+    dockerfile_path = base_images_dir / f"{image_name}.dockerfile"
+
+    dockerfile_content = f"""FROM android-bench-env
+RUN git clone {repo_url} /workspace/testbed
+WORKDIR /workspace
+"""
+    with open(dockerfile_path, "w") as f:
+        f.write(dockerfile_content)
+
+    return image_name, dockerfile_path
+
+
+def generate_task_dockerfile(task: Dict[str, Any], tasks_dir: Path) -> Tuple[str, Path]:
+    image_name = task["instance_id"].lower()
+    task_dir = tasks_dir / task["instance_id"]
+    task_dir.mkdir(parents=True, exist_ok=True)
+    dockerfile_path = task_dir / "Dockerfile"
+
+    repo_info = task["repository"]
+    repo_url = repo_info.get("url")
+    before_commit_info = task["before_commit"]
+    java_version = before_commit_info.get("java_version")
+    if not java_version:
+        java_version = 17
+
+    # BUILD type tasks don't build to start, so skip trying to build them during docker build
+    if task["testing_type"] == "BUILD":
+        build_commands = []
+    else:
+        build_commands = task["commands"].get("build") or ["./gradlew assembleDebug"]
+
+    before_build_commands = task["commands"].get("before_build") or []
+    all_commands = [
+        cmd for cmd in before_build_commands + build_commands if cmd and cmd.strip()
+    ]
+    build_command = " && ".join(all_commands)
+    java_home = f"/usr/lib/jvm/java-{java_version}-openjdk-amd64"
+    java_home_env = f"ENV JAVA_HOME={java_home}"
+
+    if "sha" not in before_commit_info:
+        raise ValueError("sha must be specified in before_commit.")
+    commit_sha = before_commit_info.get("sha")
+    git_reset_command = f"git reset --hard {commit_sha}"
+    dockerfile_content = f"""FROM {_get_base_image_name(repo_url).lower()}-base
+{java_home_env}
+ENV GRADLE_OPTS="-Xmx6g"
+RUN cd /workspace/testbed && \\
+    {git_reset_command} && \\
+    {shell_commands_to_remove_all_commits_after_base_commit(commit_sha)}"""
+
+    if build_command:
+        dockerfile_content = dockerfile_content + f""" && \\
+    {build_command}"""
+    dockerfile_content = dockerfile_content + "\nWORKDIR /workspace/testbed\n"
+    with open(dockerfile_path, "w") as f:
+        f.write(dockerfile_content)
+
+    return image_name, dockerfile_path
+
+
+def ensure_images_exist(
+    tasks: List[Dict[str, Any]],
+    client: Any,
+    tasks_dir: Path,
+    max_workers: int = 4,
+):
+    """Ensures that all required docker images exist for the given tasks."""
+    script_dir = os.path.dirname(os.path.realpath(__file__))
+    root_dir = os.path.abspath(os.path.join(script_dir, "..", ".."))
+
+    # 1. Ensure android-bench-env exists
+    try:
+        client.images.get("android-bench-env")
+        logger.info("Image android-bench-env already exists.")
+    except Exception:
+        logger.info("Image android-bench-env not found. Building...")
+        _build_images(
+            [
+                (
+                    "android-bench-env",
+                    os.path.join(root_dir, "utils/docker/Dockerfile"),
+                    root_dir,
+                )
+            ],
+            max_workers,
+            "android-bench-env",
+        )
+        if "android-bench-env" in failed_builds:
+            raise RuntimeError("Failed to build android-bench-env image")
+
+    # 2. Ensure base images exist
+    repos = {task["repository"].get("url") for task in tasks}
+    base_images_to_build = []
+    for repo_url in repos:
+        repo_name = _get_base_image_name(repo_url)
+        image_name = f"{repo_name}-base".lower()
+        try:
+            client.images.get(image_name)
+            logger.info(f"Base image {image_name} already exists.")
+        except Exception:
+            logger.info(f"Base image {image_name} not found. Generating and building...")
+            _, dockerfile_path = generate_base_dockerfile(repo_url)
+            base_images_to_build.append((image_name, str(dockerfile_path), tmp_dir))
+
+    if base_images_to_build:
+        _build_images(base_images_to_build, max_workers, "base")
+        for image_name, _, _ in base_images_to_build:
+            if image_name in failed_builds:
+                raise RuntimeError(f"Failed to build base image {image_name}")
+
+    # 3. Ensure task images exist
+    task_images_to_build = []
+    for task in tasks:
+        image_name = task["instance_id"].lower()
+        try:
+            client.images.get(image_name)
+            logger.info(f"Task image {image_name} already exists.")
+        except Exception:
+            logger.info(f"Task image {image_name} not found. Generating and building...")
+            _, dockerfile_path = generate_task_dockerfile(task, tasks_dir)
+            task_images_to_build.append((image_name, str(dockerfile_path), tmp_dir))
+
+    if task_images_to_build:
+        _build_images(task_images_to_build, max_workers, "task")
+        for image_name, _, _ in task_images_to_build:
+            if image_name in failed_builds:
+                raise RuntimeError(f"Failed to build task image {image_name}")
+
+
 def main():
     run_prebuild_checks()
     script_dir = os.path.dirname(os.path.realpath(__file__))
@@ -267,153 +408,58 @@ def main():
     args = parser.parse_args()
 
     if args.build:
-        _build_images(
-            [
-                (
-                    "android-bench-env",
-                    os.path.join(root_dir, "utils/docker/Dockerfile"),
-                    root_dir,
-                )
-            ],
-            args.max_workers,
-            "android-bench-env",
-        )
+        client = docker.DockerClient.from_env()
+        try:
+            all_tasks = load_all_tasks(args.tasks_dir, args.tasks_filter)
+            tasks = [task.model_dump(mode="json") for task in all_tasks]
 
-        if len(failed_builds) > 0:
-            print("Base must be buildable")
-            exit()
+            if args.task_id:
+                tasks = [task for task in tasks if task["instance_id"] == args.task_id]
+                if not tasks:
+                    raise ValueError(f"Task with id {args.task_id} not found.")
 
-    try:
-        all_tasks = load_all_tasks(args.tasks_dir, args.tasks_filter)
-        tasks = [task.model_dump(mode="json") for task in all_tasks]
-
-        if len(tasks) == 0:
-            logger.info("No tasks to process")
-
-        if args.task_id:
-            tasks = [task for task in tasks if task["instance_id"] == args.task_id]
-            if not tasks:
-                raise ValueError(f"Task with id {args.task_id} not found.")
-
-        # Generate and build base images first
-        repos = set()
-        for task in tasks:
-            repos.add(task["repository"].get("url"))
-
-        Path(tmp_dir).mkdir(parents=True, exist_ok=True)
-        base_images_to_build: list[tuple[str, str, str]] = []
-        total_repos = len(repos)
-        for i, (repo_url) in enumerate(repos):
-
-            repo_name = _get_base_image_name(repo_url)
-            image_name = f"{repo_name}-base".lower()
-            base_images_dir = args.tasks_dir / "base_images"
-            base_images_dir.mkdir(parents=True, exist_ok=True)
-            dockerfile_path = base_images_dir / f"{image_name}.dockerfile"
-
-            if args.build:
-                base_images_to_build.append((image_name, str(dockerfile_path), tmp_dir))
-
-            logger.info(
-                "Generating docker image %d/%d for: %s",
-                i + 1,
-                total_repos,
-                image_name,
+            ensure_images_exist(
+                tasks, client, args.tasks_dir, max_workers=args.max_workers
             )
+        except Exception as e:
+            logger.error(f"Error ensuring images exist: {e}")
+            sys.exit(1)
+        finally:
+            if os.path.exists(tmp_dir):
+                shutil.rmtree(tmp_dir)
+            if failed_builds:
+                with open("known_failures.yaml", "w") as f:
+                    yaml.dump(failed_builds, f)
+                print(f"Failed builds: {failed_builds}")
+                sys.exit(1)
+    else:
+        # Just generate Dockerfiles without building
+        try:
+            all_tasks = load_all_tasks(args.tasks_dir, args.tasks_filter)
+            tasks = [task.model_dump(mode="json") for task in all_tasks]
 
-            dockerfile_content = f"""FROM android-bench-env
-RUN git clone {repo_url} /workspace/testbed
-WORKDIR /workspace
-"""
-            with open(dockerfile_path, "w") as f:
-                f.write(dockerfile_content)
+            if args.task_id:
+                tasks = [task for task in tasks if task["instance_id"] == args.task_id]
+                if not tasks:
+                    raise ValueError(f"Task with id {args.task_id} not found.")
 
-        if args.build:
-            _build_images(base_images_to_build, args.max_workers, "base")
+            # Generate base Dockerfiles
+            repos = {task["repository"].get("url") for task in tasks}
+            for repo_url in repos:
+                generate_base_dockerfile(repo_url)
 
-        # Generate and build task-specific images
-        task_images_to_build: list[tuple[str, str, str]] = []
-        total_tasks = len(tasks)
-        for i, task in enumerate(tasks):
-            image_name = task["instance_id"].lower()
-            task_dir = args.tasks_dir / task["instance_id"]
-            task_dir.mkdir(parents=True, exist_ok=True)
-            dockerfile_path = task_dir / "Dockerfile"
+            # Generate task Dockerfiles
+            for task in tasks:
+                generate_task_dockerfile(task, args.tasks_dir)
 
-            logger.info(
-                "Generating docker image %d/%d for: %s",
-                i + 1,
-                total_tasks,
-                image_name,
-            )
+        except Exception as e:
+            logger.error(f"Error generating Dockerfiles: {e}")
+            sys.exit(1)
+        finally:
+            if os.path.exists(tmp_dir):
+                shutil.rmtree(tmp_dir)
 
-            repo_info = task["repository"]
-            repo_url = repo_info.get("url")
-            logger.info("Repo url %s", repo_url)
-            repo_name = repo_url.split("/")[-1].replace(".git", "")
-            before_commit_info = task["before_commit"]
-            after_commit_info = task["after_commit"]
-            java_version = before_commit_info["java_version"]
-            if not java_version:
-                java_version = 17
-            # BUILD type tasks don't build to start, so skip trying to build them during docker build
-            if task["testing_type"] == "BUILD":
-                build_commands = []
-            else:
-                build_commands = task["commands"].get("build") or [
-                    "./gradlew assembleDebug"
-                ]
-            before_build_commands = task["commands"].get("before_build") or []
-            all_commands = [
-                cmd
-                for cmd in before_build_commands + build_commands
-                if cmd and cmd.strip()
-            ]
-            build_command = " && ".join(all_commands)
-            java_home = f"/usr/lib/jvm/java-{java_version}-openjdk-amd64"
-            java_home_env = f"ENV JAVA_HOME={java_home}"
-
-            if "sha" not in before_commit_info:
-                raise ValueError("sha must be specified in before_commit.")
-            commit_sha = before_commit_info.get("sha")
-            git_reset_command = f"git reset --hard {commit_sha}"
-            dockerfile_content = f"""FROM {_get_base_image_name(repo_url).lower()}-base
-{java_home_env}
-ENV GRADLE_OPTS="-Xmx6g"
-RUN cd /workspace/testbed && \\
-    {git_reset_command} && \\
-    {shell_commands_to_remove_all_commits_after_base_commit(commit_sha)}"""
-
-            if build_command:
-                dockerfile_content = dockerfile_content + f""" && \\
-    {build_command}"""
-            dockerfile_content = dockerfile_content + "\nWORKDIR /workspace/testbed\n"
-            with open(dockerfile_path, "w") as f:
-                f.write(dockerfile_content)
-
-            if args.build:
-                task_images_to_build.append((image_name, str(dockerfile_path), tmp_dir))
-
-        if args.build:
-            _build_images(task_images_to_build, args.max_workers, "task")
-
-    except Exception:
-        import traceback
-
-        traceback.print_exc()
-
-    finally:
-        print("Finished")
-        if failed_builds:
-            with open("known_failures.yaml", "w") as f:
-                yaml.dump(failed_builds, f)
-        if os.path.exists(tmp_dir):
-            shutil.rmtree(tmp_dir)
-
-
-def _get_base_image_name(repo_url: str):
-    repo_parts = repo_url.split("/")
-    return f'{repo_parts[-2]}-{repo_parts[-1].replace(".git", "")}'
+    print("Finished")
 
 
 if __name__ == "__main__":
