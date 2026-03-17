@@ -13,7 +13,7 @@
 # limitations under the License.
 """Setup script for Android Bench.
 
-1) Installs dependencies using uv.
+1) Installs dependencies using pip.
 2) Sets up the oracle agent with golden patches.
 3) Generates the task summary for the explorer.
 4) Analyzes CPU architecture and exits gracefully if unsupported,
@@ -43,7 +43,7 @@ configure_logging()
 def check_prerequisites() -> None:
     """Checks if required system dependencies are installed."""
     missing = []
-    for cmd in ["uv", "docker"]:
+    for cmd in ["docker"]:
         if shutil.which(cmd) is None:
             missing.append(cmd)
 
@@ -76,18 +76,6 @@ def run_command(
         )
         return False
     return True
-
-
-def install_dependencies() -> None:
-    """Installs required Python dependencies using uv."""
-    if not run_command(
-        ["uv", "sync", "--all-extras"], "Installing dependencies with uv"
-    ):
-        logger.error(
-            "[bold red]Failed to sync dependencies. "
-            "Please ensure 'uv' is installed and working.[/]"
-        )
-        sys.exit(1)
 
 
 def setup_oracle() -> None:
@@ -171,16 +159,13 @@ def main() -> None:
 
     check_prerequisites()
 
-    # 1. Install Dependencies
-    install_dependencies()
-
-    # 2. Setup Oracle Agent
+    # 1. Setup Oracle Agent
     setup_oracle()
 
-    # 3. Setup Visualizer Task Summary
+    # 2. Setup Visualizer Task Summary
     generate_task_summary()
 
-    # 4. Analyze architecture and rebuild docker images
+    # 3. Analyze architecture and rebuild docker images
     analyze_docker(auto_confirm=args.yes)
 
     logger.info("[bold]=== Setup Complete ===[/]")

@@ -318,5 +318,5 @@ def inspect(
 
     console.print("\n[dim]To run this task:[/dim]")
     console.print(
-        f"[bold green]uv run run_task --model <MODEL> --task {task_id}[/bold green]\n"
+        f"[bold green]./android-bench.sh run_task --model <MODEL> --task {task_id}[/bold green]\n"
     )

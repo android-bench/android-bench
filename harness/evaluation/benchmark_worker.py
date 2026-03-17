@@ -45,7 +45,12 @@ def score_patch(
     container = None
     instance_id = task.get("instance_id", "unknown_task")
     if not host_project_path:
-        host_project_path = ROOT_DIR
+        import os
+        host_pwd = os.environ.get("HOST_PWD")
+        if host_pwd:
+            host_project_path = Path(host_pwd)
+        else:
+            host_project_path = ROOT_DIR
 
     # Set up instance-specific verifier directory
     instance_dir = run_dir / VERIFIER_RESULTS_SUBDIR_LOCAL / instance_id

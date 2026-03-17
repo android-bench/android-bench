@@ -80,7 +80,12 @@ The Evaluation stage measures the correctness of the LLM's generated patch. Beca
 
 ## 3. CLI Reference
 
-Android Bench provides CLI tools to execute benchmarks locally. After installing the project in editable mode, these scripts are automatically available in your virtual environment's PATH.
+Android Bench provides CLI tools to execute benchmarks. We offer two ways to run these commands:
+
+1.  **Dockerized CLI (Recommended for Benchmarking):** Use `./android-bench.sh <command>` to run commands in an isolated Docker container. This ensures a consistent environment and prevents host dependencies from affecting results.
+2.  **Local CLI (Recommended for Development):** Use `uv run <command>` after installing the project with `uv` in editable mode. This allows you to quickly test modifications to the framework.
+
+The examples below use `uv run`, but you can substitute it with `./android-bench.sh` if you prefer the containerized execution.
 
 ### `benchmark`
 Runs the entire pipeline end-to-end. It sequentially executes the Agent (Inference) and then immediately verifies the resulting patch.

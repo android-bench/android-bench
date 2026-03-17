@@ -37,8 +37,10 @@ RUN apt-get update && \
     openjdk-18-jdk \
     openjdk-21-jdk \
     openjdk-25-jdk \
-    qemu-kvm libvirt-daemon-system libvirt-clients bridge-utils \
+    qemu-kvm libvirt-daemon-system libvirt-clients bridge-utils kmod \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+RUN usermod -aG kvm root
 
 # Set environment variables
 ENV JAVA_HOME=/usr/lib/jvm/java-${JDK_VERSION}-openjdk-amd64

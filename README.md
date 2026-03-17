@@ -15,30 +15,43 @@ The repository provides the tooling to evaluate a model's ability to act as an A
 ## Prerequisites
 - x86_64 with [KVM-capabilities](https://en.wikipedia.org/wiki/Kernel-based_Virtual_Machine)
 - Python 3.14+
-- [uv](https://docs.astral.sh/uv/) (Fast Python package installer)
 - Docker
 - API keys for the models to benchmark
 
 > Note that using local images (v1 limitation) is **disk and memory intensive**, with base, repo, and task imags sometimes requiring +40GB of free space *each*.
 
 ## Setup
+
+We provide two paths to interact with Android Bench:
+- **Dockerized CLI (Benchmarking):** Best for consistent and reproducible benchmark runs.
+- **`uv` (Development):** Best for modifying the framework and developing new features locally.
+
+### 1. Benchmarking Setup (Docker)
 ```bash
 git clone https://github.com/android-bench/android-bench.git
 cd android-bench
 
-# Create and activate the virtual environment
-uv venv
-source .venv/bin/activate
-
-# Run the setup script
-uv run setup_env
+# Build the CLI Docker image and run setup
+./android-bench.sh setup_env
 ```
 
 The `setup_env` takes care of the following:
-1.  Installs all dependencies.
-2.  Configures the oracle agent with golden patches for testing.
-3.  Generates the `summary.json` for the dataset explorer.
-4.  Detects your host architecture (x86/AMD64 or ARM64) and builds the Docker images or exits gracefully if incompatible.
+1.  Configures the oracle agent with golden patches for testing.
+2.  Generates the `summary.json` for the dataset explorer.
+3.  Detects your host architecture (x86/AMD64 or ARM64) and builds the Docker images or exits gracefully if incompatible.
+
+### 2. Development Setup (`uv`)
+If you want to contribute to the CLI, modify the harness, or run the codebase outside of Docker, you can use `uv` to manage the Python environment locally.
+
+```bash
+# Create a virtual environment and install the project
+uv venv
+source .venv/bin/activate
+uv pip install -e '.[dev]'
+
+# Run the setup script locally
+uv run setup_env
+```
 
 ### API Configuration
 You must configure your API keys to use the supported models. Our inference agent is based on [mini-swe-agent](https://www.mini-swe-agent.com) which by default supports all models using [LiteLLM](https://github.com/BerriAI/litellm).
@@ -57,6 +70,13 @@ If you run into authentication issues, we recommend you check their [troubleshoo
 
 ## Usage
 
+### CLI Options
+Android Bench commands can be executed in two ways:
+1. **Dockerized CLI (Benchmarking):** Use `./android-bench.sh <command>`. This is highly recommended for running benchmarks as it guarantees an isolated, reproducible environment.
+2. **Local CLI (Development):** Use `uv run <command>`. This runs commands directly on your host machine, which is faster and easier for debugging or developing the Android Bench framework itself.
+
+The examples below use the Dockerized `./android-bench.sh` script, but you can swap it for `uv run` if you are running locally.
+
 ### Workflow Overview
 The benchmarking process has two stages:
 1.  **Inference (Agent)**: The agent reads the issue description and generates a code patch.
@@ -67,11 +87,11 @@ To browse available tasks or understand the dataset structure:
 
 ```bash
 # Launch the interactive explorer
-dataset
+./android-bench.sh dataset
 ```
 This launches an interactive wizard. You can also run specific subcommands directly:
-- `dataset browse --category compose`
-- `dataset inspect <task_id>`
+- `./android-bench.sh dataset browse --category compose`
+- `./android-bench.sh dataset inspect <task_id>`
 
 For filtering and usage, see the [Task Visualizer Guide](docs/task_explorer.md).
 
@@ -85,7 +105,7 @@ For filtering and usage, see the [Task Visualizer Guide](docs/task_explorer.md).
 To run the complete pipeline (inference and evaluation) for a specific task ID:
 
 ```bash
-run_task --model gemini/gemini-2.5-flash --task android_snippets_1
+./android-bench.sh run_task --model gemini/gemini-2.5-flash --task android_snippets_1
 ```
 
 ### Testing the Verifier (Oracle Agent)
@@ -94,13 +114,13 @@ The Oracle Agent applies the known canonical solutions to verify that the evalua
 ```bash
 # Setup the oracle agent (setup_env handles this)
 # Run the verifier in test mode
-verifier --test-run --run-name oracle-agent
+./android-bench.sh verifier --test-run --run-name oracle-agent
 ```
 
 ### Run Local Tests
 This project uses `pytest` for unit and integration testing. Run the CI test suite with:
 ```bash
-pytest --log-cli-level=INFO --verbose
+./android-bench.sh pytest --log-cli-level=INFO --verbose
 ```
 > You must have a Gemini API key configured for the test suite to pass.
 
@@ -110,7 +130,7 @@ To visualize the results, you can generate an HTML summary which can help you un
 Generate the HTML summary with the following command:
 
 ```bash
-results --input-dir out
+./android-bench.sh results --input-dir out
 ```
 > Remember to change the input-dir to the directory of your choice if you decide to store the results elsewhere.
 
@@ -125,13 +145,24 @@ We host the evaluation results, including trajectories and generated patches use
 >
 > ```bash
 > # Downloads and extracts gemini-3.1-pro-preview to results/v1_20260305/gemini-3.1-pro-preview
-> download_results --models gemini-3.1-pro-preview --dir results/v1_20260305
+> ./android-bench.sh download_results --models gemini-3.1-pro-preview --dir results/v1_20260305
 > ```
 
 Once decompressed, you can generate the HTML summary for any of the leaderboard models using the `results` script:
 
 ```bash
-results --input-dir results/v1_20260305/gemini-3.1-pro-preview
+./android-bench.sh results --input-dir results/v1_20260305/gemini-3.1-pro-preview
+```
+
+## Cleaning Up Resources
+Android Bench generates several Docker images during execution which can consume significant disk space. You can use the `cleanup` command to free up resources:
+
+```bash
+# Remove only task-specific images and stopped containers
+./android-bench.sh cleanup
+
+# Remove ALL images (including base environment images) and prune build cache
+./android-bench.sh cleanup --all
 ```
 
 ## Detailed Documentation
