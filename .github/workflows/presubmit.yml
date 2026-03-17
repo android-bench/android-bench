@@ -1,0 +1,12 @@
+name: Presubmit
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  call-reusable-test:
+    uses: ./.github/workflows/reusable-test.yml
+    with:
+      runs_on: ubuntu-latest

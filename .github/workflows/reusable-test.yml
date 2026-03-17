@@ -1,0 +1,59 @@
+name: reusable-test
+
+on:
+  workflow_call:
+    inputs:
+      runs_on:
+        description: 'The GitHub runner on which to execute.'
+        type: 'string'
+        default: 'ubuntu-latest'
+
+jobs:
+  test:
+    runs-on: ${{ inputs.runs_on }}
+
+    permissions:
+      contents: read
+      id-token: write # Required for Workload Identity Federation
+
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.14"]
+      fail-fast: false
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          version: "latest"
+
+      - name: Install Dependencies
+        run: |
+          uv sync --extra dev --extra analysis
+
+      - name: Check Formatting
+        run: |
+          uv run black --check .
+
+      - name: Run Tests
+        env:
+          ANDROID_BENCH_HOST_PATH: ${{ github.workspace }}
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          uv run pytest -m "not local" --log-cli-level=INFO --verbose | tee pytest_logs_${{ matrix.python-version }}.log
+          
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.python-version }}
+          path: pytest_logs_*.log
