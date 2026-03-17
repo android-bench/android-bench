@@ -24,7 +24,6 @@ modified_at: '2025-12-05T17:01:57.276500Z'
 category_ids:
 - compose
 - android-apis
-- AUTOMATIC
 app_category: Library
 task_type: bugfix
 description: |-

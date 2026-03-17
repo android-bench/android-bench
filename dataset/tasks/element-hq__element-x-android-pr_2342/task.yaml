@@ -25,7 +25,6 @@ category_ids:
 - compose
 - viewModel
 - performance
-- AUTOMATIC
 app_category: Communication
 task_type: feature
 description: |-

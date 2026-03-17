@@ -25,7 +25,6 @@ category_ids:
 - buildGradle
 - kmp
 - coroutines-flows
-- AUTOMATIC
 app_category: Library
 task_type: feature
 description: |-

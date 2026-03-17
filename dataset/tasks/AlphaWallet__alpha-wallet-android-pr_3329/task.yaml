@@ -22,7 +22,7 @@ repository:
 created_at: '2025-11-14T17:28:59.386000Z'
 modified_at: '2025-11-14T17:28:59.386000Z'
 category_ids:
-- android-apis
+- deep-linking
 app_category: Finance
 task_type: feature
 description: |-
@@ -31,7 +31,7 @@ description: |-
   Alpha wallet Android does not handle deep links that use the custom awallet: URI scheme along with open URLs.
 
   It should be able to handle any supported deep link type provided in the following format:
-  
+
   awallet://openURL?q=<Payload>
 before_commit:
   java_version: 17

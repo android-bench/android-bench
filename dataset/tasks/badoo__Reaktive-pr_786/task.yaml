@@ -22,7 +22,6 @@ repository:
 created_at: '2025-11-17T10:12:39.189825Z'
 modified_at: '2025-11-19T22:04:52.816957Z'
 category_ids:
-- android-apis
 - kmp
 app_category: Library
 task_type: bugfix

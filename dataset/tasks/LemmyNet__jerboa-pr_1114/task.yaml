@@ -24,7 +24,6 @@ category_ids:
 - compose
 - android-apis
 - viewModel
-- AUTOMATIC
 app_category: Social
 task_type: bugfix
 description: |-

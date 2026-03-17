@@ -23,7 +23,6 @@ created_at: '2025-11-14T17:08:32.133000Z'
 modified_at: '2025-11-14T17:08:32.133000Z'
 category_ids:
 - android-apis
-- networking
 - room
 app_category: News & Magazines
 task_type: feature

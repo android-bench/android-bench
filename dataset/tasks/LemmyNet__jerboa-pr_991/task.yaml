@@ -26,8 +26,6 @@ category_ids:
 - navigation
 - material
 - android-apis
-- talkback
-- AUTOMATIC
 app_category: Social
 task_type: refactor
 description: |-

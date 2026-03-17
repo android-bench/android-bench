@@ -22,10 +22,7 @@ repository:
 created_at: '2025-11-14T17:28:59.342000Z'
 modified_at: '2025-11-14T17:28:59.342000Z'
 category_ids:
-- buildGradle
 - compose
-- dependencyUpgrades
-- material
 app_category: Library
 task_type: bugfix
 description: |-

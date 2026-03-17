@@ -24,7 +24,6 @@ category_ids:
 - compose
 - material
 - performance
-- AUTOMATIC
 app_category: Communication
 task_type: feature
 description: |-
