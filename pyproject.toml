@@ -21,7 +21,7 @@ dependencies = [
     "PyGithub",
     "PyYAML",
     "uv",
-    "aiohttp==3.13.3",
+    "aiohttp==3.12.15",
     "datasets==4.0.0",
     "mini-swe-agent==1.11.1",
     "docker==7.1.0",
@@ -51,7 +51,7 @@ analysis = [
     "shfmt-py",
 ]
 dev = [
-    "black==26.3.1",
+    "black==26.1.0",
     "pre-commit",
     "pytest",
     "pytest-xdist",
@@ -72,7 +72,6 @@ test = "pytest:main"
 dataset = "utils.explorer.commands:app"
 prebuild_checks = "utils.docker.prebuild:main"
 results = "results.generate_task_html:main"
-download_results = "utils.download_results:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
