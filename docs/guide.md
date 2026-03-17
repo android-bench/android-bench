@@ -12,30 +12,38 @@ This guide provides comprehensive instructions for setting up Android Bench, und
 
 ## 1. Development Setup
 
-This section explains how to set up Android Bench locally. The project uses a containerized architecture to ensure a consistent environment across different host machines.
+This section explains how to set up Android Bench locally. The project uses `pyproject.toml` to manage dependencies and relies on `uv` for fast package installation.
 
 ### Prerequisites
 
-- x86_64 CPU with KVM support
-- Docker
+- Python 3.11+
+- `uv` (Fast Python package installer)
+
+If you don't already have `uv` installed, you can get it via pip:
+```bash
+pip install uv
+```
 
 ### Creating the Environment
 
-To set up the CLI Docker environment and configure the Oracle Agent, run the provided setup script:
+We advise using a virtual environment to isolate the project's dependencies from your global Python installation.
 
 ```bash
-# Build the CLI Docker image and run setup
-./android-bench.sh setup_env
-```
+# Create a virtual environment
+uv venv
 
-This script will automatically detect your architecture and build the necessary Docker images to run the Android Bench pipeline.
+# Activate the virtual environment
+source .venv/bin/activate
+
+# Install the project in editable mode, including development dependencies
+uv pip install -e '.[dev]'
+```
 
 ### Pre-commit Hooks
 
-This project enforces code formatting via `black`. If you plan to contribute, initialize the pre-commit hooks in your local Git repository:
+This project enforces code formatting via `black` as a pre-commit hook. Initialize the hooks in your local Git repository:
 
 ```bash
-pip install pre-commit black
 pre-commit install
 ```
 Once configured, `black` will automatically evaluate and format your Python files before every commit.
@@ -72,7 +80,12 @@ The Evaluation stage measures the correctness of the LLM's generated patch. Beca
 
 ## 3. CLI Reference
 
-Android Bench provides CLI tools to execute benchmarks locally. After installing the project in editable mode, these scripts are automatically available in your virtual environment's PATH.
+Android Bench provides CLI tools to execute benchmarks. We offer two ways to run these commands:
+
+1.  **Dockerized CLI (Recommended for Benchmarking):** Use `./android-bench.sh <command>` to run commands in an isolated Docker container. This ensures a consistent environment and prevents host dependencies from affecting results.
+2.  **Local CLI (Recommended for Development):** Use `uv run <command>` after installing the project with `uv` in editable mode. This allows you to quickly test modifications to the framework.
+
+The examples below use `uv run`, but you can substitute it with `./android-bench.sh` if you prefer the containerized execution.
 
 ### `benchmark`
 Runs the entire pipeline end-to-end. It sequentially executes the Agent (Inference) and then immediately verifies the resulting patch.
@@ -81,7 +94,7 @@ Runs the entire pipeline end-to-end. It sequentially executes the Agent (Inferen
 
 ```bash
 # Run 5 consecutive benchmark runs using Gemini 2.5 Flash
-./android-bench.sh benchmark --model gemini/gemini-2.5-flash --num_runs 5
+uv run benchmark --model gemini/gemini-2.5-flash --num_runs 5
 ```
 **Resuming a Run:** If a run is interrupted, you can resume it by specifying the `--run-name` and using the `--skip-existing` flag.
 
@@ -92,7 +105,7 @@ Runs the entire pipeline (inference and evaluation) for a **single** task. This 
 
 ```bash
 # Run a single task
-./android-bench.sh run_task --model gemini/gemini-2.5-flash --task <TASK_ID>
+uv run run_task --model gemini/gemini-2.5-flash --task <TASK_ID>
 ```
 **Key Arguments:**
 - `--model`: (Required) The model to use for the agent.
@@ -105,22 +118,22 @@ Constructs the necessary Docker environments for the benchmark tasks locally.
 > **When is this necessary?** Building images manually is typically only required if you intend to run the verifier independently of the main `benchmark` or `run_task` commands, or if you are running the verifier in test mode (e.g., with the oracle agent). The `run_task` command handles this automatically.
 
 ```bash
-./android-bench.sh build_images --build
+uv run build_images --build
 ```
 
-> **macOS / ARM64 Warning:** The Android SDK emulator package is only available for `linux/amd64`. If you are building on an Apple Silicon (M-series) Mac, you **must** supply the `--arch linux/amd64` flag: `./android-bench.sh build_images --build --arch linux/amd64`. Note that running the emulator inside Docker on macOS is severely limited due to the lack of KVM support. See the Troubleshooting Guide for workarounds.
+> **macOS / ARM64 Warning:** The Android SDK emulator package is only available for `linux/amd64`. If you are building on an Apple Silicon (M-series) Mac, you **must** supply the `--arch linux/amd64` flag: `uv run build_images --build --arch linux/amd64`. Note that running the emulator inside Docker on macOS is severely limited due to the lack of KVM support. See the Troubleshooting Guide for workarounds.
 
 ### `agent`
 Executes only the Inference stage. It prompts the model to generate patches for a set of tasks but does not attempt to evaluate them.
 ```bash
-./android-bench.sh agent -i <TASK_ID> --model openai/gpt-4o
+uv run agent -i <TASK_ID> --model openai/gpt-4o
 ```
 
 ### `verifier`
 Executes only the Evaluation stage. It takes the patches previously generated by an agent and scores them.
 
 ```bash
-./android-bench.sh verifier --run-name <your_run_name>
+uv run verifier --run-name <your_run_name>
 ```
 
 ### `oracle-agent`
@@ -129,19 +142,19 @@ Sets up the environment with canonical patches (oracle solutions) for the benchm
 > **When is this necessary?** You only need to run this setup if you want to run the verifier using the known "golden" patches (the canonical solutions) to validate that a specific task's test suite and environment are functioning correctly.
 
 ```bash
-./android-bench.sh setup_oracle_agent
-./android-bench.sh verifier --test-run --run-name oracle-test
+uv run setup_oracle_agent
+uv run verifier --test-run --run-name oracle-test
 ```
 
 ### Visualization & Reporting Tools
 
 - **`generate-html`**: Generates self-contained HTML reports for each task in a benchmark run.
   ```bash
-  ./android-bench.sh generate-html --input-dir out
+  uv run generate-html --input-dir out
   ```
 - **`summarize`**: Generates a CSV summary of pass rates and other metrics across multiple model runs.
   ```bash
-  ./android-bench.sh summarize out
+  uv run summarize out
   ```
 
 ---

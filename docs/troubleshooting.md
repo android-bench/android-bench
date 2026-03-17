@@ -75,7 +75,7 @@ If you are developing a new agent or debugging a model's behavior and want to un
 2. **Execution Failure (No KVM):** Docker Desktop for Mac does not support nested virtualization. The macOS host cannot expose KVM (`/dev/kvm`) to the Docker container. Emulators running inside Docker on a Mac will fall back to extremely slow software emulation or fail to boot entirely.
 
 **Resolution:**
-1. **To build the images:** You must force Docker to build an AMD64 image by passing the `--arch` flag: `./android-bench.sh build_images --build --arch linux/amd64`. Docker Desktop will use Rosetta/QEMU to build the image successfully.
+1. **To build the images:** You must force Docker to build an AMD64 image by passing the `--arch` flag: `uv run build_images --build --arch linux/amd64`. Docker Desktop will use Rosetta/QEMU to build the image successfully.
 2. **To execute the benchmark:**
    - **Recommended:** Run the benchmark on a dedicated Linux machine with KVM enabled.
    - **Alternative:** Run a Linux VM (e.g., via Parallels, VMware) with nested virtualization enabled, install Docker inside that VM, and execute the benchmark from there.

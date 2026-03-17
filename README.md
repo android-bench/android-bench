@@ -21,6 +21,12 @@ The repository provides the tooling to evaluate a model's ability to act as an A
 > Note that using local images (v1 limitation) is **disk and memory intensive**, with base, repo, and task imags sometimes requiring +40GB of free space *each*.
 
 ## Setup
+
+We provide two paths to interact with Android Bench:
+- **Dockerized CLI (Benchmarking):** Best for consistent and reproducible benchmark runs.
+- **`uv` (Development):** Best for modifying the framework and developing new features locally.
+
+### 1. Benchmarking Setup (Docker)
 ```bash
 git clone https://github.com/android-bench/android-bench.git
 cd android-bench
@@ -33,6 +39,19 @@ The `setup_env` takes care of the following:
 1.  Configures the oracle agent with golden patches for testing.
 2.  Generates the `summary.json` for the dataset explorer.
 3.  Detects your host architecture (x86/AMD64 or ARM64) and builds the Docker images or exits gracefully if incompatible.
+
+### 2. Development Setup (`uv`)
+If you want to contribute to the CLI, modify the harness, or run the codebase outside of Docker, you can use `uv` to manage the Python environment locally.
+
+```bash
+# Create a virtual environment and install the project
+uv venv
+source .venv/bin/activate
+uv pip install -e '.[dev]'
+
+# Run the setup script locally
+uv run setup_env
+```
 
 ### API Configuration
 You must configure your API keys to use the supported models. Our inference agent is based on [mini-swe-agent](https://www.mini-swe-agent.com) which by default supports all models using [LiteLLM](https://github.com/BerriAI/litellm).
@@ -51,8 +70,12 @@ If you run into authentication issues, we recommend you check their [troubleshoo
 
 ## Usage
 
-### Dockerized CLI
-Android Bench now uses a containerized execution environment. All commands should be run through the `./android-bench.sh` wrapper script, which transparently executes them inside an isolated Docker container containing all necessary dependencies.
+### CLI Options
+Android Bench commands can be executed in two ways:
+1. **Dockerized CLI (Benchmarking):** Use `./android-bench.sh <command>`. This is highly recommended for running benchmarks as it guarantees an isolated, reproducible environment.
+2. **Local CLI (Development):** Use `uv run <command>`. This runs commands directly on your host machine, which is faster and easier for debugging or developing the Android Bench framework itself.
+
+The examples below use the Dockerized `./android-bench.sh` script, but you can swap it for `uv run` if you are running locally.
 
 ### Workflow Overview
 The benchmarking process has two stages:

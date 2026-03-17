@@ -18,6 +18,7 @@ dependencies = [
     "requests",
     "PyGithub",
     "PyYAML",
+    "uv",
     "aiohttp==3.13.3",
     "datasets==4.0.0",
     "mini-swe-agent==1.11.1",
@@ -78,3 +79,7 @@ exclude = ["out*"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
+
+[[tool.uv.index]]
+url = "https://pypi.org/simple"
+default = true
