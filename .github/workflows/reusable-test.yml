@@ -14,7 +14,6 @@ jobs:
 
     permissions:
       contents: read
-      id-token: write # Required for Workload Identity Federation
 
     strategy:
       matrix:
