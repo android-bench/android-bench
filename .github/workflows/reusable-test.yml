@@ -56,6 +56,7 @@ jobs:
           ANDROID_BENCH_HOST_PATH: ${{ github.workspace }}
           PYTHONPATH: ${{ github.workspace }}
         run: |
+          set -o pipefail
           uv run pytest -m "not local" --log-cli-level=INFO --verbose | tee pytest_unit_logs_${{ matrix.python-version }}.log
 
       - name: Run Integration Tests
@@ -63,6 +64,7 @@ jobs:
           ANDROID_BENCH_HOST_PATH: ${{ github.workspace }}
           PYTHONPATH: ${{ github.workspace }}
         run: |
+          set -o pipefail
           uv run pytest tests/harness_evaluation_integration_test/integration_test.py --log-cli-level=INFO --verbose | tee pytest_integration_logs_${{ matrix.python-version }}.log
 
       - name: Upload Test Results
