@@ -2213,5 +2213,6 @@ def main():
     print(f"Generated index.csv with {len(csv_rows)} entries")
     print("Generated index.html")
 
+
 if __name__ == "__main__":
     main()
