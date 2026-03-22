@@ -10,6 +10,7 @@ on:
 
 jobs:
   test:
+    name: "Run Test Suite"
     runs-on: ${{ inputs.runs_on }}
 
     permissions:
@@ -66,6 +67,18 @@ jobs:
         run: |
           set -o pipefail
           uv run pytest tests/harness_evaluation_integration_test/integration_test.py --log-cli-level=INFO --verbose | tee pytest_integration_logs_${{ matrix.python-version }}.log
+
+      - name: Create CI Subset Filter
+        run: |
+          echo "- chrisbanes__haze-pr_250" > ci_subset.yaml
+
+      - name: Build Docker Images (Subset)
+        run: |
+          uv run build_images --build --tasks-filter ci_subset.yaml
+
+      - name: Run Oracle Verification
+        run: |
+          uv run verifier --run-name oracle_verify --test-run --tasks-filter ci_subset.yaml
 
       - name: Upload Test Results
         if: always()
