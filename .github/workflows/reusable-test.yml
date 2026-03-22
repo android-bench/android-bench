@@ -82,7 +82,7 @@ jobs:
 
       - name: Run Oracle Verification
         run: |
-          uv run verifier --run-name oracle_verify --test-run --tasks-filter ci_subset.yaml
+          uv run verifier --run-name oracle-agent --test-run --tasks-filter ci_subset.yaml
 
       - name: Upload Test Results
         if: always()
