@@ -76,6 +76,10 @@ jobs:
         run: |
           uv run build_images --build --tasks-filter ci_subset.yaml
 
+      - name: Setup Oracle Agent Dependencies
+        run: |
+          uv run setup_oracle_agent
+
       - name: Run Oracle Verification
         run: |
           uv run verifier --run-name oracle_verify --test-run --tasks-filter ci_subset.yaml
