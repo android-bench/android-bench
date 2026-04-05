@@ -1,0 +1,92 @@
+name: reusable-test
+
+on:
+  workflow_call:
+    inputs:
+      runs_on:
+        description: 'The GitHub runner on which to execute.'
+        type: 'string'
+        default: 'ubuntu-latest'
+
+jobs:
+  test:
+    name: "Run Test Suite"
+    runs-on: ${{ inputs.runs_on }}
+
+    permissions:
+      contents: read
+
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.14"]
+      fail-fast: false
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          version: "latest"
+
+      - name: Install Dependencies
+        run: |
+          uv sync --extra dev --extra analysis
+
+      - name: Check Formatting
+        run: |
+          uv run black --check .
+
+      - name: Enable KVM Support
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          test -e /dev/kvm && echo "KVM exists and is accessible" || echo "KVM does NOT exist or is not accessible"
+          groups
+
+      - name: Run Unit Tests
+        env:
+          ANDROID_BENCH_HOST_PATH: ${{ github.workspace }}
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          set -o pipefail
+          uv run pytest -m "not local" --log-cli-level=INFO --verbose | tee pytest_unit_logs_${{ matrix.python-version }}.log
+
+      - name: Run Integration Tests
+        env:
+          ANDROID_BENCH_HOST_PATH: ${{ github.workspace }}
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          set -o pipefail
+          uv run pytest tests/harness_evaluation_integration_test/integration_test.py --log-cli-level=INFO --verbose | tee pytest_integration_logs_${{ matrix.python-version }}.log
+
+      - name: Create CI Subset Filter
+        run: |
+          echo "- chrisbanes__haze-pr_250" > ci_subset.yaml
+
+      - name: Build Docker Images (Subset)
+        run: |
+          uv run build_images --build --tasks-filter ci_subset.yaml
+
+      - name: Setup Oracle Agent Dependencies
+        run: |
+          uv run setup_oracle_agent
+
+      - name: Run Oracle Verification
+        run: |
+          uv run verifier --run-name oracle-agent --test-run --tasks-filter ci_subset.yaml
+
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.python-version }}
+          path: pytest_*_logs_*.log
