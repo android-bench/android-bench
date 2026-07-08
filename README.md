@@ -1,5 +1,5 @@
 >[!IMPORTANT]
-> We have adopted the [Harbor framework](https://www.harborframework.com/) to continue providing you with the best evaluations that accurately measure the latest model capabilities. Check out [Harbor Hub](https://hub.harborframework.com/) to explore the dataset there.
+> We have adopted the [Harbor framework](https://www.harborframework.com/) to continue providing you with the best evaluations that accurately measure the latest model capabilities. Check out [Harbor Hub](https://hub.harborframework.com/datasets/android-bench/android-bench/latest) to explore the dataset there.
 
 # Android Bench
 
