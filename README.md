@@ -1,3 +1,6 @@
+>[!IMPORTANT]
+> We have adopted the [Harbor framework](https://www.harborframework.com/) to continue providing you with the best evaluations that accurately measure the latest model capabilities. Check out [Harbor Hub](https://hub.harborframework.com/) to explore the dataset there.
+
 # Android Bench
 
 Android Bench is a framework for benchmarking Large Language Models (LLMs) on Android development tasks. It evaluates an AI model's ability to understand mobile codebases, generate accurate patches, and solve Android-specific engineering problems.
