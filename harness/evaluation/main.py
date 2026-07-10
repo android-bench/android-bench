@@ -159,7 +159,7 @@ def score_patches(
         if test_run:
             patch_dir = Path("dataset/tasks") / task_json.get("instance_id")
             logger.info(
-                f"Instance {task_json.get("instance_id")}: --- Using patch_dir: {patch_dir} ---"
+                f"Instance {task_json.get('instance_id')}: --- Using patch_dir: {patch_dir} ---"
             )
         task = BenchmarkTask.from_json(task_json, str(patch_dir), is_test_task=test_run)
         if task:

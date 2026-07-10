@@ -22,6 +22,7 @@ def test_dump_known_failures(mocker, tmp_path, monkeypatch):
     mocker.patch("sys.argv", ["generate_docker_images.py"])
     mock_load_tasks = mocker.patch("utils.docker.generate_docker_images.load_all_tasks")
     mocker.patch("utils.docker.generate_docker_images._build_images")
+    mocker.patch("utils.docker.generate_docker_images.run_prebuild_checks")
     mocker.patch("shutil.rmtree")
     mocker.patch("os.path.exists", return_value=True)
 
